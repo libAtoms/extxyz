@@ -76,7 +76,7 @@ Value type is determined from context in the following order, until first match
     *   No entirely sure how implement this - need data types of _all_ entries to decide if consistent array can be made (e.g. promote int to float if needed).  What about mix of things that look like numbers and things that don’t - demote all to strings, or error?
 *   Otherwise, match primitive data type by logic above
 
-**Special key** “**Properties”: **defines the columns in the subsequent lines in the frame. 
+**Special key "Properties”**: defines the columns in the subsequent lines in the frame. 
 
 *   If after full parsing the key “Properties” is missing, the format is retroactively assumed to be plain xyz (4 columns, Z/species x y z), the entire second line is stored as a per-config “comment” property, and columns beyond the 4th are not read. 
 *   Value is a string with the format of a series of triplets, separated by “:”, each triplet having the format: “&lt;name>:&lt;T>:&lt;m>”. 
