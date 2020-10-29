@@ -86,6 +86,6 @@ def test():
 
 
 if __name__ == '__main__':
-    # test()
-    with open(sys.argv[1]) as f:
-        print(parse(f.read()))
+    test()
+    # with open(sys.argv[1]) as f:
+    #     print(parse(f.read()))
