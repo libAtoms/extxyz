@@ -1,8 +1,8 @@
-all: expr expr.py
+all: expr expr.py.py
 
 expr: expr.c.par
 	unicc expr.c.par
 	gcc -o expr expr.c.c
 
-expr.py: expr.py.par
+expr.py.py: expr.py.par
 	unicc expr.py.par
