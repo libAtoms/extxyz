@@ -6,7 +6,7 @@ json: grammar.o main.o
 	gcc $^ -o $@ -lcleri
 
 grammar.c:
-	python json.py
+	python json_example.py
 
 
 
