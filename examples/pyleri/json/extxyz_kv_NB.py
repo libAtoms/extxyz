@@ -40,12 +40,7 @@ class JsonGrammar(Grammar):
     one_d_array = Sequence('[', Choice(ints, floats, strings, bools), ']')
     two_d_array = Sequence('[', one_d_array, ']')
 
-    key_item = Choice(
-        r_float,
-        r_integer,
-        k_true,
-        k_false,
-        r_string)
+    key_item = Choice(r_string)
 
     val_item = Choice(
         r_float,
@@ -58,7 +53,7 @@ class JsonGrammar(Grammar):
         one_d_array,
         two_d_array)
 
-    kv_pair = Sequence(key_item, '=', val_item, Optional(Regex(r'\s+')))
+    kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))
 
     START = Repeat(kv_pair)
 
