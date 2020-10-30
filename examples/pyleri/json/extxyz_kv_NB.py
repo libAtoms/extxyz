@@ -90,5 +90,9 @@ import sys
 test_json = sys.stdin.readline().strip()
 # test_json = '{"Name": "Iris", "Age": 4, "test" : "bob \\""}'
 result = grammar.parse(test_json)
+parsed_part = result.tree.children[0].string
+if test_json != parsed_part:
+    print("Failed to parse entire input line, only '{}'".format(parsed_part))
+    print("")
 
 print(json.dumps(view_parse_tree(result), indent=2))
