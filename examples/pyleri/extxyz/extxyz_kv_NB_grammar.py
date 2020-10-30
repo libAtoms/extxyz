@@ -17,8 +17,8 @@ class ExtxyzKVGrammar(Grammar):
     r_quotedstring = Regex(r'(")(?:(?=(\\?))\2.)*?\1')
     r_string = Choice(r_barestring, r_quotedstring)
 
-    r_float = Regex(r'\b-?(?:[0-9]+(?:[dDeE][+-]?[0-9]+)|(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?)\b')
-    r_integer = Regex(r'\b-?[0-9]+\b')
+    r_integer = Regex(r'[+-]?[0-9]+')
+    r_float = Regex(r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?')
 
     k_true = Keyword('T')
     k_false = Keyword('F')
@@ -36,13 +36,14 @@ class ExtxyzKVGrammar(Grammar):
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
                              Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
     one_d_array = Sequence('[', Choice(ints, floats, strings, bools), ']')
-    two_d_array = Sequence('[', one_d_array, ']')
+    one_d_arrays = List(one_d_array, mi=1)
+    two_d_array = Sequence('[', one_d_arrays, ']')
 
     key_item = Choice(r_string)
 
     val_item = Choice(
-        r_float,
         r_integer,
+        r_float,
         k_true,
         k_false,
         old_one_d_array,
