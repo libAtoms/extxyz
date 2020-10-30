@@ -25,18 +25,18 @@ class JsonGrammar(Grammar):
     k_true = Keyword('T')
     k_false = Keyword('F')
 
-    ints = List(r_integer)
-    floats = List(r_float)
-    bools = List(Choice(k_true, k_false))
-    strings = List(r_string)
+    ints = List(r_integer, mi=1)
+    floats = List(r_float, mi=1)
+    bools = List(Choice(k_true, k_false), mi=1)
+    strings = List(r_string, mi=1)
 
-    ints_sp = List(r_integer, delimiter=Regex(r'\s+'), mi=1)
-    floats_sp = List(r_float, delimiter=Regex(r'\s+'), mi=1)
-    bools_sp = List(Choice(k_true, k_false), delimiter=Regex(r'\s+'), mi=1)
-    strings_sp = List(r_string, delimiter=Regex(r'\s+'), mi=1)
+    ints_sp = Repeat(r_integer, mi=1)
+    floats_sp = Repeat(r_float, mi=1)
+    bools_sp = Repeat(Choice(k_true, k_false), mi=1)
+    strings_sp = Repeat(r_string, mi=1)
 
-    quoted_array = Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"')
-    one_d_array_curly = Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}')
+    old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
+                             Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
     one_d_array = Sequence('[', Choice(ints, floats, strings, bools), ']')
     two_d_array = Sequence('[', one_d_array, ']')
 
@@ -47,11 +47,10 @@ class JsonGrammar(Grammar):
         r_integer,
         k_true,
         k_false,
-        quoted_array,
-        r_string,
-        one_d_array_curly,
+        old_one_d_array,
         one_d_array,
-        two_d_array)
+        two_d_array,
+        r_string)
 
     kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))
 
@@ -87,11 +86,10 @@ with open('grammar.h', 'w') as hf:
     hf.write(h_file)
 
 import sys
-test_json = sys.stdin.readline().strip()
-# test_json = '{"Name": "Iris", "Age": 4, "test" : "bob \\""}'
-result = grammar.parse(test_json)
+test_line = sys.stdin.readline().strip()
+result = grammar.parse(test_line)
 parsed_part = result.tree.children[0].string
-if test_json != parsed_part:
+if test_line != parsed_part:
     print("Failed to parse entire input line, only '{}'".format(parsed_part))
     print("")
 
