@@ -6,5 +6,10 @@ echo "sam=\"abc special []\" bob=[1, 2, 3] joe = 3 barestr=two\\ words" | python
 
 and a test of various types of arrays
 ```bash
-echo "a1 = [1, 2, 3] a2 = \"1.1 2.2 3.3\" " | python extxyz_kv_NB_dumptree.py
+echo 'a1 = [1, 2, 3] a2 = "1.1 2.2 3.3" ' | python extxyz_kv_NB_dumptree.py
+```
+
+actual dict construction of all types (but not all variants) of everything except 2-D arrays
+```bash
+echo "aa = [1, 2, 3] aaq = \"1.1 2.2 3.3\" aac={a b c} ai=5 af=4.6e-3 ab=T as=bob aqs=\"this is a test\"" | python extxyz_kv_NB_to_dict.py
 ```
