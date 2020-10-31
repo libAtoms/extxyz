@@ -172,21 +172,24 @@ void print_val_s(val_s v) {
 }
 
 void parse_prim(const char *s, val_s *v) {
+    char *ss;
+    ss = (char *) malloc(strlen(s));
     if (s[0] == 'T' && s[1] == 0) {
         v->type = TYPE_L;
         v->l = 1;
     } else if (s[0] == 'F' && s[1] == 0) {
         v->type = TYPE_L;
         v->l = 0;
-    } else if (sscanf(s, "%d", &(v->i)) == 1) {
+    } else if (sscanf(s, "%d%s", &(v->i), ss) == 1) {
         v->type = TYPE_I;
-    } else if (sscanf(s, "%lf", &(v->f)) == 1) {
+    } else if (sscanf(s, "%lf%s", &(v->f), ss) == 1) {
         v->type = TYPE_F;
     } else {
         v->s = (char *) malloc (strlen(s) * sizeof(char));
         strcpy(v->s, s);
         v->type = TYPE_S;
     }
+    free(ss);
 }
 
 int main (int argc, char *argv[]) {

@@ -25,3 +25,8 @@ here are some things that parse OK until error=2 (final backslash)
 ```bash
 echo ' 1   5454 1e4   a  other\ test "this is a \" test" joe  befoe"test"aft\"er \' | ./atoms_lines_tokenize_NB
 ```
+
+`parser_NB.c` is a hand-written parser based on `atoms_lines_tokenize_NB.c` that actually parses key value pairs, including 2-D arrays.  Syntax may be too unrestrictive, including allowing a mix of whitespace and comma separators within an array, and 2-D arrays with {}.
+```bash
+echo ' test= bob test =bob test=bob esc=esc\=val joe = "sam and him" a = [ [ 1 2 3 ] [4 5 6 ]] b = [ [2 3 4.5] ]' | ./tokenizer_NB
+```
