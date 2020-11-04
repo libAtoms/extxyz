@@ -112,6 +112,7 @@ if __name__ == '__main__':
     if test_line != parsed_part:
         print("Failed to parse entire input line, only '{}'".format(parsed_part))
         print("")
+        print(f'Expecting: {result.expecting}')
 
     d = AST_to_dict(result)
     for (k, v) in d.items():

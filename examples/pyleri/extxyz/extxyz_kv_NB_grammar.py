@@ -10,6 +10,9 @@ from pyleri import (
     Sequence,
     List)
 
+# This regex is defined outside grammar so it can be reused for extracting groups
+properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
+
 class ExtxyzKVGrammar(Grammar):
     # string without quotes, some characters must be escaped 
     # <whitespace>='",}{][\
@@ -52,5 +55,21 @@ class ExtxyzKVGrammar(Grammar):
         r_string)
 
     kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))
+   
+    properties_val_str = Regex(rf'^{properties_val_re}(:{properties_val_re})*')
+    properties_kv_pair = Sequence(Keyword('Properties'), '=', properties_val_str, Regex(r'\s*'))
+    
+    old_float_array_9 = Sequence('"', Repeat(r_float, mi=9, ma=9), '"')
+    old_float_array_3 = Sequence('"', Repeat(r_float, mi=3, ma=3), '"')
+    float_array_3 = Sequence('[', List(r_float, mi=3, ma=3), ']')
+    float_array_3x3 = Sequence('[', Repeat(float_array_3, mi=3, ma=3), ']')
+    
+    lattice_kv_pair = Sequence(Keyword('Lattice'), '=', Choice(old_float_array_9,
+                                                               old_float_array_3,
+                                                               float_array_3,
+                                                               float_array_3x3), Regex(r'\s*'))
+    
+    all_kv_pair = Choice(properties_kv_pair, lattice_kv_pair, kv_pair, most_greedy=False)
 
-    START = Repeat(kv_pair)
+    # can we encode that Lattice and Properties must both appear exactly once in the grammar?    
+    START = Repeat(all_kv_pair)

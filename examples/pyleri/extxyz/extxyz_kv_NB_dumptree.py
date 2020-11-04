@@ -34,8 +34,21 @@ import sys
 test_line = sys.stdin.readline().strip()
 result = grammar.parse(test_line)
 parsed_part = result.tree.children[0].string
+
+def print_expecting(node_expecting, string_expecting):
+    for loop, e in enumerate(node_expecting):
+        string_expecting = '{}\n\t({}) {}'.format(string_expecting, loop, e)
+    print(string_expecting)
+
 if test_line != parsed_part:
     print("Failed to parse entire input line, only '{}'".format(parsed_part))
     print("")
+    
+    string_expecting = 'String is NOT valid.\nExpected: ' \
+            if not result.pos \
+            else 'String is NOT valid. \nAfter "{}" expected: '.format(
+                                                  result.tree.string[:result.pos])
+    print_expecting(result.expecting, string_expecting)
+    
 
 print(json.dumps(view_parse_tree(result), indent=2))
