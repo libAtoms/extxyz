@@ -1,8 +1,9 @@
 import sys
 import json
+import re
 import numpy as np
 
-from extxyz_kv_NB_grammar import ExtxyzKVGrammar
+from extxyz_kv_NB_grammar import ExtxyzKVGrammar, properties_val_re
 
 def print_names(ls):
     for l_i, l in enumerate(ls):
@@ -24,10 +25,42 @@ def parse_one_d_array(value):
 
     return value_name, items
 
+def parse_properties(value):
+    prop_re = re.compile(rf'^({properties_val_re})(:{properties_val_re})*')
+    items = prop_re.match(value).groups()
+    items = [ items[4 * i + 1:4 * i + 4] for i in range(len(items) // 4)]
+    result = [ (prop[0], prop[1], int(prop[2])) for prop in items ]
+    return result
+
+def parse_lattice(value):
+    if value.element.name == 'old_float_array_9':
+        value = value.children[0].children[1].children[0]
+        value_name = value.element.name
+        items = [item.string for item in value.children]
+        return value_name, items
+
 def AST_to_dict(result):
     dict_out = {}
     top = result.tree.children[0]
     for kv_pair in top.children:
+        if kv_pair.element.name == 'properties_kv_pair':
+            key = kv_pair.children[0].string
+            assert key == 'Properties'
+            if key in dict_out:
+                raise RuntimeError('duplicate Properties key')            
+            value = kv_pair.children[2].string
+            properties = parse_properties(value)
+            dict_out[key] = properties
+        
+        if kv_pair.element.name == 'lattice_kv_pair':
+            key = kv_pair.children[0].string
+            assert key == 'Lattice'
+            if key in dict_out:
+                raise RuntimeError('duplicate Lattice key')            
+            value = kv_pair.children[2]
+            lattice = parse_lattice(value)
+            dict_out[key] = lattice
+        
         # right type
         assert kv_pair.element.name == 'kv_pair'
         # key, =, val, optional whitespace
