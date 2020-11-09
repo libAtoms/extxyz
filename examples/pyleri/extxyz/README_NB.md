@@ -30,3 +30,5 @@ echo ' 1   5454 1e4   a  other\ test "this is a \" test" joe  befoe"test"aft\"er
 ```bash
 echo ' test= bob test =bob test=bob esc=esc\=val joe = "sam and him" a = [ [ 1 2 3 ] [4 5 6 ]] b = [ [2 3 4.5] ]' | ./tokenizer_NB
 ```
+
+`strtok_atoms_lines.c` is a very simple parser for the per-atom lines using C stdlib strtok that can handle whitespace separated int, float, bool, and bare strings, and " enclosed strings that contain everything except more " (can't even be backslash escaped).  Assumes that there's an array of character formats from a Properties key, one per column (so already duplicated by the vector length).
