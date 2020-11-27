@@ -1,14 +1,6 @@
 '''extxyz key=value Grammar.'''
-from pyleri import (
-    Ref,
-    Choice,
-    Grammar,
-    Regex,
-    Keyword,
-    Optional,
-    Repeat,
-    Sequence,
-    List)
+from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
+                    Repeat, Sequence, List)
 
 # This regex is defined outside grammar so it can be reused for extracting groups
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
@@ -71,5 +63,4 @@ class ExtxyzKVGrammar(Grammar):
     
     all_kv_pair = Choice(properties_kv_pair, lattice_kv_pair, kv_pair, most_greedy=False)
 
-    # can we encode that Lattice and Properties must both appear exactly once in the grammar?    
     START = Repeat(all_kv_pair)
