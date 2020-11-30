@@ -2,12 +2,16 @@ import sys
 import json
 import re
 import itertools
+import argparse
+
 from pprint import pprint
 from io import StringIO
 
 import numpy as np
 
 from ase.atoms import Atoms
+from ase.calculators.singlepoint import SinglePointCalculator
+import ase.units as units
 
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
@@ -133,8 +137,11 @@ class ExtractValues(NodeTransformer):
     Convert scalars and list of floats ints, strings, bools to Python types
     """
     
-    tf = {'k_true': True,
+    tf = {'k_true':  True,
           'k_false': False}
+    
+    def visit_r_quotedstring(self, node):
+        return Value(node.string[1:-1])
 
     def visit_r_float(self, node):
         return Value(float(node.string))
@@ -207,7 +214,7 @@ def extract_lattice(result_dict):
         lattice = None        
     if lattice is not None:
         # convert Lattice to a 3x3 float array
-        if lattice.shape == (3,3):
+        if lattice.shape == (3, 3):
             lattice = lattice.astype(float)
         elif lattice.shape == (3,):
             lattice = np.diag(lattice).astype(float)
@@ -284,12 +291,14 @@ def properties_regex_dtype(properties):
                       'S': 'U10', # FIXME can we avoid fixed string length?
                       'L': np.bool}
     for (name, property_type, cols) in properties:
+        this_regex = '('+per_atom_column_re[property_type]+')' + whitespace_re
         if cols == 1:
+            regex += this_regex            
             for dtype in (dtype1, dtype2):
                 dtype.append((name, per_atom_dtype[property_type]))
         else:
             for col in range(cols):
-                regex += per_atom_column_re[property_type] + whitespace_re
+                regex += this_regex
                 dtype1.append((f'{name}{col}', per_atom_dtype[property_type]))            
             dtype2.append((name, per_atom_dtype[property_type], (cols,)))
     regex = re.compile(regex)
@@ -300,7 +309,7 @@ def properties_regex_dtype(properties):
 
 def velo_to_momenta(atoms, velo):
     masses = atoms.get_masses()
-    return velo / masses[:, None] # FIXME units are wrong
+    return (velo / units.fs) * masses[:, None]
 
 extxyz_to_ase_name_map = {
     'pos': ('positions', None),
@@ -310,7 +319,12 @@ extxyz_to_ase_name_map = {
     'velo': ('momenta', velo_to_momenta)
 }
 
-def read_extxyz_frame(file, verbose=0, use_regex=False):
+# partition ase.calculators.calculator.all_properties into two lists:
+#  'per-atom' and 'per-config'
+per_atom_properties = ['forces',  'stresses', 'charges',  'magmoms', 'energies']
+per_config_properties = ['energy', 'stress', 'dipole', 'magmom', 'free_energy']
+
+def read_extxyz_frame(file, verbose=0, use_regex=True, create_calc=False, calc_prefix=''):
     line = file.readline()
     if not line:
         return None # end of file
@@ -325,7 +339,6 @@ def read_extxyz_frame(file, verbose=0, use_regex=False):
     regex, dtype1, dtype2 = properties_regex_dtype(properties)
     
     if use_regex:
-        # not working yet, but something like the following should be possible
         lines = [file.readline() for line in range(natoms)]
         buffer = StringIO(''.join(lines))
         data = np.fromregex(buffer, regex, dtype1)
@@ -358,14 +371,29 @@ def read_extxyz_frame(file, verbose=0, use_regex=False):
                   cell=lattice,
                   pbc=lattice is not None)
     
-    atoms.info.update(info)
+    # convert per-atoms data to ASE expectations
+    arrays = {}
     for name in names:
         ase_name, converter = extxyz_to_ase_name_map.get(name, (name, None))
         value = data[name]
         if converter is not None:
             value = converter(atoms, value)
-        atoms.arrays[ase_name] = value
+        arrays[ase_name] = value    
+
+    # optionally create a SinglePointCalculator for results
+    if create_calc:
+        calc_results = {}
+        for prop in per_config_properties:
+            if calc_prefix + prop in info:
+                calc_results[prop] = info.pop(calc_prefix + prop)                
+        for prop in per_atom_properties:
+            if calc_prefix + prop in arrays:
+                calc_results[prop] = arrays.pop(calc_prefix + prop)                
+        if calc_results:
+            atoms.calc = SinglePointCalculator(atoms, **calc_results)
     
+    atoms.info.update(info)
+    atoms.arrays.update(arrays)
     return atoms
 
 
@@ -395,9 +423,34 @@ def read(file, **kwargs):
         return configs
 
 
+def update_atoms_from_calc(atoms, calc=None, calc_prefix=''):
+    if calc is None:
+        calc = atoms.calc
+
+
+def write(file, atoms, write_calc=False, calc_prefix=''):
+    if write_calc:
+        atoms2 = atoms.copy()
+        update_atoms_from_calc(atoms2, atoms.copy, calc_prefix)
+        atoms = atoms2
+
 if __name__ == '__main__':
-    configs = read(sys.argv[1], verbose=0)
-    print(configs)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', nargs='+')
+    parser.add_argument('-v', '--verbose', action='count',  default=0)
+    parser.add_argument('-r', '--regex', action='store_true')
+    parser.add_argument('-c', '--create-calc', action='store_true')
+    parser.add_argument('-p', '--calc-prefix', action='store', default='')
+    args = parser.parse_args()
+    
+    for file in args.files:
+        print(f'Reading from {file}')
+        configs = read(file, 
+                       verbose=args.verbose, 
+                       use_regex=args.regex,
+                       create_calc=args.create_calc, 
+                       calc_prefix=args.calc_prefix)
+        print(configs)
     
 
     
