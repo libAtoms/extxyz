@@ -3,6 +3,7 @@ import json
 import re
 import itertools
 from pprint import pprint
+from io StringIO
 
 import numpy as np
 
@@ -195,8 +196,32 @@ class TwoDimArrays(NodeTransformer):
         assert len(node.children) == 1
         return Value(node.children[0].value)
  
+ 
+def extract_lattice(result_dict):
+    """
+    process "Lattice" entry and apply semantic conversions
+    """
+    try:
+        lattice = result_dict.pop('Lattice')
+    except KeyError:
+        lattice = None        
+    if lattice is not None:
+        # convert Lattice to a 3x3 float array
+        if lattice.shape == (3,3):
+            lattice = lattice.astype(float)
+        elif lattice.shape == (3,):
+            lattice = np.diag(lattice).astype(float)
+        elif lattice.shape == (9,):
+            lattice = np.reshape(lattice, (3, 3), order='F').astype(float)
+        else:
+            raise ValueError(f'Lattice has wrong shape {lattice.shape}')
+    return lattice
+    
    
 def result_to_dict(result, verbose=0):
+    """
+    Convert from pyleri parse result to key/value info dictionary
+    """
     tree = result.tree.children[0]    
     if verbose >= 1:
         print('input tree:')
@@ -214,7 +239,7 @@ def result_to_dict(result, verbose=0):
         TreeDumper().visit(tree)
 
     # now we should have a flat list of (key, value) pairs
-    result = {}
+    result_dict = {}
     properties = None
     for (key, value) in [node.children for node in tree.children]:
         if isinstance(key.element, Keyword):
@@ -226,30 +251,18 @@ def result_to_dict(result, verbose=0):
             else:
                 raise KeyError(f'unexpected keyword {key.string}')
         if key.string in result:
-            raise KeyError(f'Warning: duplicate key {key.string}')
-        result[key.string] = value.value
+            raise KeyError(f'duplicate key {key.string}')
+        result_dict[key.string] = value.value
         
-    # look for "Lattice" entry
-    try:
-        lattice = result.pop('Lattice')
-    except KeyError:
-        lattice = None
-        
-    if lattice is not None:
-        # convert Lattice to a 3x3 float array
-        if lattice.shape == (3,3):
-            lattice = lattice.astype(float)
-        elif lattice.shape == (3,):
-            lattice = np.diag(lattice).astype(float)
-        elif lattice.shape == (9,):
-            lattice = np.reshape(lattice, (3, 3), order='F').astype(float)
-        else:
-            raise ValueError(f'Lattice has wrong shape {lattice.shape}')
-            
-    return result, lattice, properties
+    lattice = extract_lattice(result_dict)
+    
+    return result_dict, lattice, properties
     
 
 def read_comment_line(line, verbose=0):
+    """
+    Use pyleri to parse an extxyz comment line
+    """
     grammar = ExtxyzKVGrammar()
     result = grammar.parse(line)
     parsed_part = result.tree.children[0].string    
@@ -259,7 +272,10 @@ def read_comment_line(line, verbose=0):
     return result_to_dict(result, verbose=verbose)
 
 
-def properties_regex_dtype(properties):   
+def properties_regex_dtype(properties):
+    """
+    Determine a regex and numpy dtype from parsed property definition
+    """
     regex = ''
     dtype1 = []
     dtype2 = []
@@ -280,16 +296,19 @@ def properties_regex_dtype(properties):
     dtype1 = np.dtype(dtype1)
     dtype2 = np.dtype(dtype2)
     return regex, dtype1, dtype2
-    
 
-from io import StringIO
 
 extxyz_to_ase_name_map = {
-    'pos': 'positions',
-    'species': 'symbols',
-    'Z': 'numbers',
-    'mass': 'masses'
+    'pos': ('positions', None)
+    'species': ('symbols', None)
+    'Z': ('numbers', None)
+    'mass': ('masses', None)
+    'velo': ('momenta', velo_to_momenta)
 }
+
+def velo_to_momenta(atoms, velo):
+    masses = atoms.get_masses()
+    return velo / masses
 
 def read_extxyz_frame(file, verbose=0, use_regex=False):
     line = file.readline()
@@ -317,7 +336,7 @@ def read_extxyz_frame(file, verbose=0, use_regex=False):
     data = np.atleast_1d(data) # for 1-atom configs        
     names = list(data.dtype.names)
             
-    assert 'pos'in names
+    assert 'pos' in names
     positions = data['pos']
     names.remove('pos')
     
@@ -341,8 +360,11 @@ def read_extxyz_frame(file, verbose=0, use_regex=False):
     
     atoms.info.update(info)
     for name in names:
-        ase_name = extxyz_to_ase_name_map.get(name, name)
-        atoms.arrays[ase_name] = data[name]
+        ase_name, converter = extxyz_to_ase_name_map.get(name, name)
+        vale = data[name]
+        if converter is not None:
+            value = converter(atoms, value)
+        atoms.arrays[ase_name] = value
     
     return atoms
 
