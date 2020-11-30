@@ -9,9 +9,10 @@ from io import StringIO
 
 import numpy as np
 
+import ase.units as units
 from ase.atoms import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-import ase.units as units
+from ase.constraints import full_3x3_to_voigt_6_stress
 
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
@@ -187,7 +188,11 @@ class OneDimArrays(NodeTransformer):
         assert len(node.children) == 1
         return Value(np.array(node.children[0].value))
 
-    visit_old_one_d_array = visit_one_d_array    
+    def visit_old_one_d_array(self, node):
+        result = self.visit_one_d_array(node)
+        if result.value.shape == (9, ):
+            result.value = result.value.reshape((3, 3), order='F')
+        return result
 
 
 class OneDimToTwoDim(NodeTransformer):
@@ -218,8 +223,6 @@ def extract_lattice(result_dict):
             lattice = lattice.astype(float)
         elif lattice.shape == (3,):
             lattice = np.diag(lattice).astype(float)
-        elif lattice.shape == (9,):
-            lattice = np.reshape(lattice, (3, 3), order='F').astype(float)
         else:
             raise ValueError(f'Lattice has wrong shape {lattice.shape}')
     return lattice
@@ -324,6 +327,55 @@ extxyz_to_ase_name_map = {
 per_atom_properties = ['forces',  'stresses', 'charges',  'magmoms', 'energies']
 per_config_properties = ['energy', 'stress', 'dipole', 'magmom', 'free_energy']
 
+def create_single_point_calculator(atoms, info=None, arrays=None, calc_prefix=''):
+    """Move results from info/arrays dicts to an attached SinglePointCalculator
+
+    Args:
+        atoms (ase.Atoms): input structure
+        info (dict, optional): Dictionary of per-config values. Defaults to atoms.info
+        arrays (dict, optional): Dictionary of per-atom values. Defaults to atoms.arrays
+        calc_prefix (str, optional): String prefix to prepend to canonical name
+    """
+    if info is None:
+        info = atoms.info
+    if arrays is None:
+        arrays = atoms.arrays
+    calc_results = {}
+    
+    # first check for per-config properties, energy, free_energy etc.
+    for prop in per_config_properties:
+        if calc_prefix + prop in info:
+            calc_results[prop] = info.pop(calc_prefix + prop)
+            
+    # special case for virial -> stress conversion
+    if calc_prefix + 'virial' in info:
+        virial = info.pop(calc_prefix + 'virial')
+        stress = - full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
+        if 'stress' in calc_results:
+            if abs(calc_results['stress'] - stress) > 1e-6:
+                raise RuntimeError(f'inconsistent stress {stress} and virial {virial} entries')
+        calc_results['stress'] = stress
+        
+    # now the per-atom properties - forces, energies, etc.
+    for prop in per_atom_properties:
+        if calc_prefix + prop in arrays:
+            calc_results[prop] = arrays.pop(calc_prefix + prop)
+            
+    # special case for local_virial -> stresses conversion
+    if calc_prefix + 'local_virial' in arrays:
+        virials = arrays.pop(calc_prefix + 'local_virial')
+        stresses = - full_3x3_to_voigt_6_stress(virials / atoms.get_volume())
+        if 'stresses' in calc_results:
+            if np.abs(calc_results['stresses'] - stresses).max() > 1e-6:
+                raise RuntimeError(f'inconsistent stresses {stresses} and virial {virials} entries')
+        calc_results['stress'] = stress                
+          
+    calc = None
+    if calc_results:  
+        calc = SinglePointCalculator(atoms, **calc_results)
+    return calc
+
+
 def read_extxyz_frame(file, verbose=0, use_regex=True, create_calc=False, calc_prefix=''):
     line = file.readline()
     if not line:
@@ -380,27 +432,9 @@ def read_extxyz_frame(file, verbose=0, use_regex=True, create_calc=False, calc_p
             value = converter(atoms, value)
         arrays[ase_name] = value    
 
-    # optionally create a SinglePointCalculator for results
+    # optionally create a SinglePointCalculator from stored results
     if create_calc:
-        calc_results = {}
-        # first check for per-config properties, energy, free_energy etc.
-        for prop in per_config_properties:
-            if calc_prefix + prop in info:
-                calc_results[prop] = info.pop(calc_prefix + prop)
-        # special case for virial -> stress conversion
-        if calc_prefix + 'virial' in info:
-            virial = info.pop(calc_prefix + prop)
-            stress = - virial / atoms.get_volume()
-            if 'stress' in calc_results:
-                if abs(calc_results['stress'] - stress) > 1e-6:
-                    raise RuntimeError(f'inconsistent stress {stress }and virial {virial} entries')
-            calc_results['stress'] = stress
-        # now the per-atom properties - forces, energies, etc.
-        for prop in per_atom_properties:
-            if calc_prefix + prop in arrays:
-                calc_results[prop] = arrays.pop(calc_prefix + prop)
-        if calc_results:
-            atoms.calc = SinglePointCalculator(atoms, **calc_results)
+        atoms.calc = create_single_point_calculator(atoms, info, arrays)        
     
     atoms.info.update(info)
     atoms.arrays.update(arrays)
