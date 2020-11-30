@@ -383,12 +383,22 @@ def read_extxyz_frame(file, verbose=0, use_regex=True, create_calc=False, calc_p
     # optionally create a SinglePointCalculator for results
     if create_calc:
         calc_results = {}
+        # first check for per-config properties, energy, free_energy etc.
         for prop in per_config_properties:
             if calc_prefix + prop in info:
-                calc_results[prop] = info.pop(calc_prefix + prop)                
+                calc_results[prop] = info.pop(calc_prefix + prop)
+        # special case for virial -> stress conversion
+        if calc_prefix + 'virial' in info:
+            virial = info.pop(calc_prefix + prop)
+            stress = - virial / atoms.get_volume()
+            if 'stress' in calc_results:
+                if abs(calc_results['stress'] - stress) > 1e-6:
+                    raise RuntimeError(f'inconsistent stress {stress }and virial {virial} entries')
+            calc_results['stress'] = stress
+        # now the per-atom properties - forces, energies, etc.
         for prop in per_atom_properties:
             if calc_prefix + prop in arrays:
-                calc_results[prop] = arrays.pop(calc_prefix + prop)                
+                calc_results[prop] = arrays.pop(calc_prefix + prop)
         if calc_results:
             atoms.calc = SinglePointCalculator(atoms, **calc_results)
     
