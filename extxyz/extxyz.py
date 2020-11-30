@@ -3,7 +3,7 @@ import json
 import re
 import itertools
 from pprint import pprint
-from io StringIO
+from io import StringIO
 
 import numpy as np
 
@@ -250,7 +250,7 @@ def result_to_dict(result, verbose=0):
                 continue
             else:
                 raise KeyError(f'unexpected keyword {key.string}')
-        if key.string in result:
+        if key.string in result_dict:
             raise KeyError(f'duplicate key {key.string}')
         result_dict[key.string] = value.value
         
@@ -298,17 +298,17 @@ def properties_regex_dtype(properties):
     return regex, dtype1, dtype2
 
 
-extxyz_to_ase_name_map = {
-    'pos': ('positions', None)
-    'species': ('symbols', None)
-    'Z': ('numbers', None)
-    'mass': ('masses', None)
-    'velo': ('momenta', velo_to_momenta)
-}
-
 def velo_to_momenta(atoms, velo):
     masses = atoms.get_masses()
-    return velo / masses
+    return velo / masses[:, None] # FIXME units are wrong
+
+extxyz_to_ase_name_map = {
+    'pos': ('positions', None),
+    'species': ('symbols', None),
+    'Z': ('numbers', None),
+    'mass': ('masses', None),
+    'velo': ('momenta', velo_to_momenta)
+}
 
 def read_extxyz_frame(file, verbose=0, use_regex=False):
     line = file.readline()
@@ -360,8 +360,8 @@ def read_extxyz_frame(file, verbose=0, use_regex=False):
     
     atoms.info.update(info)
     for name in names:
-        ase_name, converter = extxyz_to_ase_name_map.get(name, name)
-        vale = data[name]
+        ase_name, converter = extxyz_to_ase_name_map.get(name, (name, None))
+        value = data[name]
         if converter is not None:
             value = converter(atoms, value)
         atoms.arrays[ase_name] = value
