@@ -2,18 +2,32 @@
 from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
                     Repeat, Sequence, List)
 
-# This regex is defined outside grammar so it can be reused for extracting groups
+# These regexs are defined outside grammar so they can be reused
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
+simplestring_re = r'\S*'
+quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+barestring_re = r"""(?:[^\s='",}{\]\[\\]|(?:\\[\s='",}{\]\]\\]))+"""
+float_re = r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
+integer_re = r'[+-]?[0-9]+'
+bool_re = r'[TF]'
+whitespace_re = r'\s*'
+
+per_atom_column_re = {
+    'R': float_re,
+    'I': integer_re,
+    'S': simplestring_re,
+    'L': bool_re
+}
 
 class ExtxyzKVGrammar(Grammar):
     # string without quotes, some characters must be escaped 
     # <whitespace>='",}{][\
-    r_barestring = Regex(r"""(?:[^\s='",}{\]\[\\]|(?:\\[\s='",}{\]\]\\]))+""")
-    r_quotedstring = Regex(r'(")(?:(?=(\\?))\2.)*?\1')
+    r_barestring = Regex(barestring_re)
+    r_quotedstring = Regex(quotedstring_re)
     r_string = Choice(r_barestring, r_quotedstring)
 
-    r_integer = Regex(r'[+-]?[0-9]+')
-    r_float = Regex(r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?')
+    r_integer = Regex(integer_re)
+    r_float = Regex(float_re)
 
     k_true = Keyword('T')
     k_false = Keyword('F')
@@ -48,19 +62,11 @@ class ExtxyzKVGrammar(Grammar):
 
     kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))
    
+    properties = Keyword('Properties', ign_case=True)
     properties_val_str = Regex(rf'^{properties_val_re}(:{properties_val_re})*')
-    properties_kv_pair = Sequence(Keyword('Properties'), '=', properties_val_str, Regex(r'\s*'))
+    properties_kv_pair = Sequence(properties, '=', 
+                                  properties_val_str, Regex(r'\s*'))
     
-    old_float_array_9 = Sequence('"', Repeat(r_float, mi=9, ma=9), '"')
-    old_float_array_3 = Sequence('"', Repeat(r_float, mi=3, ma=3), '"')
-    float_array_3 = Sequence('[', List(r_float, mi=3, ma=3), ']')
-    float_array_3x3 = Sequence('[', Repeat(float_array_3, mi=3, ma=3), ']')
-    
-    lattice_kv_pair = Sequence(Keyword('Lattice'), '=', Choice(old_float_array_9,
-                                                               old_float_array_3,
-                                                               float_array_3,
-                                                               float_array_3x3), Regex(r'\s*'))
-    
-    all_kv_pair = Choice(properties_kv_pair, lattice_kv_pair, kv_pair, most_greedy=False)
+    all_kv_pair = Choice(properties_kv_pair, kv_pair, most_greedy=False)
 
     START = Repeat(all_kv_pair)
