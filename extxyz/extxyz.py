@@ -19,6 +19,9 @@ from pyleri import Choice, Regex, Keyword, Token
 from extxyz_kv_NB_grammar import (ExtxyzKVGrammar, properties_val_re,
                                   per_atom_column_re, whitespace_re)
 
+import time ##
+
+grammar = ExtxyzKVGrammar()
 
 class NodeVisitor:
     """
@@ -273,18 +276,26 @@ def result_to_dict(result, verbose=0):
 
     return result_dict, lattice, properties
 
+tg = 0.0
+td = 0.0
 
 def read_comment_line(line, verbose=0):
     """
     Use pyleri to parse an extxyz comment line
     """
-    grammar = ExtxyzKVGrammar()
+    global tg, td
+
+    t0 = time.time()
     result = grammar.parse(line)
+    tg += time.time()-t0
     parsed_part = result.tree.children[0].string
     if not result.is_valid:
         raise SyntaxError(f"Failed to parse entire input line, only '{parsed_part}'. "
                           f'Expecting one of : {result.expecting}')
-    return result_to_dict(result, verbose=verbose)
+    t0 = time.time()
+    d = result_to_dict(result, verbose=verbose)
+    td += time.time()-t0
+    return d
 
 
 def properties_regex_dtype(properties):
@@ -507,6 +518,7 @@ if __name__ == '__main__':
                        calc_prefix=args.calc_prefix)
         if args.verbose:
             print(configs)
+    print('grammar.parse', tg, 'result_to_dict', td)
 
 
 

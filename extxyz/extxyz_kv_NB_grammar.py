@@ -70,3 +70,9 @@ class ExtxyzKVGrammar(Grammar):
     all_kv_pair = Choice(properties_kv_pair, kv_pair, most_greedy=False)
 
     START = Repeat(all_kv_pair)
+
+if __name__ == '__main__':
+    src, hdr = ExtxyzKVGrammar().export_c( target='extxyz_kv_grammar', c_indent=' ' * 4)
+    with open('extxyz_kv_grammar.c', 'w') as fsrc, open('extxyz_kv_grammar.h', 'w') as fhdr:
+        fsrc.write(src)
+        fhdr.write(hdr)
