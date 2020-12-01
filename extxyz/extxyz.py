@@ -1,6 +1,7 @@
 import sys
 import json
 import re
+import os
 import argparse
 
 from pprint import pprint
@@ -46,6 +47,7 @@ class NodeVisitor:
         children = getattr(node, 'children', [])
         for child in children:
             self.visit(child)
+
 
 class NodeTransformer(NodeVisitor):
     """
@@ -319,6 +321,7 @@ def velo_to_momenta(atoms, velo):
     masses = atoms.get_masses()
     return (velo / units.fs) * masses[:, None]
 
+
 extxyz_to_ase_name_map = {
     'pos': ('positions', None),
     'species': ('symbols', None),
@@ -333,7 +336,8 @@ per_atom_properties = ['forces',  'stresses', 'charges',  'magmoms', 'energies']
 per_config_properties = ['energy', 'stress', 'dipole', 'magmom', 'free_energy']
 
 def create_single_point_calculator(atoms, info=None, arrays=None, calc_prefix=''):
-    """Move results from info/arrays dicts to an attached SinglePointCalculator
+    """
+    Move results from info/arrays dicts to an attached SinglePointCalculator
 
     Args:
         atoms (ase.Atoms): input structure
@@ -481,13 +485,134 @@ def read(file, **kwargs):
 def update_atoms_from_calc(atoms, calc=None, calc_prefix=''):
     if calc is None:
         calc = atoms.calc
+    for prop, value in calc.results.items():
+        if prop in per_config_properties:
+            atoms.info[calc_prefix + prop] = value
+        elif prop in per_atom_properties:
+            atoms.arrays[calc_prefix + prop] = value
+        else:
+            raise KeyError(f'unknown property {prop}')
 
 
-def write(file, atoms, write_calc=False, calc_prefix=''):
+def format_properties(arrays, columns=None):
+    # map from numpy dtype.kind to extxyz property type
+    format_map = {'d': 'R',
+                  'f': 'R',
+                  'i': 'I',
+                  'O': 'S',
+                  'S': 'S',
+                  'U': 'S'}
+
+    def shuffle_columns(column, idx):
+        if column in columns:
+            old_idx = columns.index(column)
+            columns[idx], columns[old_idx] = columns[idx], columns[old_idx]
+        else:
+            raise ValueError(f'invalid XYZ file: does not contain "{column}"')
+
+    skip_keys = ['symbols', 'properties', 'numbers']        
+    if columns is None:
+        columns = (['symbols', 'positions'] + 
+                   [key for key in arrays.keys() if key not in skip_keys])
+    else:
+        columns = columns[:] # make a copy so we can reorder
+        
+    shuffle_columns('symbols', 0)
+    shuffle_columns('positions', 1)
+    
+    dtype = []
+    result = ''
+    for column in columns:
+        value = arrays[column]
+        property_type = format_map[value.dtype.kind]
+        ncols = np.atleast_2d(value).shape[1]
+        dtype.append((column, value.dtype, ncols))        
+        result += f'{column}:{property_type}:{ncols}'
+        
+    # build a structured array from the per-atom data
+    data = np.array([arrays[column] for column in columns], dtype)        
+    return result, data
+
+
+default_extyz_formatter = {
+    'bool': lambda x: 'T' if x else 'F'
+}
+
+def extxyz_value_to_string(value, formatter=None, suppress_newline=True):
+    if formatter is None:
+        formatter = default_extyz_formatter    
+    value = np.asarray(value)
+    string = np.array2string(value,
+                             separator=',',
+                             max_line_width=np.inf,
+                             threshold=np.inf,
+                             formatter=formatter)
+    if suppress_newline:
+        string = string.replace('\n', '')
+    return string
+
+
+def escape(string):
+    if (' ' in string or
+            '"' in string or "'" in string or
+            '{' in string or '}' in string or
+            '[' in string or ']' in string):
+        string = string.replace('"', r'\"')
+        string = f'"{string}"'
+    return string
+
+
+def extxyz_dict_to_str(info, formatter=None):
+    output = ''
+    for key, value in info.items():
+        key = escape(key)
+        value = extxyz_value_to_string(value, formatter)
+        value = escape(value)
+        output += f'{key}={value} '    
+    return output.strip()
+
+
+def write_extxyz_frame(file, atoms, info=None, arrays=None,
+                       write_calc=False, calc_prefix='', verbose=0,
+                       formatter=None):
     if write_calc:
-        atoms2 = atoms.copy()
-        update_atoms_from_calc(atoms2, atoms.copy, calc_prefix)
-        atoms = atoms2
+        tmp_atoms = atoms.copy()
+        update_atoms_from_calc(tmp_atoms, atoms.calc, calc_prefix)
+        atoms = tmp_atoms
+    if info is None:
+        info = atoms.info
+    if arrays is None:
+        arrays = atoms.arrays
+
+    file.write(f'{len(atoms)}\n')
+        
+    info_dict = info.copy()
+    info_dict['Lattice'] = atoms.cell.array.T
+    info_dict['pbc'] = atoms.get_pbc()
+    info_dict['Properties'], data = format_properties(arrays, columns)
+    comment = extxyz_dict_to_str(info_dict, formatter)
+        
+    file.write(comment + '\n')
+    file.write(extxyz_value_to_string(data, formatter))
+
+
+def write(file, atoms, **kwargs):
+    own_fh = False
+    if isinstance(file, str):
+        if file == '-':
+            file = sys.stdout
+        else:
+            file = open(file, 'w')
+            own_fh = True
+    try:
+        configs = atoms
+        if not isinstance(configs, list):
+            configs = [atoms]
+        for atoms in configs:
+            write_extxyz_frame(file, atoms, **kwargs)
+    finally:
+        if own_fh: file.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -498,15 +623,21 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--calc-prefix', action='store', default='')
     args = parser.parse_args()
 
+    configs = {}
     for file in args.files:
         print(f'Reading from {file}')
-        configs = read(file,
-                       verbose=args.verbose,
-                       use_regex=args.regex,
-                       create_calc=args.create_calc,
-                       calc_prefix=args.calc_prefix)
+        configs[file] = read(file,
+                             verbose=args.verbose,
+                             use_regex=args.regex,
+                             create_calc=args.create_calc,
+                             calc_prefix=args.calc_prefix)
         if args.verbose:
-            print(configs)
-
-
-
+            print(configs[file])
+            
+    for file in args.file:
+        output_file = os.path.splitext(file)[0] + '.out.xyz'
+        print(f'Writing to {output_file}')
+        write(output_file, configs[file], 
+              verbose=args.verbose,
+              write_calc=args.create_calc,
+              calc_prefix=args.calc_prefix)
