@@ -3,6 +3,7 @@ import json
 import re
 import os
 import argparse
+import cProfile
 
 from pprint import pprint
 from io import StringIO
@@ -13,8 +14,6 @@ from numpy.core.arrayprint import (get_printoptions,
 
 import ase.units as units
 from ase.atoms import Atoms
-from ase.calculators.singlepoint import SinglePointCalculator
-from ase.constraints import full_3x3_to_voigt_6_stress
 from ase.symbols import symbols2numbers
 
 from pyleri.node import Node
@@ -22,7 +21,9 @@ from pyleri import Choice, Regex, Keyword, Token
 from extxyz_kv_NB_grammar import (ExtxyzKVGrammar, properties_val_re,
                                   per_atom_column_re, whitespace_re)
 
-import time ##
+from utils import create_single_point_calculator, update_atoms_from_calc
+
+import time
 
 grammar = ExtxyzKVGrammar()
 
@@ -353,18 +354,18 @@ _canonical_property_values = {
 }
 
 def properties_to_format_strings(properties, format_dict):
-    def make_func(v):
-        return lambda x: v
-    formatter = { k: make_func(v) for k, v in format_dict['per-config'].items()}
-    options = get_printoptions()
-    options['formatter'] = formatter
+    # def make_func(v):
+    #     return lambda x: v
+    # formatter = { k: make_func(v) for k, v in format_dict['per-config'].items()}
+    # options = get_printoptions()
+    # options['formatter'] = formatter
     
     format_strings = []
     for (_, property_type, ncols) in properties:
-        value = _canonical_property_values[property_type]
-        format_func = _get_format_function(value, 
-                                           **options)
-        format_string = format_func(value.item)
+        # value = _canonical_property_values[property_type]
+        # format_func = _get_format_function(value, 
+        #                                    **options)
+        format_string = format_dict[property_type]
         format_strings.extend([format_string for col in range(ncols)])
     return format_strings
 
@@ -401,59 +402,6 @@ ase_to_extxyz_name_map = {
     'masses': ('mass', None), # FIXME should we convert amu to QUIP mass units?
     'momenta': ('velo', velo_to_momenta)
 }
-
-# partition ase.calculators.calculator.all_properties into two lists:
-#  'per-atom' and 'per-config'
-per_atom_properties = ['forces',  'stresses', 'charges',  'magmoms', 'energies']
-per_config_properties = ['energy', 'stress', 'dipole', 'magmom', 'free_energy']
-
-def create_single_point_calculator(atoms, info=None, arrays=None, calc_prefix=''):
-    """
-    Move results from info/arrays dicts to an attached SinglePointCalculator
-
-    Args:
-        atoms (ase.Atoms): input structure
-        info (dict, optional): Dictionary of per-config values. Defaults to atoms.info
-        arrays (dict, optional): Dictionary of per-atom values. Defaults to atoms.arrays
-        calc_prefix (str, optional): String prefix to prepend to canonical name
-    """
-    if info is None:
-        info = atoms.info
-    if arrays is None:
-        arrays = atoms.arrays
-    calc_results = {}
-
-    # first check for per-config properties, energy, free_energy etc.
-    for prop in per_config_properties:
-        if calc_prefix + prop in info:
-            calc_results[prop] = info.pop(calc_prefix + prop)
-
-    # special case for virial -> stress conversion
-    if calc_prefix + 'virial' in info:
-        virial = info.pop(calc_prefix + 'virial')
-        stress = - full_3x3_to_voigt_6_stress(virial / atoms.get_volume())
-        if 'stress' in calc_results:
-            raise RuntimeError(f'stress {stress} and virial {virial} both present')
-        calc_results['stress'] = stress
-
-    # now the per-atom properties - forces, energies, etc.
-    for prop in per_atom_properties:
-        if calc_prefix + prop in arrays:
-            calc_results[prop] = arrays.pop(calc_prefix + prop)
-
-    # special case for local_virial -> stresses conversion
-    if calc_prefix + 'local_virial' in arrays:
-        virials = arrays.pop(calc_prefix + 'local_virial')
-        stresses = - full_3x3_to_voigt_6_stress(virials / atoms.get_volume())
-        if 'stresses' in calc_results:
-            raise RuntimeError(f'stresses {stresses} and virial {virials} both present')
-        calc_results['stress'] = stress
-
-    calc = None
-    if calc_results:
-        calc = SinglePointCalculator(atoms, **calc_results)
-    return calc
-
 
 def read_extxyz_frame(file, verbose=0, use_regex=True,
                       create_calc=False, calc_prefix=''):
@@ -555,18 +503,6 @@ def read(file, **kwargs):
         return configs
 
 
-def update_atoms_from_calc(atoms, calc=None, calc_prefix=''):
-    if calc is None:
-        calc = atoms.calc
-    for prop, value in calc.results.items():
-        if prop in per_config_properties:
-            atoms.info[calc_prefix + prop] = value
-        elif prop in per_atom_properties:
-            atoms.arrays[calc_prefix + prop] = value
-        else:
-            raise KeyError(f'unknown property {prop}')
-
-
 def atoms_to_structured_array(atoms, arrays, columns=None, verbose=0):
     # map from numpy dtype.kind to extxyz property type
     format_map = {'d': 'R',
@@ -623,20 +559,19 @@ def atoms_to_structured_array(atoms, arrays, columns=None, verbose=0):
 
 
 default_extxyz_format_dict = {
-    'per-config': {
-        'float':    '%.8f',
-        'int':      '%d',
-        'object':   '%s',
-        'numpystr': '%s',
-        'bool':     '%.1s'
-    },
-    'per-atom': {
-        'float':    '%16.8f',
-        'int':      '%8d',
-        'object':   '%s',
-        'numpystr': '%s',
-        'bool':     '%.1s'
-    }
+    # 'per-config': {
+    #     'float':    '%.8f',
+    #     'int':      '%d',
+    #     'object':   '%s',
+    #     'numpystr': '%s',
+    #     'bool':     '%.1s'
+    # },
+    # 'per-atom': {
+        'R':    '%16.8f',
+        'I':      '%8d',
+        'S':      '%s',
+        'L':     '%.1s'
+    # }
 }
 
 def escape(string):
@@ -646,35 +581,53 @@ def escape(string):
     return string
 
 
-def extxyz_value_to_string(value, formatter):
+_tf = lambda x: '@@T@@' if x else '@@F@@'
+_tf_vec = np.vectorize(_tf)
+
+class ExtXYZEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            if obj.dtype.kind == 'b':
+                obj = _tf_vec(obj)
+            return obj.tolist()
+        elif isinstance(obj, bool):
+            return _tf(obj)
+        return super().default(obj)
+
+def extxyz_value_to_string(value):
     if isinstance(value, str):
         return escape(value)
-    value = np.asarray(value)
-    string = np.array2string(value,
-                             separator=',',
-                             max_line_width=np.inf,
-                             threshold=np.inf,
-                             formatter=formatter)
-    string = string.replace('\n', '')
-    return string
-
-
-def extxyz_dict_to_str(info, format_dict):
-    def make_func(v):
-        return lambda x: v % x
-    formatter = {k: make_func(v) for k, v in format_dict['per-config'].items()}
+    else:
+        string = ExtXYZEncoder().encode(value)
+        return string.replace('@@"', '').replace('"@@', '')
     
-    output = ''
-    for key, value in info.items():
-        key = escape(key)
-        value = extxyz_value_to_string(value, formatter)
-        output += f'{key}={value} '    
-    return output.strip()
+    # value = np.asarray(value)
+    # string = np.array2string(value,
+    #                          separator=',',
+    #                          max_line_width=np.inf,
+    #                          threshold=np.inf,
+    #                          formatter=formatter)
+    # string = string.replace('\n', '')
+    # return string
 
+
+# def extxyz_dict_to_str(info, format_dict):
+    # def make_func(v):
+    #     return lambda x: v % x
+    # formatter = {k: make_func(v) for k, v in format_dict['per-config'].items()}
+    
+    # output = ''
+    # for key, value in info.items():
+    #     key = escape(key)
+    #     value = extxyz_value_to_string(value, formatter)
+    #     output += f'{key}={value} '    
+    # return output.strip()
+
+import pandas as pd
 
 def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
                        write_calc=False, calc_prefix='', verbose=0,
-                       format_dict=None):
+                       format_dict=None, use_pandas=False):
     if format_dict is None:
         format_dict = default_extxyz_format_dict
     if write_calc:
@@ -696,13 +649,17 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
     info_dict['Lattice'] = atoms.cell.array.T
     info_dict['pbc'] = atoms.get_pbc() # FIXME should this always be included? Reader doesn't parse it
     info_dict['Properties'] = properties_to_property_str(properties)
-    comment = extxyz_dict_to_str(info_dict, format_dict)
+    comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
     
     file.write(comment + '\n')
     dtype_scalar, _ = properties_to_dtype(properties)
     data_columns = data.view(dtype_scalar)
     format_strings = properties_to_format_strings(properties, format_dict) 
-    np.savetxt(file, data_columns, fmt=format_strings)
+    if use_pandas:
+        df = pd.DataFrame(data_columns)
+        df.to_csv(file, sep=' ', float_format=format_dict['R'], index=False)
+    else:
+        np.savetxt(file, data_columns, fmt=format_strings)
 
 
 def write(file, atoms, **kwargs):
@@ -764,60 +721,65 @@ class ExtxyzTrajectoryWriter:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('files', nargs='+')
+    parser.add_argument('file')
     parser.add_argument('-v', '--verbose', action='count',  default=0)
     parser.add_argument('-r', '--regex', action='store_true')
     parser.add_argument('-c', '--create-calc', action='store_true')
     parser.add_argument('-p', '--calc-prefix', action='store', default='')
     parser.add_argument('-w', '--write', action='store_true')
     parser.add_argument('-R', '--round-trip', action='store_true')
+    parser.add_argument('-P', '--profile', action='store_true')
+    parser.add_argument('--pandas', action='store_true')
     args = parser.parse_args()
     if args.round_trip:
         args.write = True # -R implies -w too
 
-    configs = {}
-    for file in args.files:
-        print(f'Reading from {file}')
-        configs[file] = read(file,
-                             verbose=args.verbose,
-                             use_regex=args.regex,
-                             create_calc=args.create_calc,
-                             calc_prefix=args.calc_prefix)
-        if args.verbose:
-            print(file)
-            config = configs[file]
-            if isinstance(config, Atoms):
-                config = [config]
-            for atoms in config:
-                pprint(atoms.info)
-                
+    print(f'Reading from {args.file}')
+    if args.profile:
+        cProfile.run("""configs = read(args.file,
+            verbose=args.verbose,
+            use_regex=args.regex,
+            create_calc=args.create_calc,
+            calc_prefix=args.calc_prefix)""", "readstats")
+    configs = read(args.file,
+                   verbose=args.verbose,
+                   use_regex=args.regex,
+                   create_calc=args.create_calc,
+                   calc_prefix=args.calc_prefix)
+    if args.verbose:
+        if isinstance(configs, Atoms):
+            configs = [configs]
+        for atoms in configs:
+            pprint(atoms.info)
 
     print('TIMER grammar.parse', tg, 'result_to_dict', td)    
             
     if args.write:
         t0 = time.time()
-        out_files = []
-        for file in args.files:
-            out_file = os.path.splitext(file)[0] + '.out.xyz'
-            out_files.append(out_file)
-            write(out_file, configs[file], 
+        out_file = os.path.splitext(args.file)[0] + '.out.xyz'
+        
+        if args.profile:
+            cProfile.run("""write(out_file, configs, 
                 verbose=args.verbose,
-                write_calc=args.create_calc,
+                write_calc=args.create_calc, use_pandas=args.pandas,
+                calc_prefix=args.calc_prefix)""", "writestats")
+        else:
+            write(out_file, configs, 
+                verbose=args.verbose,
+                write_calc=args.create_calc, use_pandas=args.pandas,
                 calc_prefix=args.calc_prefix)
+        
         tw = time.time() - t0
         print('TIMER write', tw)
         
     if args.round_trip:
-        new_configs = {}
-        for out_file in out_files:
-            print(f'Re-reading from {out_file}')
-            new_configs[file] = read(out_file,
-                                     verbose=args.verbose,
-                                     use_regex=args.regex,
-                                     create_calc=args.create_calc,
-                                     calc_prefix=args.calc_prefix)
-            
-        for config, new_config in zip(configs.values(), 
-                                      new_configs.values()):
-            assert config == new_config
+        print(f'Re-reading from {out_file}')
+        new_configs = read(out_file,
+                           verbose=args.verbose,
+                           use_regex=args.regex,
+                           create_calc=args.create_calc,
+                           calc_prefix=args.calc_prefix)
+
+        assert configs == new_configs
+        print('All configs match!')
         
