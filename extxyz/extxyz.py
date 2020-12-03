@@ -8,6 +8,8 @@ from pprint import pprint
 from io import StringIO
 
 import numpy as np
+from numpy.core.arrayprint import (get_printoptions,
+                                   _get_format_function)
 
 import ase.units as units
 from ase.atoms import Atoms
@@ -280,6 +282,7 @@ def result_to_dict(result, verbose=0):
 
 tg = 0.0
 td = 0.0
+tw = 0.0
 
 def read_comment_line(line, verbose=0):
     """
@@ -289,56 +292,114 @@ def read_comment_line(line, verbose=0):
 
     t0 = time.time()
     result = grammar.parse(line)
-    tg += time.time()-t0
+    tg += time.time() - t0
     parsed_part = result.tree.children[0].string
     if not result.is_valid:
         raise SyntaxError(f"Failed to parse entire input line, only '{parsed_part}'. "
                           f'Expecting one of : {result.expecting}')
     t0 = time.time()
     d = result_to_dict(result, verbose=verbose)
-    td += time.time()-t0
+    td += time.time() - t0
     return d
 
 
-def properties_regex_dtype(properties):
+def properties_to_dtype(properties):
     """
-    Determine a regex and numpy dtype from parsed property definition
+    Determine numpy dtypes from list of property definitions
     """
-    regex = ''
-    dtype1 = []
-    dtype2 = []
+    dtype_scalar = []
+    dtype_vector = []
     per_atom_dtype = {'R': np.float,
                       'I': np.int,
                       'S': 'U10', # FIXME can we avoid fixed string length?
                       'L': np.bool}
     for (name, property_type, cols) in properties:
+        if cols == 1:
+            for dtype in (dtype_scalar, dtype_vector):
+                dtype.append((name, per_atom_dtype[property_type]))                
+        else:
+            for col in range(cols):
+                dtype_scalar.append((f'{name}{col}', per_atom_dtype[property_type]))
+            dtype_vector.append((name, per_atom_dtype[property_type], (cols,)))
+    dtype_scalar = np.dtype(dtype_scalar)
+    dtype_vector = np.dtype(dtype_vector)
+    return dtype_scalar, dtype_vector
+
+def properties_to_regex(properties):
+    regex = ''
+    for (name, property_type, cols) in properties:
         this_regex = '('+per_atom_column_re[property_type]+')' + whitespace_re
         if cols == 1:
             regex += this_regex
-            for dtype in (dtype1, dtype2):
-                dtype.append((name, per_atom_dtype[property_type]))
         else:
             for col in range(cols):
                 regex += this_regex
-                dtype1.append((f'{name}{col}', per_atom_dtype[property_type]))
-            dtype2.append((name, per_atom_dtype[property_type], (cols,)))
     regex = re.compile(regex)
-    dtype1 = np.dtype(dtype1)
-    dtype2 = np.dtype(dtype2)
-    return regex, dtype1, dtype2
+    return regex
 
+
+def properties_to_property_str(properties):
+    property_strs = []
+    for (name, property_type, cols) in properties:
+        property_strs.append(f'{name}:{property_type}:{cols}')
+    return ':'.join(property_strs)
+
+
+_canonical_property_values = {
+    'R': np.array(0.0),
+    'I': np.array(0),
+    'S': np.array('str'),
+    'L': np.array(True)
+}
+
+def properties_to_format_strings(properties, format_dict):
+    def make_func(v):
+        return lambda x: v
+    formatter = { k: make_func(v) for k, v in format_dict['per-config'].items()}
+    options = get_printoptions()
+    options['formatter'] = formatter
+    
+    format_strings = []
+    for (_, property_type, ncols) in properties:
+        value = _canonical_property_values[property_type]
+        format_func = _get_format_function(value, 
+                                           **options)
+        format_string = format_func(value.item)
+        format_strings.extend([format_string for col in range(ncols)])
+    return format_strings
 
 def velo_to_momenta(atoms, velo):
+    """
+    input: velocities in A/fs
+    output: momenta in amu * A / (ASE time unit)
+    """
     masses = atoms.get_masses()
     return (velo / units.fs) * masses[:, None]
 
+def momenta_to_velo(atoms, momenta):
+    """
+    input: momenta in amu * A / (ASE time unit)
+    output: velocities in A/fs
+    """
+    masses = atoms.get_masses()
+    return momenta / masses[:, None] * units.fs
 
+# map from extxyz name to ASE name, and optionally conversion function
 extxyz_to_ase_name_map = {
     'pos': ('positions', None),
     'species': ('symbols', None),
     'Z': ('numbers', None),
-    'mass': ('masses', None),
+    'mass': ('masses', None), # FIXME should we convert QUIP mass units to amu?
     'velo': ('momenta', velo_to_momenta)
+}
+
+# inverse mapping - not automatically generated due to conversion functions
+ase_to_extxyz_name_map = {
+    'positions': ('pos', None),
+    'symbols': ('species', None),
+    'numbers': ('Z', None),
+    'masses': ('mass', None), # FIXME should we convert amu to QUIP mass units?
+    'momenta': ('velo', velo_to_momenta)
 }
 
 # partition ase.calculators.calculator.all_properties into two lists:
@@ -412,15 +473,15 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
         pprint(info)
         print(f'lattice = {repr(lattice)}')
         print(f'properties = {repr(properties)}')
-    regex, dtype1, dtype2 = properties_regex_dtype(properties)
+    dtype_scalar, dtype_vector = properties_to_dtype(properties)
 
     if use_regex:
         lines = [next(file) for line in range(natoms)]
         buffer = StringIO(''.join(lines))
-        data = np.fromregex(buffer, regex, dtype1)
-        data = data.view(dtype2)
+        data = np.fromregex(buffer, regex, dtype_scalar)
+        data = data.view(dtype_vector)
     else:
-        data = np.genfromtxt(file, dtype2, max_rows=natoms)
+        data = np.genfromtxt(file, dtype_vector, max_rows=natoms)
     data = np.atleast_1d(data) # for 1-atom configs
 
     names = list(data.dtype.names)
@@ -447,7 +508,7 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
                   numbers=numbers,
                   positions=positions,
                   cell=lattice,
-                  pbc=lattice is not None)
+                  pbc=lattice is not None) # FIXME or should we check for pbc in info?
 
     # convert per-atoms data to ASE expectations
     arrays = {}
@@ -505,7 +566,7 @@ def update_atoms_from_calc(atoms, calc=None, calc_prefix=''):
             raise KeyError(f'unknown property {prop}')
 
 
-def format_properties(arrays, columns=None):
+def atoms_to_structured_array(atoms, arrays, columns=None, verbose=0):
     # map from numpy dtype.kind to extxyz property type
     format_map = {'d': 'R',
                   'f': 'R',
@@ -521,7 +582,7 @@ def format_properties(arrays, columns=None):
         else:
             raise ValueError(f'invalid XYZ file: does not contain "{column}"')
 
-    skip_keys = ['symbols', 'properties', 'numbers']        
+    skip_keys = ['symbols', 'positions', 'numbers']
     if columns is None:
         columns = (['symbols', 'positions'] + 
                    [key for key in arrays.keys() if key not in skip_keys])
@@ -531,61 +592,90 @@ def format_properties(arrays, columns=None):
     shuffle_columns('symbols', 0)
     shuffle_columns('positions', 1)
     
-    dtype = []
-    result = ''
+    values = []
+    properties = []
     for column in columns:
-        value = arrays[column]
-        property_type = format_map[value.dtype.kind]
-        ncols = np.atleast_2d(value).shape[1]
-        dtype.append((column, value.dtype, ncols))        
-        result += f'{column}:{property_type}:{ncols}'
-        
-    # build a structured array from the per-atom data
-    data = np.array([arrays[column] for column in columns], dtype)        
-    return result, data
+        if column == 'symbols':
+            value = np.array(atoms.get_chemical_symbols())
+        else:
+            value = arrays[column]
+        try:
+            property_type = format_map[value.dtype.kind]
+        except KeyError:
+            if verbose:
+                print('skipping "{column}" unsupported dtype.kind {dtype.kind}')
+            continue
+        values.append(value)
+        property_name, _ = ase_to_extxyz_name_map.get(column, (column, None))
+        if (len(value.shape) == 1
+                or (len(value.shape) == 2 and value.shape[1] == 1)):
+            ncols = 1
+        else:
+            ncols = value.shape[1]
+        properties.append((property_name, property_type, ncols))            
+
+    _, dtype_vector = properties_to_dtype(properties)
+    data = np.zeros(len(atoms), dtype_vector)
+    for (name, _, _), value in zip(properties, values):
+        data[name] = value
+    return data, properties
 
 
-default_extyz_formatter = {
-    'bool': lambda x: 'T' if x else 'F'
+default_extxyz_format_dict = {
+    'per-config': {
+        'float':    '%.8f',
+        'int':      '%d',
+        'object':   '%s',
+        'numpystr': '%s',
+        'bool':     '%.1s'
+    },
+    'per-atom': {
+        'float':    '%16.8f',
+        'int':      '%8d',
+        'object':   '%s',
+        'numpystr': '%s',
+        'bool':     '%.1s'
+    }
 }
 
-def extxyz_value_to_string(value, formatter=None, suppress_newline=True):
-    if formatter is None:
-        formatter = default_extyz_formatter    
+def escape(string):
+    if '"' in string or ' ' in string:
+        string = string.replace('"', r'\"')
+        string = f'"{string}"'
+    return string
+
+
+def extxyz_value_to_string(value, formatter):
+    if isinstance(value, str):
+        return escape(value)
     value = np.asarray(value)
     string = np.array2string(value,
                              separator=',',
                              max_line_width=np.inf,
                              threshold=np.inf,
                              formatter=formatter)
-    if suppress_newline:
-        string = string.replace('\n', '')
+    string = string.replace('\n', '')
     return string
 
 
-def escape(string):
-    if (' ' in string or
-            '"' in string or "'" in string or
-            '{' in string or '}' in string or
-            '[' in string or ']' in string):
-        string = string.replace('"', r'\"')
-        string = f'"{string}"'
-    return string
-
-
-def extxyz_dict_to_str(info, formatter=None):
+def extxyz_dict_to_str(info, format_dict):
+    def make_func(v):
+        return lambda x: v % x
+    formatter = {k: make_func(v) for k, v in format_dict['per-config'].items()}
+    
     output = ''
     for key, value in info.items():
         key = escape(key)
         value = extxyz_value_to_string(value, formatter)
-        value = escape(value)
         output += f'{key}={value} '    
     return output.strip()
 
 
-def write_extxyz_frame(file, atoms, info=None, arrays=None,
+def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
                        write_calc=False, calc_prefix='', verbose=0,
-                       formatter=None):
+                       format_dict=None):
+    if format_dict is None:
+        format_dict = default_extxyz_format_dict
     if write_calc:
         tmp_atoms = atoms.copy()
         update_atoms_from_calc(tmp_atoms, atoms.calc, calc_prefix)
@@ -595,16 +685,23 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None,
     if arrays is None:
         arrays = atoms.arrays
 
+    data, properties = atoms_to_structured_array(atoms, 
+                                                 arrays,
+                                                 columns,
+                                                 verbose=verbose)
+
     file.write(f'{len(atoms)}\n')
-        
     info_dict = info.copy()
     info_dict['Lattice'] = atoms.cell.array.T
-    info_dict['pbc'] = atoms.get_pbc()
-    info_dict['Properties'], data = format_properties(arrays, columns)
-    comment = extxyz_dict_to_str(info_dict, formatter)
-        
+    info_dict['pbc'] = atoms.get_pbc() # FIXME should this always be included? Reader doesn't parse it
+    info_dict['Properties'] = properties_to_property_str(properties)
+    comment = extxyz_dict_to_str(info_dict, format_dict)
+    
     file.write(comment + '\n')
-    file.write(extxyz_value_to_string(data, formatter))
+    dtype_scalar, _ = properties_to_dtype(properties)
+    data_columns = data.view(dtype_scalar)
+    format_strings = properties_to_format_strings(properties, format_dict) 
+    np.savetxt(file, data_columns, fmt=format_strings)
 
 
 def write(file, atoms, **kwargs):
@@ -625,6 +722,45 @@ def write(file, atoms, **kwargs):
         if own_fh: file.close()
 
 
+class ExtxyzTrajectoryWriter:
+    def __init__(self, filename, mode='w', atoms=None, **kwargs):
+        """
+        Convenience wrapper for writing trajectories in extended XYZ format
+        
+        Can be attached to ASE dynamics, optimizers, etc:
+        
+        >>> from extxyz import ExtxyzTrajectoryWriter
+        >>> from ase.calculators.emt import EMT
+        >>> from ase.optimizers import LBFGS
+        >>> from ase.build imprort bulk
+        >>> atoms = bulk('Cu') * (3, 3, 3)
+        >>> atoms.calc = EMT()
+        >>> atoms.rattle(0.1)
+        >>> traj = ExtxyzTrajectoryWriter('out.xyz')
+        >>> opt = LBFGS(atoms, trajectory=traj) # or opt.attach(traj)
+        >>> opt.run(fmax=1e-3)
+        """
+        self.file = open(filename, mode)
+        self.atoms = atoms
+        self.kwargs = kwargs
+        
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, tb):
+        self.close()
+        
+    def close(self):
+        self.file.close()
+        
+    def write(self, atoms=None, **kwargs):
+        if atoms is None:
+            atoms = self.atoms
+        all_kwargs = self.kwargs.copy()
+        all_kwargs.update(kwargs)
+        write(self.file, atoms, **all_kwargs)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('files', nargs='+')
@@ -632,7 +768,11 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--regex', action='store_true')
     parser.add_argument('-c', '--create-calc', action='store_true')
     parser.add_argument('-p', '--calc-prefix', action='store', default='')
+    parser.add_argument('-w', '--write', action='store_true')
+    parser.add_argument('-R', '--round-trip', action='store_true')
     args = parser.parse_args()
+    if args.round_trip:
+        args.write = True # -R implies -w too
 
     configs = {}
     for file in args.files:
@@ -643,20 +783,40 @@ if __name__ == '__main__':
                              create_calc=args.create_calc,
                              calc_prefix=args.calc_prefix)
         if args.verbose:
-            print(configs[file])
+            print(file)
+            config = configs[file]
+            if isinstance(config, Atoms):
+                config = [config]
+            for atoms in config:
+                pprint(atoms.info)
+                
 
-    print('grammar.parse', tg, 'result_to_dict', td)            
+    print('TIMER grammar.parse', tg, 'result_to_dict', td)    
             
-    for file in args.file:
-        output_file = os.path.splitext(file)[0] + '.out.xyz'
-        print(f'Writing to {output_file}')
-        write(output_file, configs[file], 
-              verbose=args.verbose,
-              write_calc=args.create_calc,
-              calc_prefix=args.calc_prefix)
-
-
-
-
-
->>>>>>> e72f4c56e472ef4becc9c2c47b04759dde74c079
+    if args.write:
+        t0 = time.time()
+        out_files = []
+        for file in args.files:
+            out_file = os.path.splitext(file)[0] + '.out.xyz'
+            out_files.append(out_file)
+            write(out_file, configs[file], 
+                verbose=args.verbose,
+                write_calc=args.create_calc,
+                calc_prefix=args.calc_prefix)
+        tw = time.time() - t0
+        print('TIMER write', tw)
+        
+    if args.round_trip:
+        new_configs = {}
+        for out_file in out_files:
+            print(f'Re-reading from {out_file}')
+            new_configs[file] = read(out_file,
+                                     verbose=args.verbose,
+                                     use_regex=args.regex,
+                                     create_calc=args.create_calc,
+                                     calc_prefix=args.calc_prefix)
+            
+        for config, new_config in zip(configs.values(), 
+                                      new_configs.values()):
+            assert config == new_config
+        
