@@ -476,6 +476,7 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
     dtype_scalar, dtype_vector = properties_to_dtype(properties)
 
     if use_regex:
+        regex = properties_to_regex(properties)
         lines = [next(file) for line in range(natoms)]
         buffer = StringIO(''.join(lines))
         data = np.fromregex(buffer, regex, dtype_scalar)
