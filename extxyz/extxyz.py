@@ -507,7 +507,7 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
     atoms = Atoms(symbols=symbols,
                   numbers=numbers,
                   positions=positions,
-                  cell=lattice,
+                  cell=lattice.T,
                   pbc=lattice is not None) # FIXME or should we check for pbc in info?
 
     # convert per-atoms data to ASE expectations
