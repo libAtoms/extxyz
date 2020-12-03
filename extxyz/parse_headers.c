@@ -12,6 +12,8 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    int n_config = 0;
+
     fp = fopen(argv[1], "r");
     int nat = 0, counter = 0;
     while (fgets(line, 10239, fp)) {
@@ -24,9 +26,15 @@ int main(int argc, char *argv[]) {
             // printf("Test: %s, '%s'\n", pr->is_valid ? "true" : "false", line);
             /* cleanup */
             cleri_parse_free(pr);
+            n_config++;
+            if (n_config % 1000 == 0) {
+                printf(".");
+                fflush(stdout);
+            }
         }
         counter--;
     }
+    printf("\n");
 
     cleri_grammar_free(kv_grammar);
 
