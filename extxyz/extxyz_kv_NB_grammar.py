@@ -12,13 +12,6 @@ integer_re = r'[+-]?[0-9]+'
 bool_re = r'[TF]'
 whitespace_re = r'\s*'
 
-per_atom_column_re = {
-    'R': float_re,
-    'I': integer_re,
-    'S': simplestring_re,
-    'L': bool_re
-}
-
 class ExtxyzKVGrammar(Grammar):
     # string without quotes, some characters must be escaped 
     # <whitespace>='",}{][\

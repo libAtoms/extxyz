@@ -13,13 +13,15 @@ from numpy.core.arrayprint import (get_printoptions,
                                    _get_format_function)
 
 import ase.units as units
+from ase.utils import lazyproperty
 from ase.atoms import Atoms
 from ase.symbols import symbols2numbers
 
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
-from extxyz_kv_NB_grammar import (ExtxyzKVGrammar, properties_val_re,
-                                  per_atom_column_re, whitespace_re)
+from extxyz_kv_NB_grammar import (ExtxyzKVGrammar,
+                                  float_re, integer_re, bool_re, simplestring_re, 
+                                  whitespace_re)
 
 from utils import create_single_point_calculator, update_atoms_from_calc
 
@@ -115,7 +117,6 @@ class TreeCleaner(NodeTransformer):
         """
         Collapse Choice nodes, since these contain only a single child node
         """
-        name = getattr(node.element, 'name', None)
         child = node.children[0]
         if getattr(child.element, 'name', None) is None:
             child.element.name = node.element.name
@@ -188,10 +189,7 @@ class ExtractValues(NodeTransformer):
     visit_bools_sp = visit_bools
 
     def visit_properties_val_str(self, node):
-        items = node.string.split(':')
-        items = [ items[3 * i:3 * i + 3] for i in range(len(items) // 3)]
-        result = [ (prop[0], prop[1], int(prop[2])) for prop in items ]
-        return Value(result)
+        return Value(node.string)
 
 
 class OneDimArrays(NodeTransformer):
@@ -242,6 +240,222 @@ def extract_lattice(result_dict):
     return lattice
 
 
+def velo_to_momenta(atoms, velo):
+    """
+    input: velocities in A/fs
+    output: momenta in amu * A / (ASE time unit)
+    """
+    masses = atoms.get_masses()
+    return (velo / units.fs) * masses[:, None]
+
+
+def momenta_to_velo(atoms, momenta):
+    """
+    input: momenta in amu * A / (ASE time unit)
+    output: velocities in A/fs
+    """
+    masses = atoms.get_masses()
+    return momenta / masses[:, None] * units.fs
+
+
+class Properties:
+    per_atom_dtype = {'R': np.float,
+                      'I': np.int,
+                      'S': 'U10', # FIXME can we avoid fixed string length?
+                      'L': np.bool}
+    
+    # map from numpy dtype.kind to extxyz property type
+    format_map = {'d': 'R',
+                  'f': 'R',
+                  'i': 'I',
+                  'O': 'S',
+                  'S': 'S',
+                  'U': 'S'}
+        
+    # map from extxyz name to ASE name, and optionally conversion function
+    extxyz_to_ase = {
+        'pos': ('positions', None),
+        'species': ('symbols', None),
+        'Z': ('numbers', None),
+        'mass': ('masses', None), # FIXME should we convert QUIP mass units to amu?
+        'velo': ('momenta', velo_to_momenta)
+    }
+
+    # inverse mapping - not automatically generated due to conversion functions
+    ase_to_extxyz = {
+        'positions': ('pos', None),
+        'symbols': ('species', None),
+        'numbers': ('Z', None),
+        'masses': ('mass', None), # FIXME should we convert amu to QUIP mass units?
+        'momenta': ('velo', velo_to_momenta)
+    }
+    
+    # regular expressions for data columns, imported from grammar definition
+    per_atom_column_re = {
+        'R': float_re,
+        'I': integer_re,
+        'S': simplestring_re,
+        'L': bool_re
+    }
+    
+    default_format_dict = {
+        'R':    '%16.8f',
+        'I':      '%8d',
+        'S':      '%s',
+        'L':     '%.1s'
+    }
+
+    def __init__(self, property_string=None, properties=None, format_dict=None, data=None):
+        if (property_string is None) + (properties is None) != 1:
+            raise ValueError('exactly one of property_string and properties '
+                             f'should be present; got {property_string} and '
+                             f'{properties} respectively.')
+
+        if property_string:
+            items = property_string.split(':')
+            items = [ items[3 * i:3 * i + 3] for i in range(len(items) // 3)]
+            self.properties = [ (prop[0], prop[1], int(prop[2])) for prop in items ]
+        else:
+            self.properties = properties
+            
+        if format_dict is None:
+            format_dict = Properties.default_format_dict
+        self.format_dict = format_dict
+        self._data = data
+                    
+    def __iter__(self):
+        for (name, _, _) in self.properties:
+            yield name
+            
+    @classmethod
+    def from_atoms(cls, atoms, arrays=None, columns=None, verbose=0,
+                   format_dict=None):
+        
+        def shuffle_columns(column, idx):
+            if column in columns:
+                old_idx = columns.index(column)
+                columns[idx], columns[old_idx] = columns[idx], columns[old_idx]
+            else:
+                raise ValueError(f'invalid XYZ file: does not contain "{column}"')
+
+        skip_keys = ['symbols', 'positions', 'numbers']
+        if columns is None:
+            columns = (['symbols', 'positions'] +
+                    [key for key in arrays.keys() if key not in skip_keys])
+        else:
+            columns = columns[:] # make a copy so we can reorder
+
+        shuffle_columns('symbols', 0)
+        shuffle_columns('positions', 1)
+
+        values = []
+        properties = []
+        for column in columns:
+            if column == 'symbols':
+                value = np.array(atoms.get_chemical_symbols())
+            else:
+                value = arrays[column]
+            try:
+                property_type = Properties.format_map[value.dtype.kind]
+            except KeyError:
+                if verbose:
+                    print('skipping "{column}" unsupported dtype.kind {dtype.kind}')
+                continue
+            values.append(value)
+            property_name, _ = Properties.ase_to_extxyz.get(column, (column, None))
+            if (len(value.shape) == 1
+                    or (len(value.shape) == 2 and value.shape[1] == 1)):
+                ncols = 1
+            else:
+                ncols = value.shape[1]
+            properties.append((property_name, property_type, ncols))
+
+        self = cls(properties=properties, format_dict=format_dict)
+        self._data = np.zeros(len(atoms), self.dtype_vector)
+        for name, value in zip(self, values):
+            self._data[name] = value
+        return self
+    
+    def get_arrays(self, atoms):
+        arrays = {}
+        for name in self:
+            ase_name, converter = Properties.extxyz_to_ase.get(name, (name, None))
+            value = self.data[name]
+            if converter is not None:
+                value = converter(atoms, value)
+            arrays[ase_name] = value
+        return arrays
+
+    def get_dtype(self, scalar=True):
+        """
+        Construct numpy dtypes from property definitions
+        """
+        dtype_scalar = []
+        dtype_vector = []
+        for (name, property_type, cols) in self.properties:
+            if cols == 1:
+                for dtype in (dtype_scalar, dtype_vector):
+                    dtype.append((name, Properties.per_atom_dtype[property_type]))
+            else:
+                for col in range(cols):
+                    dtype_scalar.append((f'{name}{col}', 
+                                         Properties.per_atom_dtype[property_type]))
+                dtype_vector.append((name, 
+                                     Properties.per_atom_dtype[property_type], (cols,)))
+        if scalar:
+            return np.dtype(dtype_scalar)
+        else:
+            return np.dtype(dtype_vector)
+
+    @lazyproperty
+    def dtype_scalar(self):
+        return self.get_dtype(scalar=True)
+
+    @lazyproperty
+    def dtype_vector(self):
+        return self.get_dtype(scalar=False)
+
+    @lazyproperty
+    def regex(self):
+        regex = ''
+        for (_, property_type, cols) in self.properties:
+            this_regex = '('+Properties.per_atom_column_re[property_type]+')' + whitespace_re
+            if cols == 1:
+                regex += this_regex
+            else:
+                for col in range(cols):
+                    regex += this_regex
+        regex = re.compile(regex)
+        return regex
+
+    @lazyproperty
+    def property_string(self):
+        property_strs = []
+        for (name, property_type, cols) in self.properties:
+            property_strs.append(f'{name}:{property_type}:{cols}')
+        return ':'.join(property_strs)
+
+    @lazyproperty
+    def format_strings(self):
+        format_strings = []
+        for (_, property_type, ncols) in self.properties:
+            format_string = self.format_dict[property_type]
+            format_strings.extend([format_string for col in range(ncols)])
+        return format_strings
+    
+    @property
+    def data(self):
+        return self._data
+    
+    @data.setter
+    def data(self, data):
+        self._data = np.atleast_1d(data.view(self.dtype_vector))
+    
+    @property
+    def data_columns(self):
+        return self._data.view(self.dtype_scalar)
+
+
 def result_to_dict(result, verbose=0):
     """
     Convert from pyleri parse result to key/value info dictionary
@@ -269,7 +483,7 @@ def result_to_dict(result, verbose=0):
         if key.value == 'properties':
             if properties is not None:
                 raise KeyError(f'Duplicate properties entry {value.value}')
-            properties = value.value
+            properties = Properties(property_string=value.value)
             continue
         if key.value in result_dict:
             raise KeyError(f'duplicate key {key.value}')
@@ -304,105 +518,6 @@ def read_comment_line(line, verbose=0):
     return d
 
 
-def properties_to_dtype(properties):
-    """
-    Determine numpy dtypes from list of property definitions
-    """
-    dtype_scalar = []
-    dtype_vector = []
-    per_atom_dtype = {'R': np.float,
-                      'I': np.int,
-                      'S': 'U10', # FIXME can we avoid fixed string length?
-                      'L': np.bool}
-    for (name, property_type, cols) in properties:
-        if cols == 1:
-            for dtype in (dtype_scalar, dtype_vector):
-                dtype.append((name, per_atom_dtype[property_type]))                
-        else:
-            for col in range(cols):
-                dtype_scalar.append((f'{name}{col}', per_atom_dtype[property_type]))
-            dtype_vector.append((name, per_atom_dtype[property_type], (cols,)))
-    dtype_scalar = np.dtype(dtype_scalar)
-    dtype_vector = np.dtype(dtype_vector)
-    return dtype_scalar, dtype_vector
-
-def properties_to_regex(properties):
-    regex = ''
-    for (name, property_type, cols) in properties:
-        this_regex = '('+per_atom_column_re[property_type]+')' + whitespace_re
-        if cols == 1:
-            regex += this_regex
-        else:
-            for col in range(cols):
-                regex += this_regex
-    regex = re.compile(regex)
-    return regex
-
-
-def properties_to_property_str(properties):
-    property_strs = []
-    for (name, property_type, cols) in properties:
-        property_strs.append(f'{name}:{property_type}:{cols}')
-    return ':'.join(property_strs)
-
-
-_canonical_property_values = {
-    'R': np.array(0.0),
-    'I': np.array(0),
-    'S': np.array('str'),
-    'L': np.array(True)
-}
-
-def properties_to_format_strings(properties, format_dict):
-    # def make_func(v):
-    #     return lambda x: v
-    # formatter = { k: make_func(v) for k, v in format_dict['per-config'].items()}
-    # options = get_printoptions()
-    # options['formatter'] = formatter
-    
-    format_strings = []
-    for (_, property_type, ncols) in properties:
-        # value = _canonical_property_values[property_type]
-        # format_func = _get_format_function(value, 
-        #                                    **options)
-        format_string = format_dict[property_type]
-        format_strings.extend([format_string for col in range(ncols)])
-    return format_strings
-
-def velo_to_momenta(atoms, velo):
-    """
-    input: velocities in A/fs
-    output: momenta in amu * A / (ASE time unit)
-    """
-    masses = atoms.get_masses()
-    return (velo / units.fs) * masses[:, None]
-
-def momenta_to_velo(atoms, momenta):
-    """
-    input: momenta in amu * A / (ASE time unit)
-    output: velocities in A/fs
-    """
-    masses = atoms.get_masses()
-    return momenta / masses[:, None] * units.fs
-
-# map from extxyz name to ASE name, and optionally conversion function
-extxyz_to_ase_name_map = {
-    'pos': ('positions', None),
-    'species': ('symbols', None),
-    'Z': ('numbers', None),
-    'mass': ('masses', None), # FIXME should we convert QUIP mass units to amu?
-    'velo': ('momenta', velo_to_momenta)
-}
-
-# inverse mapping - not automatically generated due to conversion functions
-ase_to_extxyz_name_map = {
-    'positions': ('pos', None),
-    'symbols': ('species', None),
-    'numbers': ('Z', None),
-    'masses': ('mass', None), # FIXME should we convert amu to QUIP mass units?
-    'momenta': ('velo', velo_to_momenta)
-}
-
 def read_extxyz_frame(file, verbose=0, use_regex=True,
                       create_calc=False, calc_prefix=''):
     """
@@ -421,31 +536,26 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
         pprint(info)
         print(f'lattice = {repr(lattice)}')
         print(f'properties = {repr(properties)}')
-    dtype_scalar, dtype_vector = properties_to_dtype(properties)
-
     if use_regex:
-        regex = properties_to_regex(properties)
         lines = [next(file) for line in range(natoms)]
         buffer = StringIO(''.join(lines))
-        data = np.fromregex(buffer, regex, dtype_scalar)
-        data = data.view(dtype_vector)
+        properties.data = np.fromregex(buffer, properties.regex, properties.dtype_scalar)
     else:
-        data = np.genfromtxt(file, dtype_vector, max_rows=natoms)
-    data = np.atleast_1d(data) # for 1-atom configs
+        properties.data = np.genfromtxt(file, properties.dtype_vector, max_rows=natoms)
 
-    names = list(data.dtype.names)
+    names = list(properties.dtype_vector.names)
     assert 'pos' in names
-    positions = data['pos']
+    positions = properties.data['pos']
     names.remove('pos')
 
     symbols = None
     if 'species' in names:
-        symbols = data['species']
+        symbols = properties.data['species']
         names.remove('species')
 
     numbers = None
     if 'Z' in names:
-        numbers = data['Z']
+        numbers = properties.data['Z']
         names.remove('Z')
     if symbols is not None and numbers is not None:
         if np.any(symbols2numbers(symbols) != numbers):
@@ -459,15 +569,9 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
                   cell=lattice.T,
                   pbc=lattice is not None) # FIXME or should we check for pbc in info?
 
-    # convert per-atoms data to ASE expectations
-    arrays = {}
-    for name in names:
-        ase_name, converter = extxyz_to_ase_name_map.get(name, (name, None))
-        value = data[name]
-        if converter is not None:
-            value = converter(atoms, value)
-        arrays[ase_name] = value
-
+    # work with a copy of arrays so we can remove results if necessary
+    arrays = properties.get_arrays(atoms)
+    
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
         atoms.calc = create_single_point_calculator(atoms, info, arrays)
@@ -503,77 +607,6 @@ def read(file, **kwargs):
         return configs
 
 
-def atoms_to_structured_array(atoms, arrays, columns=None, verbose=0):
-    # map from numpy dtype.kind to extxyz property type
-    format_map = {'d': 'R',
-                  'f': 'R',
-                  'i': 'I',
-                  'O': 'S',
-                  'S': 'S',
-                  'U': 'S'}
-
-    def shuffle_columns(column, idx):
-        if column in columns:
-            old_idx = columns.index(column)
-            columns[idx], columns[old_idx] = columns[idx], columns[old_idx]
-        else:
-            raise ValueError(f'invalid XYZ file: does not contain "{column}"')
-
-    skip_keys = ['symbols', 'positions', 'numbers']
-    if columns is None:
-        columns = (['symbols', 'positions'] + 
-                   [key for key in arrays.keys() if key not in skip_keys])
-    else:
-        columns = columns[:] # make a copy so we can reorder
-        
-    shuffle_columns('symbols', 0)
-    shuffle_columns('positions', 1)
-    
-    values = []
-    properties = []
-    for column in columns:
-        if column == 'symbols':
-            value = np.array(atoms.get_chemical_symbols())
-        else:
-            value = arrays[column]
-        try:
-            property_type = format_map[value.dtype.kind]
-        except KeyError:
-            if verbose:
-                print('skipping "{column}" unsupported dtype.kind {dtype.kind}')
-            continue
-        values.append(value)
-        property_name, _ = ase_to_extxyz_name_map.get(column, (column, None))
-        if (len(value.shape) == 1
-                or (len(value.shape) == 2 and value.shape[1] == 1)):
-            ncols = 1
-        else:
-            ncols = value.shape[1]
-        properties.append((property_name, property_type, ncols))            
-
-    _, dtype_vector = properties_to_dtype(properties)
-    data = np.zeros(len(atoms), dtype_vector)
-    for (name, _, _), value in zip(properties, values):
-        data[name] = value
-    return data, properties
-
-
-default_extxyz_format_dict = {
-    # 'per-config': {
-    #     'float':    '%.8f',
-    #     'int':      '%d',
-    #     'object':   '%s',
-    #     'numpystr': '%s',
-    #     'bool':     '%.1s'
-    # },
-    # 'per-atom': {
-        'R':    '%16.8f',
-        'I':      '%8d',
-        'S':      '%s',
-        'L':     '%.1s'
-    # }
-}
-
 def escape(string):
     if '"' in string or ' ' in string:
         string = string.replace('"', r'\"')
@@ -600,36 +633,10 @@ def extxyz_value_to_string(value):
     else:
         string = ExtXYZEncoder().encode(value)
         return string.replace('@@"', '').replace('"@@', '')
-    
-    # value = np.asarray(value)
-    # string = np.array2string(value,
-    #                          separator=',',
-    #                          max_line_width=np.inf,
-    #                          threshold=np.inf,
-    #                          formatter=formatter)
-    # string = string.replace('\n', '')
-    # return string
-
-
-# def extxyz_dict_to_str(info, format_dict):
-    # def make_func(v):
-    #     return lambda x: v % x
-    # formatter = {k: make_func(v) for k, v in format_dict['per-config'].items()}
-    
-    # output = ''
-    # for key, value in info.items():
-    #     key = escape(key)
-    #     value = extxyz_value_to_string(value, formatter)
-    #     output += f'{key}={value} '    
-    # return output.strip()
-
-import pandas as pd
 
 def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
                        write_calc=False, calc_prefix='', verbose=0,
-                       format_dict=None, use_pandas=False):
-    if format_dict is None:
-        format_dict = default_extxyz_format_dict
+                       format_dict=None):
     if write_calc:
         tmp_atoms = atoms.copy()
         update_atoms_from_calc(tmp_atoms, atoms.calc, calc_prefix)
@@ -639,27 +646,19 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
     if arrays is None:
         arrays = atoms.arrays
 
-    data, properties = atoms_to_structured_array(atoms, 
-                                                 arrays,
-                                                 columns,
-                                                 verbose=verbose)
+    properties = Properties.from_atoms(atoms, arrays,
+                                       columns, verbose=verbose,
+                                       format_dict=format_dict)
 
     file.write(f'{len(atoms)}\n')
     info_dict = info.copy()
     info_dict['Lattice'] = atoms.cell.array.T
     info_dict['pbc'] = atoms.get_pbc() # FIXME should this always be included? Reader doesn't parse it
-    info_dict['Properties'] = properties_to_property_str(properties)
+    info_dict['Properties'] = properties.property_string
     comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
-    
+
     file.write(comment + '\n')
-    dtype_scalar, _ = properties_to_dtype(properties)
-    data_columns = data.view(dtype_scalar)
-    format_strings = properties_to_format_strings(properties, format_dict) 
-    if use_pandas:
-        df = pd.DataFrame(data_columns)
-        df.to_csv(file, sep=' ', float_format=format_dict['R'], index=False)
-    else:
-        np.savetxt(file, data_columns, fmt=format_strings)
+    np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
 
 
 def write(file, atoms, **kwargs):
@@ -684,9 +683,9 @@ class ExtxyzTrajectoryWriter:
     def __init__(self, filename, mode='w', atoms=None, **kwargs):
         """
         Convenience wrapper for writing trajectories in extended XYZ format
-        
+
         Can be attached to ASE dynamics, optimizers, etc:
-        
+
         >>> from extxyz import ExtxyzTrajectoryWriter
         >>> from ase.calculators.emt import EMT
         >>> from ase.optimizers import LBFGS
@@ -701,16 +700,16 @@ class ExtxyzTrajectoryWriter:
         self.file = open(filename, mode)
         self.atoms = atoms
         self.kwargs = kwargs
-        
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_value, tb):
         self.close()
-        
+
     def close(self):
         self.file.close()
-        
+
     def write(self, atoms=None, **kwargs):
         if atoms is None:
             atoms = self.atoms
@@ -729,7 +728,6 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--write', action='store_true')
     parser.add_argument('-R', '--round-trip', action='store_true')
     parser.add_argument('-P', '--profile', action='store_true')
-    parser.add_argument('--pandas', action='store_true')
     args = parser.parse_args()
     if args.round_trip:
         args.write = True # -R implies -w too
@@ -752,26 +750,26 @@ if __name__ == '__main__':
         for atoms in configs:
             pprint(atoms.info)
 
-    print('TIMER grammar.parse', tg, 'result_to_dict', td)    
-            
+    print('TIMER grammar.parse', tg, 'result_to_dict', td)
+
     if args.write:
         t0 = time.time()
         out_file = os.path.splitext(args.file)[0] + '.out.xyz'
-        
+
         if args.profile:
-            cProfile.run("""write(out_file, configs, 
+            cProfile.run("""write(out_file, configs,
                 verbose=args.verbose,
-                write_calc=args.create_calc, use_pandas=args.pandas,
+                write_calc=args.create_calc,
                 calc_prefix=args.calc_prefix)""", "writestats")
         else:
-            write(out_file, configs, 
+            write(out_file, configs,
                 verbose=args.verbose,
-                write_calc=args.create_calc, use_pandas=args.pandas,
+                write_calc=args.create_calc,
                 calc_prefix=args.calc_prefix)
-        
+
         tw = time.time() - t0
         print('TIMER write', tw)
-        
+
     if args.round_trip:
         print(f'Re-reading from {out_file}')
         new_configs = read(out_file,
@@ -782,4 +780,4 @@ if __name__ == '__main__':
 
         assert configs == new_configs
         print('All configs match!')
-        
+
