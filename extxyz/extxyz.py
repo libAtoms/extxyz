@@ -19,9 +19,9 @@ from ase.symbols import symbols2numbers
 
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
-from extxyz_kv_NB_grammar import (ExtxyzKVGrammar,
-                                  float_re, integer_re, bool_re, simplestring_re, 
-                                  whitespace_re)
+from extxyz_kv_grammar import (ExtxyzKVGrammar,
+                               float_re, integer_re, bool_re, simplestring_re, 
+                               whitespace_re)
 
 from utils import create_single_point_calculator, update_atoms_from_calc
 
