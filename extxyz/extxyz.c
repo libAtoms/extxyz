@@ -200,6 +200,10 @@ void dump_tree(cleri_node_t *node, char *prefix) {
 }
 
 void free_DataLinkedList(enum data_type data_t, DataLinkedList *list, int free_string_content) {
+    if (!list) {
+        return;
+    }
+
     DataLinkedList *next_data;
     for (DataLinkedList *data = list; data; data = next_data) {
         if (data_t == data_s && free_string_content) {
@@ -241,7 +245,8 @@ void DataLinkedList_to_DataPtr(DictEntry *dict) {
                 }
             }
 
-            // free linked list, but keep strings allocated
+            // free data linked list, but keep strings allocated, since they were 
+            // copied to data
             free_DataLinkedList(entry->data_t, entry->first_data_ll, 0);
             entry->first_data_ll = 0;
             entry->last_data_ll = 0;
@@ -275,6 +280,62 @@ void *tree_to_dict(cleri_parse_t *tree) {
     DataLinkedList_to_DataPtr(dict);
 
     return dict;
+}
+
+
+
+void free_DataPtrs(enum data_type data_t, int nrows, int ncols, DataPtrs data) {
+    if (data_t == data_i) {
+        free (data.i);
+    } else if (data_t == data_f) {
+        free (data.f);
+    } else if (data_t == data_b) {
+        free (data.b);
+    } else if (data_t == data_s) {
+        nrows = nrows == 0 ? 1 : nrows;
+        ncols = ncols == 0 ? 1 : ncols;
+        for (int ri=0; ri < nrows; ri++) {
+        for (int ci=0; ci < ncols; ci++) {
+            free (data.s[ri*ncols + ci]);
+        }
+        }
+        free(data.s);
+    }
+}
+
+void free_arrays(Arrays *arrays) {
+    Arrays *next_entry = arrays->next;
+    for (Arrays *entry = arrays; entry; entry = next_entry) {
+        free(entry->key);
+        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
+        free(entry);
+        next_entry = entry->next;
+    }
+}
+
+void free_info(DictEntry *info) {
+    DictEntry *next_entry = info->next;
+    for (DictEntry *entry = info; entry; entry = next_entry) {
+        free(entry->key);
+        free_DataLinkedList(entry->data_t, entry->first_data_ll, 1);
+        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
+
+        next_entry = entry->next;
+        free(entry);
+    }
+}
+
+void print_info_arrays(DictEntry *info, Arrays *arrays) {
+    for (DictEntry *entry = info; entry; entry = entry->next) {
+        printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
+               entry->nrows, entry->ncols);
+    }
+    for (Arrays *entry = arrays; entry; entry = entry->next) {
+        printf("array '%s' type %d shape %d %d\n", entry->key, entry->data_t,
+               entry->nrows, entry->ncols);
+
+    }
+    printf("\n");
 }
 
 
@@ -400,57 +461,4 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arra
     }
 
     return 1;
-}
-
-void free_DataPtrs(enum data_type data_t, int nrows, int ncols, DataPtrs data) {
-    if (data_t == data_i) {
-        free (data.i);
-    } else if (data_t == data_f) {
-        free (data.f);
-    } else if (data_t == data_b) {
-        free (data.b);
-    } else if (data_t == data_s) {
-        for (int ri=0; ri < nrows; ri++) {
-        for (int ci=0; ci < ncols; ci++) {
-            free (data.s[ri*ncols + ci]);
-        }
-        }
-    }
-}
-
-void free_arrays(Arrays *arrays) {
-    Arrays *next_entry = arrays->next;
-    for (Arrays *entry = arrays; entry; entry = next_entry) {
-        free(entry->key);
-        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
-        free(entry);
-        next_entry = entry->next;
-    }
-}
-
-void free_info(DictEntry *info) {
-    DictEntry *next_entry = info->next;
-    for (DictEntry *entry = info; entry; entry = next_entry) {
-        free(entry->key);
-        if (entry->first_data_ll) {
-            free_DataLinkedList(entry->data_t, entry->first_data_ll, 1);
-        }
-        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
-
-        next_entry = entry->next;
-        free(entry);
-    }
-}
-
-void print_info_arrays(DictEntry *info, Arrays *arrays) {
-    for (DictEntry *entry = info; entry; entry = entry->next) {
-        printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-               entry->nrows, entry->ncols);
-    }
-    for (Arrays *entry = arrays; entry; entry = entry->next) {
-        printf("array '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-               entry->nrows, entry->ncols);
-
-    }
-    printf("\n");
 }
