@@ -263,7 +263,7 @@ void *tree_to_dict(cleri_parse_t *tree) {
 }
 
 
-int extxyz_read(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arrays **arrays) {
+int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arrays **arrays) {
     int nat;
     char line[10240];
 
@@ -387,6 +387,46 @@ int extxyz_read(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arrays 
     return 1;
 }
 
+void free_arrays(Arrays *arrays) {
+    Arrays *next_entry = arrays->next;
+    for (Arrays *entry = arrays; entry; entry = next_entry) {
+        free(entry->key);
+        if (entry->data_t == data_i) {
+            free (entry->data.i);
+        } else if (entry->data_t == data_f) {
+            free (entry->data.f);
+        } else if (entry->data_t == data_b) {
+            free (entry->data.b);
+        } else if (entry->data_t == data_s) {
+            int nc = entry->ncols;
+            for (int ri=0; ri < entry->nrows; ri++) {
+            for (int ci=0; ci < nc; ci++) {
+                free (entry->data.s[ri*nc + ci]);
+            }
+            }
+        }
+        free(entry);
+        next_entry = entry->next;
+    }
+}
+
+void free_info(DictEntry *info) {
+    DictEntry *next_entry = info->next;
+    for (DictEntry *entry = info; entry; entry = next_entry) {
+        free(entry->key);
+        DataList *next_data = entry->first_data->next;
+        for (DataList *data = entry->first_data; data; data = next_data) {
+            if (entry->data_t == data_s) {
+                free (data->data.s);
+            }
+            next_data = data->next;
+            free(data);
+        }
+        next_entry = entry->next;
+        free(entry);
+    }
+}
+
 int main(int argc, char *argv[]) {
     FILE *fp;
     char line[10240];
@@ -403,8 +443,9 @@ int main(int argc, char *argv[]) {
     DictEntry *info;
     Arrays *arrays;
     fp = fopen(argv[1], "r");
-    while (extxyz_read(kv_grammar, fp, &info, &arrays)) {
+    while (extxyz_read_ll(kv_grammar, fp, &info, &arrays)) {
 
+        // print summary of info and arrays
         for (DictEntry *entry = info; entry; entry = entry->next) {
             printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
                    entry->nrows, entry->ncols);
@@ -414,8 +455,10 @@ int main(int argc, char *argv[]) {
                    entry->nrows, entry->ncols);
 
         }
-
         printf("\n");
+
+        free_arrays(arrays);
+        free_info(info);
 
         n_config++;
         if (n_config % 1000 == 0) {
