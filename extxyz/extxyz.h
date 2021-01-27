@@ -9,17 +9,19 @@ typedef struct data_list_struct {
     } data;
 
     struct data_list_struct *next;
-} DataList;
+} DataLinkedList;
+
+typedef union data_pointers {
+    int *i;
+    double *f;
+    char **s;
+    int *b;
+} DataPtrs;
 
 typedef struct arrays_struct {
     char *key;
 
-    union {
-        int *i;
-        double *f;
-        char **s;
-        int *b;
-    } data;
+    DataPtrs data;
 
     enum data_type data_t;
     int nrows, ncols;
@@ -30,7 +32,8 @@ typedef struct arrays_struct {
 typedef struct dict_entry_struct {
     char *key;
 
-    DataList *first_data, *last_data;
+    DataLinkedList *first_data_ll, *last_data_ll;
+    DataPtrs data;
     enum data_type data_t; 
     int nrows, ncols, n_in_row;
 

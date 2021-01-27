@@ -31,15 +31,15 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
         } else if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_KEYWORD ||
                                     node->cl_obj->tp == CLERI_TP_REGEX)) {
             //DEBUG printf("FOUND keyword or regex\n");
-            DataList *new_data = (DataList *) malloc(sizeof(DataList));
-            if (! (*cur_entry)->first_data) {
+            DataLinkedList *new_data = (DataLinkedList *) malloc(sizeof(DataLinkedList));
+            if (! (*cur_entry)->first_data_ll) {
                 // no data here yet
-                (*cur_entry)->first_data = new_data;
+                (*cur_entry)->first_data_ll = new_data;
             } else {
                 // extend datalist
-                (*cur_entry)->last_data->next = new_data;
+                (*cur_entry)->last_data_ll->next = new_data;
             }
-            (*cur_entry)->last_data = new_data;
+            (*cur_entry)->last_data_ll = new_data;
             new_data->next = 0;
             (*cur_entry)->n_in_row++;
 
@@ -119,7 +119,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
             strncpy((*cur_entry)->key, node->str, node->len);
             (*cur_entry)->key[node->len] = 0;
             // zero other things
-            (*cur_entry)->first_data = (*cur_entry)->last_data = 0;
+            (*cur_entry)->first_data_ll = (*cur_entry)->last_data_ll = 0;
             (*cur_entry)->nrows = (*cur_entry)->ncols = (*cur_entry)-> n_in_row = 0;
             (*cur_entry)->next = 0;
             //DEBUG printf("got key '%s'\n", (*cur_entry)->key);
@@ -199,6 +199,56 @@ void dump_tree(cleri_node_t *node, char *prefix) {
     free(new_prefix);
 }
 
+void free_DataLinkedList(enum data_type data_t, DataLinkedList *list, int free_string_content) {
+    DataLinkedList *next_data;
+    for (DataLinkedList *data = list; data; data = next_data) {
+        if (data_t == data_s && free_string_content) {
+            free(data->data.s);
+        }
+        next_data = data->next;
+        free(data);
+    }
+}
+
+
+void DataLinkedList_to_DataPtr(DictEntry *dict) {
+    for (DictEntry *entry = dict; entry; entry = entry->next) {
+        if (entry->first_data_ll) {
+            DataLinkedList *data_item = entry->first_data_ll;
+            int n_items;
+            for (n_items=0; data_item; n_items++, data_item = data_item->next) {
+            }
+            data_item = entry->first_data_ll;
+            if (entry->data_t == data_i) {
+                entry->data.i = (int *) malloc(n_items*sizeof(int));
+                for (int i=0; i < n_items; i++, data_item = data_item->next) {
+                    entry->data.i[i] = data_item->data.i;
+                }
+            } else if (entry->data_t == data_f) {
+                entry->data.f = (double *) malloc(n_items*sizeof(double));
+                for (int i=0; i < n_items; i++, data_item = data_item->next) {
+                    entry->data.f[i] = data_item->data.f;
+                }
+            } else if (entry->data_t == data_b) {
+                entry->data.b = (int *) malloc(n_items*sizeof(int));
+                for (int i=0; i < n_items; i++, data_item = data_item->next) {
+                    entry->data.b[i] = data_item->data.b;
+                }
+            } else if (entry->data_t == data_s) {
+                entry->data.s = (char **) malloc(n_items*sizeof(char *));
+                for (int i=0; i < n_items; i++, data_item = data_item->next) {
+                    entry->data.s[i] = data_item->data.s;
+                }
+            }
+
+            // free linked list, but keep strings allocated
+            free_DataLinkedList(entry->data_t, entry->first_data_ll, 0);
+            entry->first_data_ll = 0;
+            entry->last_data_ll = 0;
+        }
+    }
+}
+
 void *tree_to_dict(cleri_parse_t *tree) {
     if (! tree->is_valid) {
         fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);
@@ -210,7 +260,7 @@ void *tree_to_dict(cleri_parse_t *tree) {
 
     DictEntry *dict = (DictEntry *) malloc(sizeof(DictEntry));
     dict->key = 0;
-    dict->first_data = dict->last_data = 0;
+    dict->first_data_ll = dict->last_data_ll = 0;
     dict->next = 0;
 
     DictEntry *cur_entry = dict;
@@ -221,6 +271,8 @@ void *tree_to_dict(cleri_parse_t *tree) {
         fprintf(stderr, "error parsing tree\n");
         exit(1);
     }
+
+    DataLinkedList_to_DataPtr(dict);
 
     return dict;
 }
@@ -244,7 +296,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arra
     char *props;
     for (DictEntry *entry = *info; entry; entry = entry->next) {
         if (! strcmp(entry->key, "Properties")) {
-            props = entry->first_data->data.s;
+            props = entry->data.s[0];
             break;
         }
     }
@@ -350,24 +402,27 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arra
     return 1;
 }
 
+void free_DataPtrs(enum data_type data_t, int nrows, int ncols, DataPtrs data) {
+    if (data_t == data_i) {
+        free (data.i);
+    } else if (data_t == data_f) {
+        free (data.f);
+    } else if (data_t == data_b) {
+        free (data.b);
+    } else if (data_t == data_s) {
+        for (int ri=0; ri < nrows; ri++) {
+        for (int ci=0; ci < ncols; ci++) {
+            free (data.s[ri*ncols + ci]);
+        }
+        }
+    }
+}
+
 void free_arrays(Arrays *arrays) {
     Arrays *next_entry = arrays->next;
     for (Arrays *entry = arrays; entry; entry = next_entry) {
         free(entry->key);
-        if (entry->data_t == data_i) {
-            free (entry->data.i);
-        } else if (entry->data_t == data_f) {
-            free (entry->data.f);
-        } else if (entry->data_t == data_b) {
-            free (entry->data.b);
-        } else if (entry->data_t == data_s) {
-            int nc = entry->ncols;
-            for (int ri=0; ri < entry->nrows; ri++) {
-            for (int ci=0; ci < nc; ci++) {
-                free (entry->data.s[ri*nc + ci]);
-            }
-            }
-        }
+        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
         free(entry);
         next_entry = entry->next;
     }
@@ -377,14 +432,11 @@ void free_info(DictEntry *info) {
     DictEntry *next_entry = info->next;
     for (DictEntry *entry = info; entry; entry = next_entry) {
         free(entry->key);
-        DataList *next_data = entry->first_data->next;
-        for (DataList *data = entry->first_data; data; data = next_data) {
-            if (entry->data_t == data_s) {
-                free (data->data.s);
-            }
-            next_data = data->next;
-            free(data);
+        if (entry->first_data_ll) {
+            free_DataLinkedList(entry->data_t, entry->first_data_ll, 1);
         }
+        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
+
         next_entry = entry->next;
         free(entry);
     }
