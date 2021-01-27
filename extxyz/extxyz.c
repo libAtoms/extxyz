@@ -2,46 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cleri/cleri.h>
+
 #include "extxyz_kv_grammar.h"
-
-enum data_type {data_i, data_f, data_b, data_s};
-
-typedef struct data_list_struct {
-    union {
-        int i;
-        double f;
-        char *s;
-        int b;
-    } data;
-
-    struct data_list_struct *next;
-} DataList;
-
-typedef struct arrays_struct {
-    char *key;
-
-    union {
-        int *i;
-        double *f;
-        char **s;
-        int *b;
-    } data;
-
-    enum data_type data_t;
-    int nrows, ncols;
-
-    struct arrays_struct *next;
-} Arrays;
-
-typedef struct dict_entry_struct {
-    char *key;
-
-    DataList *first_data, *last_data;
-    enum data_type data_t; 
-    int nrows, ncols, n_in_row;
-
-    struct dict_entry_struct *next;
-} DictEntry;
+#include "extxyz.h"
 
 int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_entry) {
     //DEBUG printf("enter parse_tree in_entry %d\n", *in_entry);
@@ -427,48 +390,15 @@ void free_info(DictEntry *info) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    FILE *fp;
-    char line[10240];
-
-    cleri_grammar_t * kv_grammar = compile_extxyz_kv_grammar();
-
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s in.xyz\n", argv[0]);
-        exit(1);
+void print_info_arrays(DictEntry *info, Arrays *arrays) {
+    for (DictEntry *entry = info; entry; entry = entry->next) {
+        printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
+               entry->nrows, entry->ncols);
     }
+    for (Arrays *entry = arrays; entry; entry = entry->next) {
+        printf("array '%s' type %d shape %d %d\n", entry->key, entry->data_t,
+               entry->nrows, entry->ncols);
 
-    int n_config = 0;
-
-    DictEntry *info;
-    Arrays *arrays;
-    fp = fopen(argv[1], "r");
-    while (extxyz_read_ll(kv_grammar, fp, &info, &arrays)) {
-
-        // print summary of info and arrays
-        for (DictEntry *entry = info; entry; entry = entry->next) {
-            printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-                   entry->nrows, entry->ncols);
-        }
-        for (Arrays *entry = arrays; entry; entry = entry->next) {
-            printf("array '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-                   entry->nrows, entry->ncols);
-
-        }
-        printf("\n");
-
-        free_arrays(arrays);
-        free_info(info);
-
-        n_config++;
-        if (n_config % 1000 == 0) {
-            fprintf(stderr, ".");
-            fflush(stderr);
-        }
     }
-    fprintf(stderr, "\n");
-
-    cleri_grammar_free(kv_grammar);
-
-    return 0;
+    printf("\n");
 }
