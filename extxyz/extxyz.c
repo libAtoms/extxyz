@@ -480,7 +480,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             case 'L':
                 cur_array->data_t = data_b;
                 cur_array->data = malloc(((*nat)*col_num)*sizeof(int));
-                this_re="[TF]";
+                this_re="(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)";
                 break;
             case 'S':
                 cur_array->data_t = data_s;

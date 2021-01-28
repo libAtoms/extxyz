@@ -9,7 +9,7 @@ quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
 barestring_re = r"""(?:[^\s='",}{\]\[\\]|(?:\\[\s='",}{\]\]\\]))+"""
 float_re = r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 integer_re = r'[+-]?[0-9]+'
-bool_re = r'[TF]'
+bool_re = r'(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)'
 whitespace_re = r'\s*'
 
 class ExtxyzKVGrammar(Grammar):
