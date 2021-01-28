@@ -23,6 +23,7 @@ void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     } else {
         entry->key = 0;
     }
+    entry->nrows = entry->ncols = entry->n_in_row = 0;
     entry->first_data_ll = entry->last_data_ll = 0;
     entry->data = 0;
     entry->data_t = data_none;
@@ -321,26 +322,29 @@ void *tree_to_dict(cleri_parse_t *tree) {
 
 
 void free_data(void *data, enum data_type data_t, int nrows, int ncols) {
-    if (data) {
-        if (data_t == data_s) {
-            // free allocated strings inside array
-            nrows = nrows == 0 ? 1 : nrows;
-            ncols = ncols == 0 ? 1 : ncols;
-            for (int ri=0; ri < nrows; ri++) {
-            for (int ci=0; ci < ncols; ci++) {
-                free(((char **)data)[ri*ncols + ci]);
-            }
-            }
-        }
-        free(data);
+    if (!data) {
+        return;
     }
+    if (data_t == data_s) {
+        // free allocated strings inside array
+        nrows = nrows == 0 ? 1 : nrows;
+        ncols = ncols == 0 ? 1 : ncols;
+        for (int ri=0; ri < nrows; ri++) {
+        for (int ci=0; ci < ncols; ci++) {
+            free(((char **)data)[ri*ncols + ci]);
+        }
+        }
+    }
+    free(data);
 }
 
 
 void free_dict(DictEntry *dict) {
     DictEntry *next_entry = dict->next;
     for (DictEntry *entry = dict; entry; entry = next_entry) {
-        free(entry->key);
+        if (entry->key) {
+            free(entry->key);
+        }
         free_DataLinkedList(entry->first_data_ll, entry->data_t, 1);
         free_data(entry->data, entry->data_t, entry->nrows, entry->ncols); 
 

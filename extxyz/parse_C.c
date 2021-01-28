@@ -29,7 +29,9 @@ int main(int argc, char *argv[]) {
         print_dict(arrays);
         printf("\n");
 
+        printf("freeing arrays\n");
         free_dict(arrays);
+        printf("freeing info\n");
         free_dict(info);
 
         n_config++;
