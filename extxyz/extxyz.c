@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <pcre.h>
 #include <cleri/cleri.h>
 
 #include "extxyz_kv_grammar.h"
@@ -365,6 +367,13 @@ void print_dict(DictEntry *dict) {
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
     char line[MAX_LINE_LEN];
 
+    // we could set this based on whether we want to default to 
+    // traditional xyz, and so ignore extra columns, when Properties is 
+    // missing
+    char *re_at_eol = "\\s*$";
+    // less restrictive alternative, allows for ignored extra columns
+    // char *re_at_eol = "(?:\\s+|\\s*$)");
+
     // nat
     char *stat = fgets(line, MAX_LINE_LEN, fp);
     if (! stat) {
@@ -415,13 +424,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
 
     *arrays = (DictEntry *) 0;
-    char re[MAX_RE_LEN];
-    re[0] = 0;
+    char re_str[MAX_RE_LEN];
+    re_str[0] = 0;
+    strcat(re_str, "^\\s*");
 
     DictEntry *cur_array;
+    printf("got properties '%s'\n", props);
 
     char *pf = strtok(props, ":");
-    int prop_i = 0;
+    int prop_i = 0, tot_col_num = 0;
     while (pf) {
         if (! *arrays) {
             *arrays = (DictEntry *) malloc(sizeof(DictEntry));
@@ -485,16 +496,37 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         }
 
         for (int ci=0; ci < col_num; ci++) {
-            strcat(re, "(");
-            strcat(re, this_re);
-            strcat(re, ")");
-            strcat(re,"\\s+");
+            strcat(re_str, "(");
+            strcat(re_str, this_re);
+            strcat(re_str, ")");
+            strcat(re_str, "\\s+");
         }
 
         // ready to next triplet
         pf = strtok(NULL, ":");
         prop_i++;
+        tot_col_num += col_num;
     }
+
+    // trim off last \s+
+    re_str[strlen(re_str)-3] = 0;
+    // tack on to EOL
+    strcat(re_str, re_at_eol);
+
+    // printf("got atom re '%s'\n", re_str);
+
+    const char *pcre_error;
+    int erroffset;
+    pcre *re = pcre_compile(re_str, 0, &pcre_error, &erroffset, NULL);
+    if (pcre_error != 0) {
+        fprintf(stderr, "ERROR compiling pcre pattern for atoms lines offset %d re '%s'\n", erroffset, re_str);
+    }
+    // this will not work with exactly 3*tot_col_num, for reasons that are
+    // apparetntly explained in the PCRE docs 
+    // ("There  are  some  cases where zero is returned"...)
+    int ovector_len = 3*tot_col_num+3;
+    int *ovector = (int *) malloc(ovector_len * sizeof(int));
+    // pcre_study?
 
     // read per-atom data
     for (int li=0; li < (*nat); li++) {
@@ -504,25 +536,59 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
-        char *pf = strtok(line, " ");
+        // use PCRE + atoi/f
+        // printf("applying pcre to '%s'\n", line);
+        int rc = pcre_exec(re, NULL, line, strlen(line), 0, 0, ovector, ovector_len);
+        if (rc != tot_col_num+1) {
+            if (rc > 0) {
+                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d at subgroup %d\n", li, rc-1);
+            } else {
+                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d error %d\n", li, rc);
+            }
+            return 0;
+        }
+        int field_i = 1;
         for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
             int nc = cur_array->ncols;
             for (int col_i = 0; col_i < nc; col_i++) {
-                if (cur_array->data_t == data_i) {
-                    sscanf(pf, "%d", ((int *)(cur_array->data)) + li*nc + col_i);
+                pf = line + ovector[2*field_i];
+                // overwrite end of field, must be at least one space so won't damage anything
+                line[ovector[2*field_i+1]] = 0;
+                if (cur_array->data_t == data_i) { 
+                    ((int *)(cur_array->data))[li*nc + col_i] = atoi(pf);
                 } else if (cur_array->data_t == data_f) {
-                    sscanf(pf, "%lf", ((double *)(cur_array->data)) + li*nc + col_i);
+                    ((double *)(cur_array->data))[li*nc + col_i] = atof(pf);
                 } else if (cur_array->data_t == data_b) {
-                    char c;
-                    sscanf(pf, "%c", &c);
-                    ((int *)(cur_array->data))[li*nc + col_i] = (c == 'T');
+                    ((int *)(cur_array->data))[li*nc + col_i] = (pf[0] == 'T');
                 } else if (cur_array->data_t == data_s) {
                     ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
                     strcat(((char **)(cur_array->data))[li*nc+col_i], pf);
                 }
-                pf = strtok(NULL, " ");
+                field_i++;
             }
         }
+        /* {
+            // use strtok + sscanf
+            char *pf = strtok(line, " ");
+            for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
+                int nc = cur_array->ncols;
+                for (int col_i = 0; col_i < nc; col_i++) {
+                    if (cur_array->data_t == data_i) {
+                        sscanf(pf, "%d", ((int *)(cur_array->data)) + li*nc + col_i);
+                    } else if (cur_array->data_t == data_f) {
+                        sscanf(pf, "%lf", ((double *)(cur_array->data)) + li*nc + col_i);
+                    } else if (cur_array->data_t == data_b) {
+                        char c;
+                        sscanf(pf, "%c", &c);
+                        ((int *)(cur_array->data))[li*nc + col_i] = (c == 'T');
+                    } else if (cur_array->data_t == data_s) {
+                        ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
+                        strcat(((char **)(cur_array->data))[li*nc+col_i], pf);
+                    }
+                    pf = strtok(NULL, " ");
+                }
+            }
+        } */
     }
 
     // return true
