@@ -16,16 +16,21 @@ int main(int argc, char *argv[]) {
 
     int n_config = 0;
 
-    DictEntry *info;
-    Arrays *arrays;
+    int nat;
+    DictEntry *info, *arrays;
+
     fp = fopen(argv[1], "r");
-    while (extxyz_read_ll(kv_grammar, fp, &info, &arrays)) {
+    while (extxyz_read_ll(kv_grammar, fp, &nat, &info, &arrays)) {
 
         // print summary of info and arrays
-        print_info_arrays(info, arrays);
+        printf("info:\n");
+        print_dict(info);
+        printf("\narrays:\n");
+        print_dict(arrays);
+        printf("\n");
 
-        free_arrays(arrays);
-        free_info(info);
+        free_dict(arrays);
+        free_dict(info);
 
         n_config++;
         if (n_config % 1000 == 0) {

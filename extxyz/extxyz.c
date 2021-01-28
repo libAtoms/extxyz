@@ -6,8 +6,31 @@
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
 
-int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_entry) {
-    //DEBUG printf("enter parse_tree in_entry %d\n", *in_entry);
+#define MAX_LINE_LEN 10240
+#define MAX_RE_LEN 10240
+
+void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
+    if (key) {
+        if (key_len <= 0) {
+            fprintf(stderr, "INTERNAL ERROR: init_DictEntry with key %d and key_len %d <= 0\n", key, key_len);
+            exit(1);
+        }
+        // copy into entry
+        char *str = (char *) malloc((key_len+1)*sizeof(char));
+        strncpy(str, key, key_len);
+        str[key_len] = 0;
+        entry->key = str;
+    } else {
+        entry->key = 0;
+    }
+    entry->first_data_ll = entry->last_data_ll = 0;
+    entry->data = 0;
+    entry->data_t = data_none;
+    entry->next = 0;
+}
+
+int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair) {
+    //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair);
     //DEBUG if (node->cl_obj) {
         //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid);
         //DEBUG if (1) { // node->cl_obj->tp == CLERI_TP_KEYWORD || node->cl_obj->tp == CLERI_TP_REGEX) {
@@ -22,41 +45,46 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
         //DEBUG printf("\n");
     //DEBUG }
 
-    if (*in_entry) {
+    if (*in_kv_pair) {
         //DEBUG printf("in entry, looking for data\n");
         // have key, looking for data
         if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_SEQUENCE)) {
+            // entering sequence, increment depth counter
             (*in_seq)++;
             //DEBUG printf("sequence, new in_seq %d\n", *in_seq);
         } else if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_KEYWORD ||
                                     node->cl_obj->tp == CLERI_TP_REGEX)) {
+            // something that contains actual data (keyword or regex)
             //DEBUG printf("FOUND keyword or regex\n");
-            DataLinkedList *new_data = (DataLinkedList *) malloc(sizeof(DataLinkedList));
+            DataLinkedList *new_data_ll = (DataLinkedList *) malloc(sizeof(DataLinkedList));
             if (! (*cur_entry)->first_data_ll) {
                 // no data here yet
-                (*cur_entry)->first_data_ll = new_data;
+                (*cur_entry)->first_data_ll = new_data_ll;
             } else {
                 // extend datalist
-                (*cur_entry)->last_data_ll->next = new_data;
+                (*cur_entry)->last_data_ll->next = new_data_ll;
             }
-            (*cur_entry)->last_data_ll = new_data;
-            new_data->next = 0;
+            (*cur_entry)->last_data_ll = new_data_ll;
+            new_data_ll->next = 0;
             (*cur_entry)->n_in_row++;
 
             if (node->cl_obj->tp == CLERI_TP_REGEX) {
+                // parse things from regex: int, float, string
+                // copy into null-terminated string, since cleri just
+                // gives start pointer and length
                 char * str = (char *) malloc((node->len+1)*sizeof(char));
                 strncpy(str, node->str, node->len);
                 str[node->len] = 0;
 
                 if (node->cl_obj->gid == CLERI_GID_R_INTEGER) {
                     //DEBUG printf("FOUND int\n");
-                    new_data->data.i = atoi(str);
+                    new_data_ll->data.i = atoi(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     (*cur_entry)->data_t = data_i;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_FLOAT) {
                     //DEBUG printf("FOUND float\n");
-                    new_data->data.f = atof(str);
+                    new_data_ll->data.f = atof(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     (*cur_entry)->data_t = data_f;
                     free(str);
@@ -66,13 +94,16 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
                            node->cl_obj->gid == CLERI_GID_PROPERTIES_VAL_STR) {
                     // is it bad to just use CLERI_GID_PROPERTIES_VAL_STR as though it's a plain string?
                     //DEBUG printf("FOUND string\n");
-                    new_data->data.s = str;
+                    // store pointer, do not copy, but data was still allocated
+                    // in this routine, not in cleri parsing.
+                    new_data_ll->data.s = str;
                     (*cur_entry)->data_t = data_s;
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
                     if (strlen(str) > 0) {
                         fprintf(stderr, "Failed to parse some regex as data key '%s' str '%s'\n", 
                                 (*cur_entry)->key, str);
+                        // free before incomplete return
                         free(str);
                         return 1;
                     }
@@ -81,18 +112,23 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
                 // keyword
                 if (node->cl_obj->gid == CLERI_GID_K_TRUE || node->cl_obj->gid == CLERI_GID_K_FALSE) {
                     //DEBUG printf("FOUND keyword bool\n");
-                    new_data->data.b = (node->cl_obj->gid == CLERI_GID_K_TRUE);
+                    new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_K_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     (*cur_entry)->data_t = data_b;
                 } else {
-                    fprintf(stderr, "Failed to parse some keyword as data key '%s'\n", (*cur_entry)->key);
+                    // allocate string for printing
+                    char * str = (char *) malloc((node->len+1)*sizeof(char));
+                    strncpy(str, node->str, node->len);
+                    fprintf(stderr, "Failed to parse some keyword as data, key '%s' str '%s'\n", (*cur_entry)->key, str);
+                    free(str);
                     return 1;
                 }
             }
 
             if (*in_seq == 0) {
-                //DEBUG printf("got scalar, setting in_entry=0\n");
-                *in_entry = 0;
+                // end of a scalar, not longer in a k-v pair
+                //DEBUG printf("got scalar, setting in_kv_pair=0\n");
+                *in_kv_pair = 0;
             }
         }
     } else {
@@ -100,30 +136,24 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
         // looking for key
         if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_KEYWORD ||
                              node->cl_obj->tp == CLERI_TP_REGEX)) {
+            // only keywords and regex can be keys
             if (node->len == 0) {
-                // empty string, skip
+                // empty regex, skip
                 return 0;
             }
-            //DEBUG printf("got key, setting in_entry=1\n");
-            *in_entry = 1;
+            //DEBUG printf("got key, setting in_kv_pair=1\n");
+            *in_kv_pair = 1;
             //DEBUG printf("FOUND keyword or regex\n");
             // found something that can contain key
             if ((*cur_entry)->key) {
-                // extend linked list
+                // non-zero key indicates a real dict entry, extend linked list
                 DictEntry *new_entry = (DictEntry *) malloc(sizeof(DictEntry));
                 (*cur_entry)->next = new_entry;
                 (*cur_entry) = new_entry;
             }
-            // set key
-            (*cur_entry)->key = (char *) malloc((node->len+1)*sizeof(char));
-            strncpy((*cur_entry)->key, node->str, node->len);
-            (*cur_entry)->key[node->len] = 0;
-            // zero other things
-            (*cur_entry)->first_data_ll = (*cur_entry)->last_data_ll = 0;
-            (*cur_entry)->nrows = (*cur_entry)->ncols = (*cur_entry)-> n_in_row = 0;
-            (*cur_entry)->next = 0;
+            init_DictEntry(*cur_entry, node->str, node->len);
             //DEBUG printf("got key '%s'\n", (*cur_entry)->key);
-            // key containing objects never have children
+            // key containing nodes never have children, so return now
             return 0;
         }
     }
@@ -131,7 +161,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
     //DEBUG printf("looping over children\n");
     for (cleri_children_t *child = node->children; child; child = child->next) {
         //DEBUG printf("child\n");
-        int err = parse_tree(child->node, cur_entry, in_seq, in_entry);
+        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair);
         if (err) {
             return err;
         }
@@ -143,32 +173,38 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_e
             //DEBUG printf("leaving inner row\n");
             // leaving a row in a nested list
             if ((*cur_entry)->ncols > 0 && (*cur_entry)->ncols != (*cur_entry)->n_in_row) {
-                // not first row
-                fprintf(stderr, "key %s number of entries per row %d inconsistent with prev %d\n", 
-                        (*cur_entry)->key, (*cur_entry)->ncols, (*cur_entry)->n_in_row);
+                // not first row, check for consistency
+                fprintf(stderr, "key %s nested list row %d number of entries in row %d inconsistent with prev %d\n", 
+                        (*cur_entry)->key, (*cur_entry)->nrows+1, (*cur_entry)->n_in_row, (*cur_entry)->ncols);
                 return 1;
             }
             (*cur_entry)->nrows++;
             (*cur_entry)->ncols = (*cur_entry)->n_in_row;
             (*cur_entry)->n_in_row = 0;
-            // exiting sequence
+            // decrease nested sequence depth
             (*in_seq)--;
         } else if (*in_seq == 1) {
             //DEBUG printf("leaving outer row\n");
             if ((*cur_entry)->ncols == 0) {
+                // Exiting sequence and ncols is still 0, so list was not nested.
+                // Need to store ncols here.
                 (*cur_entry)->ncols = (*cur_entry)->n_in_row;
                 (*cur_entry)->n_in_row = 0;
             }
             // exiting sequence
             (*in_seq)--;
-            //DEBUG printf("exiting top level sequence, setting in_entry=0\n");
-            *in_entry = 0;
+            //DEBUG printf("exiting top level sequence, setting in_kv_pair=0\n");
+            // this is maybe not the best way of figuring out if you're leaving a 
+            // key-value pair, but since everything is either a scalar or sequence
+            // it's OK for now
+            *in_kv_pair = 0;
         }
     }
 
     //DEBUG printf("leaving parse\n");
     return 0;
 }
+
 
 void dump_tree(cleri_node_t *node, char *prefix) {
     char *new_prefix = (char *) malloc((strlen(prefix) + 3)* sizeof(char));
@@ -199,7 +235,8 @@ void dump_tree(cleri_node_t *node, char *prefix) {
     free(new_prefix);
 }
 
-void free_DataLinkedList(enum data_type data_t, DataLinkedList *list, int free_string_content) {
+
+void free_DataLinkedList(DataLinkedList *list, enum data_type data_t, int free_string_content) {
     if (!list) {
         return;
     }
@@ -215,214 +252,233 @@ void free_DataLinkedList(enum data_type data_t, DataLinkedList *list, int free_s
 }
 
 
-void DataLinkedList_to_DataPtr(DictEntry *dict) {
+void DataLinkedList_to_data(DictEntry *dict) {
     for (DictEntry *entry = dict; entry; entry = entry->next) {
         if (entry->first_data_ll) {
+            // has linked list contents
             DataLinkedList *data_item = entry->first_data_ll;
             int n_items;
             for (n_items=0; data_item; n_items++, data_item = data_item->next) {
             }
             data_item = entry->first_data_ll;
+            // no checking for valid data_item in loops below because loop
+            // iters were checked using empty data_item loop above
             if (entry->data_t == data_i) {
-                entry->data.i = (int *) malloc(n_items*sizeof(int));
+                entry->data = (int *) malloc(n_items*sizeof(int));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    entry->data.i[i] = data_item->data.i;
+                    ((int *)(entry->data))[i] = data_item->data.i;
                 }
             } else if (entry->data_t == data_f) {
-                entry->data.f = (double *) malloc(n_items*sizeof(double));
+                entry->data = (double *) malloc(n_items*sizeof(double));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    entry->data.f[i] = data_item->data.f;
+                    ((double *)(entry->data))[i] = data_item->data.f;
                 }
             } else if (entry->data_t == data_b) {
-                entry->data.b = (int *) malloc(n_items*sizeof(int));
+                entry->data = (int *) malloc(n_items*sizeof(int));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    entry->data.b[i] = data_item->data.b;
+                    ((int *)(entry->data))[i] = data_item->data.b;
                 }
             } else if (entry->data_t == data_s) {
-                entry->data.s = (char **) malloc(n_items*sizeof(char *));
+                // allocate array of char pointers, but actual string content
+                // will be just copied pointers
+                entry->data = (char **) malloc(n_items*sizeof(char *));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    entry->data.s[i] = data_item->data.s;
+                    ((char **)(entry->data))[i] = data_item->data.s;
                 }
             }
 
-            // free data linked list, but keep strings allocated, since they were 
-            // copied to data
-            free_DataLinkedList(entry->data_t, entry->first_data_ll, 0);
+            // free data linked list, but keep strings allocated, since their
+            // pointers were copied to data
+            free_DataLinkedList(entry->first_data_ll, entry->data_t, 0);
             entry->first_data_ll = 0;
             entry->last_data_ll = 0;
         }
     }
 }
 
-void *tree_to_dict(cleri_parse_t *tree) {
-    if (! tree->is_valid) {
-        fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);
-        return 0;
-    }
 
+void *tree_to_dict(cleri_parse_t *tree) {
     // dump_tree(tree->tree, "");
     // printf("END DUMP\n");
 
     DictEntry *dict = (DictEntry *) malloc(sizeof(DictEntry));
-    dict->key = 0;
-    dict->first_data_ll = dict->last_data_ll = 0;
-    dict->next = 0;
+    // initialize empty dict entry with no key
+    init_DictEntry(dict, 0, -1);
 
     DictEntry *cur_entry = dict;
 
-    int in_seq = 0, in_entry = 0;
-    int err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_entry);
+    int in_seq = 0, in_kv_pair = 0;
+    int err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair);
     if (err) {
         fprintf(stderr, "error parsing tree\n");
-        exit(1);
+        return 0;
     }
 
-    DataLinkedList_to_DataPtr(dict);
+    DataLinkedList_to_data(dict);
 
     return dict;
 }
 
 
-
-void free_DataPtrs(enum data_type data_t, int nrows, int ncols, DataPtrs data) {
-    if (data_t == data_i) {
-        free (data.i);
-    } else if (data_t == data_f) {
-        free (data.f);
-    } else if (data_t == data_b) {
-        free (data.b);
-    } else if (data_t == data_s) {
-        nrows = nrows == 0 ? 1 : nrows;
-        ncols = ncols == 0 ? 1 : ncols;
-        for (int ri=0; ri < nrows; ri++) {
-        for (int ci=0; ci < ncols; ci++) {
-            free (data.s[ri*ncols + ci]);
+void free_data(void *data, enum data_type data_t, int nrows, int ncols) {
+    if (data) {
+        if (data_t == data_s) {
+            // free allocated strings inside array
+            nrows = nrows == 0 ? 1 : nrows;
+            ncols = ncols == 0 ? 1 : ncols;
+            for (int ri=0; ri < nrows; ri++) {
+            for (int ci=0; ci < ncols; ci++) {
+                free(((char **)data)[ri*ncols + ci]);
+            }
+            }
         }
-        }
-        free(data.s);
+        free(data);
     }
 }
 
-void free_arrays(Arrays *arrays) {
-    Arrays *next_entry = arrays->next;
-    for (Arrays *entry = arrays; entry; entry = next_entry) {
-        free(entry->key);
-        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
-        free(entry);
-        next_entry = entry->next;
-    }
-}
 
-void free_info(DictEntry *info) {
-    DictEntry *next_entry = info->next;
-    for (DictEntry *entry = info; entry; entry = next_entry) {
+void free_dict(DictEntry *dict) {
+    DictEntry *next_entry = dict->next;
+    for (DictEntry *entry = dict; entry; entry = next_entry) {
         free(entry->key);
-        free_DataLinkedList(entry->data_t, entry->first_data_ll, 1);
-        free_DataPtrs(entry->data_t, entry->nrows, entry->ncols, entry->data);
+        free_DataLinkedList(entry->first_data_ll, entry->data_t, 1);
+        free_data(entry->data, entry->data_t, entry->nrows, entry->ncols); 
 
         next_entry = entry->next;
         free(entry);
     }
 }
 
-void print_info_arrays(DictEntry *info, Arrays *arrays) {
-    for (DictEntry *entry = info; entry; entry = entry->next) {
-        printf("info '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-               entry->nrows, entry->ncols);
-    }
-    for (Arrays *entry = arrays; entry; entry = entry->next) {
-        printf("array '%s' type %d shape %d %d\n", entry->key, entry->data_t,
-               entry->nrows, entry->ncols);
 
+void print_dict(DictEntry *dict) {
+    for (DictEntry *entry = dict; entry; entry = entry->next) {
+        printf("key '%s' type %d shape %d %d\n", entry->key, entry->data_t,
+               entry->nrows, entry->ncols);
     }
-    printf("\n");
 }
 
 
-int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arrays **arrays) {
-    int nat;
-    char line[10240];
+int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
+    char line[MAX_LINE_LEN];
 
-    char *stat = fgets(line, 10239, fp);
+    // nat
+    char *stat = fgets(line, MAX_LINE_LEN, fp);
     if (! stat) {
         return 0;
     }
-    sscanf(line, "%d", &nat);
+    if (strlen(line) == MAX_LINE_LEN-1) {
+        fprintf(stderr, "ERROR: maxed out nat line length %d, refusing to continue with possibly incomplete line\n", MAX_LINE_LEN-1);
+        return 0;
+    }
+    int nat_stat = sscanf(line, "%d", nat);
+    if (nat_stat != 1) {
+        fprintf(stderr, "Failed to parse int natoms from '%s'\n", line);
+        return 0;
+    }
 
-    fgets(line, 10239, fp);
+    // info
+    fgets(line, MAX_LINE_LEN, fp);
+    if (strlen(line) == MAX_LINE_LEN-1) {
+        fprintf(stderr, "ERROR: maxed out info line length %d, refusing to continue with possibly incomplete line\n", MAX_LINE_LEN-1);
+        return 0;
+    }
+    // actually partse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
+    if (! tree->is_valid) {
+        fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);
+        cleri_parse_free(tree);
+        return 0;
+    }
     *info = tree_to_dict(tree);
     cleri_parse_free(tree);
+    if (! info) {
+        fprintf(stderr, "Failed to convert tree to dict\n");
+        return 0;
+    }
 
-    char *props;
+    // grab and parse Properties string
+    char *props = 0;
     for (DictEntry *entry = *info; entry; entry = entry->next) {
         if (! strcmp(entry->key, "Properties")) {
-            props = entry->data.s[0];
+            props = ((char **)(entry->data))[0];
             break;
         }
     }
+    if (! props) {
+        // should we assume default xyz instead, and if so species or Z, or just species?
+        fprintf(stderr, "ERROR: failed to find Properties keyword");
+        return 0;
+    }
 
-    *arrays = (Arrays *) 0;
-    char re[10240];
+    *arrays = (DictEntry *) 0;
+    char re[MAX_RE_LEN];
     re[0] = 0;
 
-    Arrays *cur_array;
+    DictEntry *cur_array;
 
     char *pf = strtok(props, ":");
+    int prop_i = 0;
     while (pf) {
         if (! *arrays) {
-            *arrays = (Arrays *) malloc(sizeof(Arrays));
+            *arrays = (DictEntry *) malloc(sizeof(DictEntry));
             cur_array = *arrays;
         } else {
-            Arrays *new_array = (Arrays *) malloc(sizeof(Arrays));
+            DictEntry *new_array = (DictEntry *) malloc(sizeof(DictEntry));
             cur_array->next = new_array;
             cur_array = cur_array->next;
         }
 
-        cur_array->key = (char *) malloc((1+strlen(pf))*sizeof(char));
-        strcpy(cur_array->key, pf);
-        cur_array->next = 0;
+        init_DictEntry(cur_array, pf, strlen(pf));
 
         // advance to col type
         pf = strtok(NULL, ":");
+        if (strlen(pf) != 1) {
+            fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            return 0;
+        }
         char col_type = pf[0];
 
         // advance to col num
         pf = strtok(NULL, ":");
-        int col_num = atoi(pf);
+        int col_num;
+        int col_num_stat = sscanf(pf, "%d", &col_num);
+        if (col_num_stat != 1) {
+            fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            return 0;
+        }
 
-        cur_array->nrows = nat;
+        cur_array->nrows = *nat;
         cur_array->ncols = col_num;
 
         char *this_re;
-        char *this_fmt;
         switch (col_type) {
             case 'I':
                 cur_array->data_t = data_i;
-                cur_array->data.i = (int *) malloc((nat*col_num)*sizeof(int));
+                cur_array->data = malloc(((*nat)*col_num)*sizeof(int));
                 this_re = "[+-]?[0-9]+";
-                this_fmt = "%d";
                 break;
             case 'R':
                 cur_array->data_t = data_f;
-                cur_array->data.f = (double *) malloc((nat*col_num)*sizeof(double));
+                cur_array->data = malloc(((*nat)*col_num)*sizeof(double));
                 this_re = "[+-]?(?:[0-9]+[.]?[0-9]*|\\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?";
-                this_fmt = "%lf";
                 break;
             case 'L':
                 cur_array->data_t = data_b;
-                cur_array->data.b = (int *) malloc((nat*col_num)*sizeof(int));
+                cur_array->data = malloc(((*nat)*col_num)*sizeof(int));
                 this_re="[TF]";
-                this_fmt = "%c";
                 break;
             case 'S':
                 cur_array->data_t = data_s;
-                cur_array->data.s = (char **) malloc((nat*col_num)*sizeof(char *));
+                cur_array->data = malloc(((*nat)*col_num)*sizeof(char *));
                 this_re="\\S+";
-                this_fmt="%s";
                 break;
+            default:
+                fprintf(stderr, "Unknown property type '%c' for property key '%s' (# %d)\n", col_type, cur_array->key, prop_i);
+                // free incomplete data before returning
+                free(cur_array->data);
+                cur_array->data = 0;
+                return 0;
         }
-
 
         for (int ci=0; ci < col_num; ci++) {
             strcat(re, "(");
@@ -433,32 +489,38 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, DictEntry **info, Arra
 
         // ready to next triplet
         pf = strtok(NULL, ":");
+        prop_i++;
     }
 
-    // for (
-    for (int li=0; li < nat; li++) {
-        fgets(line, 10239, fp);
+    // read per-atom data
+    for (int li=0; li < (*nat); li++) {
+        fgets(line, MAX_LINE_LEN, fp);
+        if (strlen(line) == MAX_LINE_LEN-1) {
+            fprintf(stderr, "ERROR: maxed out atom %d line length %d, refusing to continue with possibly incomplete line\n", li, MAX_LINE_LEN-1);
+            return 0;
+        }
 
         char *pf = strtok(line, " ");
-        for (Arrays *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
+        for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
             int nc = cur_array->ncols;
             for (int col_i = 0; col_i < nc; col_i++) {
                 if (cur_array->data_t == data_i) {
-                    sscanf(pf, "%d", cur_array->data.i + li*nc + col_i);
+                    sscanf(pf, "%d", ((int *)(cur_array->data)) + li*nc + col_i);
                 } else if (cur_array->data_t == data_f) {
-                    sscanf(pf, "%lf", cur_array->data.f + li*nc + col_i);
+                    sscanf(pf, "%lf", ((double *)(cur_array->data)) + li*nc + col_i);
                 } else if (cur_array->data_t == data_b) {
                     char c;
                     sscanf(pf, "%c", &c);
-                    cur_array->data.b[li*nc + col_i] = (c == 'T');
+                    ((int *)(cur_array->data))[li*nc + col_i] = (c == 'T');
                 } else if (cur_array->data_t == data_s) {
-                    cur_array->data.s[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
-                    strcat(cur_array->data.s[li*nc+col_i], pf);
+                    ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
+                    strcat(((char **)(cur_array->data))[li*nc+col_i], pf);
                 }
                 pf = strtok(NULL, " ");
             }
         }
     }
 
+    // return true
     return 1;
 }
