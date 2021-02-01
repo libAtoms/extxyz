@@ -354,7 +354,6 @@ void free_dict(DictEntry *dict) {
     }
 }
 
-
 void print_dict(DictEntry *dict) {
     for (DictEntry *entry = dict; entry; entry = entry->next) {
         printf("key '%s' type %d shape %d %d\n", entry->key, entry->data_t,
@@ -362,17 +361,34 @@ void print_dict(DictEntry *dict) {
     }
 }
 
-#define LINE_LEN_INCR 1024
+
+#define STR_INCR 1024
+char *strcat_realloc(char **str, int *len, char *add_str) {
+    if (strlen(*str) + strlen(add_str) + 1 > *len) {
+        *len += STR_INCR;
+        *str = (char *) realloc(*str, *len);
+        if (!*str) {
+            fprintf(stderr, "ERROR: failed to realloc in strcat_realloc\n");
+            exit(1);
+        }
+    }
+    strcat(*str, add_str);
+}
+
 char *read_line(char **line, int *line_len, FILE *fp) {
     char *stat = fgets(*line, *line_len, fp);
     if (!stat) {
         return 0;
     }
     while (strlen(*line) == *line_len-1) {
-        *line_len += LINE_LEN_INCR;
+        *line_len += STR_INCR;
         *line = (char *) realloc(*line, *line_len * sizeof(char));
+        if (!*line) {
+            fprintf(stderr, "ERROR: failed to realloc in strcat_realloc\n");
+            exit(1);
+        }
 
-        stat = fgets(*line + *line_len - LINE_LEN_INCR - 1, LINE_LEN_INCR, fp);
+        stat = fgets(*line + *line_len - STR_INCR - 1, STR_INCR, fp);
         if (!stat) {
             return 0;
         }
@@ -385,6 +401,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     int line_len;
     int line_len_init = 1024;
 
+    // from here on every return should free line first;
     line_len  = line_len_init;
     line = (char *) malloc(line_len * sizeof(char));
 
@@ -407,7 +424,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         free(line);
         return 0;
     }
-    printf("got nat %d\n", *nat); //DEBUG
 
     // info
     stat = read_line(&line, &line_len, fp);
@@ -415,7 +431,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         free(line);
         return 0;
     }
-    printf("got comment line '%s'\n", line); //DEBUG
     // actually partse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
     if (! tree->is_valid) {
@@ -447,13 +462,14 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         return 0;
     }
 
-    *arrays = (DictEntry *) 0;
-    char re_str[MAX_RE_LEN];
+    // from here on every return should also free re_str first;
+    int re_str_len = 20;
+    char *re_str = (char *) malloc (re_str_len * sizeof(char));
     re_str[0] = 0;
-    strcat(re_str, "^\\s*");
+    strcat_realloc(&re_str, &re_str_len, "^\\s*");
 
+    *arrays = (DictEntry *) 0;
     DictEntry *cur_array;
-    printf("got properties '%s'\n", props);
 
     char *pf = strtok(props, ":");
     int prop_i = 0, tot_col_num = 0;
@@ -473,7 +489,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
             fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
-            free(line);
+            free(line); free(re_str);
             return 0;
         }
         char col_type = pf[0];
@@ -484,7 +500,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
             fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
-            free(line);
+            free(line); free(re_str);
             return 0;
         }
 
@@ -518,15 +534,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
-                free(line);
+                free(line); free(re_str);
                 return 0;
         }
 
         for (int ci=0; ci < col_num; ci++) {
-            strcat(re_str, "(");
-            strcat(re_str, this_re);
-            strcat(re_str, ")");
-            strcat(re_str, "\\s+");
+            strcat_realloc(&re_str, &re_str_len, "(");
+            strcat_realloc(&re_str, &re_str_len, this_re);
+            strcat_realloc(&re_str, &re_str_len, ")");
+            strcat_realloc(&re_str, &re_str_len, "\\s+");
         }
 
         // ready to next triplet
@@ -538,9 +554,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // trim off last \s+
     re_str[strlen(re_str)-3] = 0;
     // tack on to EOL
-    strcat(re_str, re_at_eol);
-
-    // printf("got atom re '%s'\n", re_str);
+    strcat_realloc(&re_str, &re_str_len, re_at_eol);
 
     const char *pcre_error;
     int erroffset;
@@ -559,7 +573,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     for (int li=0; li < (*nat); li++) {
         stat = read_line(&line, &line_len, fp);
         if (! stat) {
-            free(line);
+            free(line); free(re_str);
             return 0;
         }
 
@@ -572,7 +586,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             } else {
                 fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d error %d\n", li, rc);
             }
-            free(line);
+            free(line); free(re_str);
             return 0;
         }
         int field_i = 1;
@@ -620,6 +634,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
 
     // return true
-    free(line);
+    free(line); free(re_str);
     return 1;
 }

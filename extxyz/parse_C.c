@@ -19,6 +19,11 @@ int main(int argc, char *argv[]) {
     int nat;
     DictEntry *info, *arrays;
 
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s at_file\n", argv[0]);
+        exit (1);
+    }
+
     fp = fopen(argv[1], "r");
     while (extxyz_read_ll(kv_grammar, fp, &nat, &info, &arrays)) {
 
