@@ -8,7 +8,6 @@
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
 
-#define MAX_LINE_LEN 10240
 #define MAX_RE_LEN 10240
 
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
@@ -363,9 +362,31 @@ void print_dict(DictEntry *dict) {
     }
 }
 
+#define LINE_LEN_INCR 1024
+char *read_line(char **line, int *line_len, FILE *fp) {
+    char *stat = fgets(*line, *line_len, fp);
+    if (!stat) {
+        return 0;
+    }
+    while (strlen(*line) == *line_len-1) {
+        *line_len += LINE_LEN_INCR;
+        *line = (char *) realloc(*line, *line_len * sizeof(char));
+
+        stat = fgets(*line + *line_len - LINE_LEN_INCR - 1, LINE_LEN_INCR, fp);
+        if (!stat) {
+            return 0;
+        }
+    }
+    return *line;
+}
 
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
-    char line[MAX_LINE_LEN];
+    char *line;
+    int line_len;
+    int line_len_init = 1024;
+
+    line_len  = line_len_init;
+    line = (char *) malloc(line_len * sizeof(char));
 
     // we could set this based on whether we want to default to 
     // traditional xyz, and so ignore extra columns, when Properties is 
@@ -375,37 +396,39 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // char *re_at_eol = "(?:\\s+|\\s*$)");
 
     // nat
-    char *stat = fgets(line, MAX_LINE_LEN, fp);
+    char *stat = read_line(&line, &line_len, fp);
     if (! stat) {
-        return 0;
-    }
-    if (strlen(line) == MAX_LINE_LEN-1) {
-        fprintf(stderr, "ERROR: maxed out nat line length %d, refusing to continue with possibly incomplete line\n", MAX_LINE_LEN-1);
+        free(line);
         return 0;
     }
     int nat_stat = sscanf(line, "%d", nat);
     if (nat_stat != 1) {
         fprintf(stderr, "Failed to parse int natoms from '%s'\n", line);
+        free(line);
         return 0;
     }
+    printf("got nat %d\n", *nat); //DEBUG
 
     // info
-    fgets(line, MAX_LINE_LEN, fp);
-    if (strlen(line) == MAX_LINE_LEN-1) {
-        fprintf(stderr, "ERROR: maxed out info line length %d, refusing to continue with possibly incomplete line\n", MAX_LINE_LEN-1);
+    stat = read_line(&line, &line_len, fp);
+    if (! stat) {
+        free(line);
         return 0;
     }
+    printf("got comment line '%s'\n", line); //DEBUG
     // actually partse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
     if (! tree->is_valid) {
         fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);
         cleri_parse_free(tree);
+        free(line);
         return 0;
     }
     *info = tree_to_dict(tree);
     cleri_parse_free(tree);
     if (! info) {
         fprintf(stderr, "Failed to convert tree to dict\n");
+        free(line);
         return 0;
     }
 
@@ -420,6 +443,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     if (! props) {
         // should we assume default xyz instead, and if so species or Z, or just species?
         fprintf(stderr, "ERROR: failed to find Properties keyword");
+        free(line);
         return 0;
     }
 
@@ -449,6 +473,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
             fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            free(line);
             return 0;
         }
         char col_type = pf[0];
@@ -459,6 +484,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
             fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            free(line);
             return 0;
         }
 
@@ -492,6 +518,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
+                free(line);
                 return 0;
         }
 
@@ -530,9 +557,9 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
 
     // read per-atom data
     for (int li=0; li < (*nat); li++) {
-        fgets(line, MAX_LINE_LEN, fp);
-        if (strlen(line) == MAX_LINE_LEN-1) {
-            fprintf(stderr, "ERROR: maxed out atom %d line length %d, refusing to continue with possibly incomplete line\n", li, MAX_LINE_LEN-1);
+        stat = read_line(&line, &line_len, fp);
+        if (! stat) {
+            free(line);
             return 0;
         }
 
@@ -545,6 +572,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             } else {
                 fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d error %d\n", li, rc);
             }
+            free(line);
             return 0;
         }
         int field_i = 1;
@@ -592,5 +620,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
 
     // return true
+    free(line);
     return 1;
 }
