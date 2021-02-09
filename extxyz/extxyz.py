@@ -574,7 +574,7 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
     
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
-        atoms.calc = create_single_point_calculator(atoms, info, arrays)
+        atoms.calc = create_single_point_calculator(atoms, info, arrays, calc_prefix)
 
     atoms.info.update(info)
     atoms.arrays.update(arrays)

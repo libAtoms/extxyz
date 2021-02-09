@@ -6,6 +6,8 @@ import numpy as np
 
 from ase.atoms import Atoms
 
+from utils import create_single_point_calculator, update_atoms_from_calc
+
 class FILE_ptr(ctypes.c_void_p):
     pass
 
@@ -98,51 +100,65 @@ fopen.restype = FILE_ptr
 fclose = libc.fclose
 fclose.args = [FILE_ptr]
 
-def read_frame(fp):
-    try:
-        nat = ctypes.c_int()
-        info = Dict_entry_ptr()
-        arrays = Dict_entry_ptr()
+def read_frame(fp, create_calc=False, calc_prefix=''):
+    nat = ctypes.c_int()
+    info = Dict_entry_ptr()
+    arrays = Dict_entry_ptr()
 
-        if not extxyz.extxyz_read_ll(_kv_grammar, 
-                                     fp,
-                                     ctypes.byref(nat), 
-                                     ctypes.byref(info), 
-                                     ctypes.byref(arrays)):
-            raise IOError('Error within extxyz_read_ll()')
+    if not extxyz.extxyz_read_ll(_kv_grammar, 
+                                    fp,
+                                    ctypes.byref(nat), 
+                                    ctypes.byref(info), 
+                                    ctypes.byref(arrays)):
+        return None
         
-        py_info = c_to_py_dict(info, deepcopy=True)
-        py_arrays = c_to_py_dict(arrays, deepcopy=True)
-        
-        cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
-        symbols = py_arrays.pop('species')
-        positions = py_arrays.pop('pos')
-        
-        atoms = Atoms(symbols=symbols,
+    py_info = c_to_py_dict(info, deepcopy=True)
+    py_arrays = c_to_py_dict(arrays, deepcopy=True)
+    
+    cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
+    symbols = py_arrays.pop('species')
+    positions = py_arrays.pop('pos')
+    
+    atoms = Atoms(symbols=symbols,
                     positions=positions,
                     cell=cell,
-                    pbc=py_info.get('pbc'))
-        
-        atoms.info.update(py_info)
-        atoms.arrays.update(py_arrays)
-                        
-        assert len(atoms) == nat.value
+                    pbc=py_info.get('pbc'))  # FIXME consistent pbc semantics
 
-    finally:
-        extxyz.free_dict(info)
-        extxyz.free_dict(arrays)
+    # optionally create a SinglePointCalculator from stored results
+    if create_calc:
+        atoms.calc = create_single_point_calculator(atoms, py_info, py_arrays,
+                                                    calc_prefix=calc_prefix)        
+    
+    atoms.info.update(py_info)
+    atoms.arrays.update(py_arrays)
+                    
+    print(f'read {nat.value} atoms')
+    assert len(atoms) == nat.value
+
+    extxyz.free_dict(info)
+    extxyz.free_dict(arrays)
         
     return atoms
 
 
-def read(filename):
+def iread(filename, **kwargs):
     fp = fopen(filename.encode('utf-8'), 
                "r".encode('utf-8'))
     try:
-        atoms = read_frame(fp)
+        while True:
+            atoms = read_frame(fp, **kwargs)
+            if atoms is None:
+                break
+            yield atoms
     finally:
-        fclose(fp)        
-    return atoms
+        fclose(fp)   
+
+def read(filename, **kwargs):
+    configs = list(iread(filename, **kwargs))
+    if len(configs) == 1:
+        return configs[0]
+    else:
+        return configs    
        
 
 if __name__ == '__main__':
