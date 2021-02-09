@@ -431,7 +431,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         free(line);
         return 0;
     }
-    // actually partse
+    // actually parse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
     if (! tree->is_valid) {
         fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);

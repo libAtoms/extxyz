@@ -7,7 +7,7 @@
      FILE *fp: file pointer to object to be read from, positioned at start of natoms line
      int *nat: storage for number of atoms
      DictEntry **info: pointer to allocated storage for info dict, will return pointer to first entry in linked list
-     DictEntry **info: pointer to allocated storage for arrays dict, will return pointer to first entry in linked list
+     DictEntry **arrays: pointer to allocated storage for arrays dict, will return pointer to first entry in linked list
    Returns
      int 0 for failure and 1 for success.
 
