@@ -88,7 +88,7 @@ def c_to_py_dict(c_dict, deepcopy=False):
         node_ptr = node.next
     return result
 
-# construct grammae only once on module initialisation
+# construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
 
 libc = ctypes.CDLL("/usr/lib/libc.dylib")
@@ -132,7 +132,6 @@ def read_frame(fp, create_calc=False, calc_prefix=''):
     atoms.info.update(py_info)
     atoms.arrays.update(py_arrays)
                     
-    print(f'read {nat.value} atoms')
     assert len(atoms) == nat.value
 
     extxyz.free_dict(info)
