@@ -604,7 +604,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                     ((int *)(cur_array->data))[li*nc + col_i] = (pf[0] == 'T');
                 } else if (cur_array->data_t == data_s) {
                     ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
-                    strcat(((char **)(cur_array->data))[li*nc+col_i], pf);
+                    strcpy(((char **)(cur_array->data))[li*nc+col_i], pf);
                 }
                 field_i++;
             }
@@ -625,7 +625,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                         ((int *)(cur_array->data))[li*nc + col_i] = (c == 'T');
                     } else if (cur_array->data_t == data_s) {
                         ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
-                        strcat(((char **)(cur_array->data))[li*nc+col_i], pf);
+                        strcpy(((char **)(cur_array->data))[li*nc+col_i], pf);
                     }
                     pf = strtok(NULL, " ");
                 }
