@@ -1,90 +1,128 @@
+# Remaining issues
+1. make sure single entry backward compatible single entry arrays are turned into scalara
+2. allow single quote inside bare string since it's no longer an allowed quoting character
+3. check what two-d array of mixed row _types_ gives
+4. check strings with various mismatched quotes, esp ones that do not conform to either bare or quoted string
+
 # Extended XYZ specification and parsing tools
 
 ## XYZ spec
 
-### General considerations and questions:
-
-1. Proposed (non-trivial) violations of backward compatibility:
-    1. [spec below is currently written for backward compatibility, but this option would make things cleaner] No longer accept “ for 1-d arrays?  Alternative is to write possibly fiddly logic for deciding based on content whether a particular quoted thing is actually a 1-D array rather than a string, and therefore inability to have strings that consist of just numbers, for example.
-    2. [spec below breaks backward compat this way] No more bare keyword as shortcut for keyword=T (currently this allows command line parsing to use same logic, and I’m not sure we can give up on that syntax for the CLI parsing)
-2. Is it OK that the proposed level of quoting flexibility and backslash escaping probably means a real parser, rather than using simple regex or split on whitespace? Would limiting allowed characters (e.g. excluding comma, quotes, array containers from bare strings) make parsing simpler?
-3. Is it an active good to move to our own repo, so we don’t have Ask second-guessing every change?
-4. Is there a good way to use the grammar itself to define special key-value pairs, or is that something to be handled by the code that _uses_ the output of the auto-generated parser?
-
 ### General formatting
 
-- Allowed end-of line (EOL) characters: unix + windows (cr vs crlf, etc)
-- Allowed whitespace: plain space (not fancy unicode nonbreaking space, etc), tab
-- Blank lines: only as 2nd line of each frame (for plain xyz) and at end of file
+- Allowed characters: printable subset of ASCII, single byte
+- Allowed whitespace: plain space and tab (no fancy unicode nonbreaking space, etc)
+- Allowed end-of line (EOL) characters set by implementation + OS
+  - pure python: file iterator
+  - low level c: fgets
+- Blank lines: allowed only as 2nd line of each frame (for plain xyz) and at end of file
 
 ### General definitions
 
-* **Whitespace:** space and tab
-* **String:** sequence of allowed characters.  Must be quoted in some circumstances.
-*   Allowed characters: all non-whitespace printable ASCII (or some more modern variant thereof, perhaps even more general unicode) + whitespace as defined above
-*   Explicit newlines are not allowed, must be represented by \n
-*   Entire string may be surrounded by single or double quotes, as first and last characters (must match). Quotes inside string that are same as containing quotes must be escaped with backslash.
-*   String **must** be quoted if it contains whitespace.
-*   Backslash: only used to escape quotes, encode literal backslash (\\), and encode newline (\n)
-*   [is this enough, or do we need to backslash escape other special characters like comma or array containers {} []?]
+* regex: PCRE/python regular expression
+* **Whitespace:** regex \s, i.e. space and tab
 
-### Other primitive data types
+### **Primitive Data Types**
 
-*   Logical/bool : single character T or F
-*   Int: regex [0-9]+ (or simply as interpreted by language-specific parsing routines?)
-*   Float: regex -?([0-9]+\(.[0-9]*)?|\.[0-9]+)([dDeE][+-]?[0-9]+)? (or simply as interpreted by language-specific parsing routines after simple conversions like [dD]->[eE]?)
+#### String
 
-**XYZ file**
+Sequence of one or more allowed characters, optionally quoted, but **must** be quoted in some circumstances.
+*   Allowed characters - all except newline
+*   Entire string **may be** surrounded by double quotes, as first and last characters (must match). 
+    Quotes inside string that are same as containing quotes must be escaped with backslash.
+*   Strings that contain one of the following characters **must** be quoted 
+    * whitespace (regex \\s)
+    * backslash, represented by double backslash \\\\
+    * newline, represented by \\n
+    * single quote ' or double quote "
+    * open or close square bracket \[ \] or curly brackets \{ \}
+*   Backslash \: only present in quoted string, only used for escaping quotes, encode literal backslash with a 
+    double backslaw(\\\\), and encoding newline (\\n)
+*   Must conform to one of the following regex
+    * quoted string: \("\)\(?:\(?=\(\\\\?\)\)\\2.\)\*?\\1
+    * bare \(unquoted\) string: \(?:\[^\\s='",\}\{\\\]\\\[\\\\\]|\(?:\\\\\[\\s='",\}\{\\\]\\\]\\\\\]\)\)\+
+*   only used in comment line key-value pairs, not per-atom data
 
-is a concatenation of 1 or more FRAMES, with optional blank lines at the end (but not between frames)
+#### Simple string
 
-**FRAME**
+Sequence of one or more allowed characters, unquoted (i.e. even outermost quotes are part of string), and without whitespace 
+*   allowed characters - regex \\S, i.e. all except newline and whitespace
+*   regex \\S\+
+*   only used in per-atom data, not comment line key-value pairs
 
-*   Line 1: a single integer &lt;N> preceded and followed by optional whitespace
-*   Line 2: zero or more per-config key=value pairs
-*   Lines 3..N+2: per-atom data lines with M columns each
+#### Logical/boolean
 
-**Logic for identifying primitive data types, accept first one that matches**
+*   [tT] or [fF] or [tT]rue or [fF]alse or TRUE or FALSE
+*   regex
+    * true: \(?:T|\[tT\]rue|TRUE\)
+    * false: \(?:F|\[fF\]alse|FALSE\)
 
-*   Looks like bool (above): bool
-*   Looks like int (above): int
-*   Looks like float (above): float
-*   Starts with single or double quote: string, must end with matching quote, otherwise fail
-*   Else (bare) string, can’t have whitespace (should we allow backslash escape of whitespace here?)
+#### Integer number
 
-**key=value pairs**
+string of one or more decimal digits, optionally preceded by sign
+*   regex \[\+\-\]?\[0\-9\]\+
 
-Associates per-configuration value with key.  Spaces are allowed around = sign, which get eaten and are therefore not part of the key or value. 
+#### Floating point number
 
-Key: valid string (or a smaller subset of characters? What about other types as keys?)
+possibly non-integer finite precision real number
+*   optional leading sign \[\+\-\], decimal number including optional decimal point \., 
+    optional \[dDeE\] folllowed by exponent consisting of optional sign followed by string of 
+    one or more digits
+*   regex \[\+\-\]?(?:\[0\-9\]\+\[\.\]?\[0\-9\]\*|\\.\[0\-9\]\+)(?:\[dDeE\]\[\+\-\]?\[0\-9\]\+)?
 
-Value:
+### Order for identifying primitive data types, accept first one that matches
+*   bool
+*   int
+*   float
+*   bare string containing no whitespace or special characters
+*   quoted string starting and ends with double quote and containing only allowed characters
 
-*   Primitive type (string, bool, int, float) scalar
-*   1-D or 2-D array of entries that are all the same primitive type
+#### one dimensional array (vector)
 
-Value type is determined from context in the following order, until first match
+sequence of one or more of the same primitive type
+*   new style: opens with \[, one or more of the same primitives separated by commas ',', ends with \]
+*   backward compatible: opens with " or \{, one or more of the same primitive types except strings,
+    separated by spaces, ends with matching " or \}
+*   primitive data type is determined by same priority as single primitive item, but must be satisfied
+    by entire list simultaneously.  E.g. all intgers will result in an integer array, but a mix
+    of integer and float will result in a float array.
 
-*   Starting with quote and contains one or more of a single type from bool, int, float (not string), separated by regex (\s+|\s*,\s*) [ugly, needed for backward compat] 
-    *   If one entry, scalar of corresponding type
-    *   If more than one, 1-D array of corresponding type
-    *   [might be useful to be able to designate that something is a quoted string even if it looks like a number, but I don’t know of a current use case for that]
-*   Starting with array container character {} or []: 1-D or 2-D array of primitive type. 
-    *   Array items separated by whitespace or comma regex (\s+|\s*,\s*), 2-D array rows separated by same regex [again allowing space is a bit ugly, just comma is cleaner, but needed for backward compat]
-    *   If open/close char doesn’t match, or number of items in each row of an apparently 2-D array isn’t equal, fail.
-    *   Elements are primitive data types, matching logic as above, except no bare strings here (too confusing to parse with commas, etc)
-    *   No entirely sure how implement this - need data types of _all_ entries to decide if consistent array can be made (e.g. promote int to float if needed).  What about mix of things that look like numbers and things that don’t - demote all to strings, or error?
-*   Otherwise, match primitive data type by logic above
+#### two dimensional array (matrix)
 
-**Special key "Properties”**: defines the columns in the subsequent lines in the frame. 
+sequence of one or more new style one dimensional arrays of the same length and type
+*   opens with \[, one or more new style one dimensional arrays separated by commas ',', ends with \]
+*   all contained one dimensional arrays in a single two dimensional array must have same number and 
+    primitive data type elements
+
+### **XYZ file**
+
+A concatenation of 1 or more FRAMES (below), with optional blank lines at the end (but not between frames)
+
+#### **FRAME**
+
+*   Line 1: a single integer &lt;N&> preceded and followed by optional whitespace
+*   Line 2: zero or more per-config key=value pairs (see key-value pairs below)
+*   Lines 3..N+2: per-atom data lines with M columns each (see Properties and Per-Atom Data below)
+
+#### **key=value pairs**
+
+Associates per-configuration value with key.  Spaces are allowed around = sign, which do not become part of the key or value. 
+
+Key: bare or quoted string
+
+Value: primitive type, 1-D array, or 2-D array.  Type is determined from context according to order specified above.
+
+For backward compatibility, single entry backward compatible array is interpreted as a scalar
+
+#### **Special key "Properties”**: defines the columns in the subsequent lines in the frame. 
 
 *   If after full parsing the key “Properties” is missing, the format is retroactively assumed to be plain xyz (4 columns, Z/species x y z), the entire second line is stored as a per-config “comment” property, and columns beyond the 4th are not read. 
 *   Value is a string with the format of a series of triplets, separated by “:”, each triplet having the format: “&lt;name>:&lt;T>:&lt;m>”. 
     *   The &lt;name> (string) names the column(s), &lt;T> is a one of “S”, “I”, “R”, “L”, and indicates the type in the column, “string”, “integer”, “real”, “logical”, respectively. &lt;m> is an integer specifying how many consecutive columns are being referred to.  The sum of &lt;m>s must be M.
 
-**Per-atom data lines**
+#### **Per-atom data lines**
 
-Each column can contain one of any primitive type, same syntax as above (including bare strings), separated by one or more whitespace characters, ending with EOL (optional for last line)
+Each column can contain one of any primitive type, except string, which is replaced with simple string, separated by one or more whitespace characters, ending with EOL (optional for last line)
 
 ## READING ase.atoms.Atoms FROM THIS FORMAT
 
@@ -115,10 +153,10 @@ Properties keys (all types are per-atom), types are simple
     *   pos -> positions
     *   mass -> masses
     *   velo -> momenta (get mass from atomic number if missing)
-    *   same name: initial_charges, initial_magmoms
+    *   same name: initial\_charges, initial\_magmoms
 *   Calculator.results
-    *   local_energy -> energies
-    *   forces -> forces [also support “force”? What about overriding, complain if inconsistent?]
+    *   local\_energy \-> energies
+    *   forces \-> forces [also support “force”? What about overriding, complain if inconsistent?]
     *   same name: magmoms (scalar or 3-vector), charges
 
 ### WRITING ase.atoms.Atoms TO THIS FORMAT
@@ -139,7 +177,7 @@ General considerations
     *   [optionally warn about un-representable quantities?]
 *   all Calculator.results key-value pairs, per-config same as info, per-atom same as arrays
 *   Perhaps store
-    *   all info keys, per-config calculator results that are not representable (i.e. not prim type scalar, 1-D, or 2-D for per-config only) but can be mapped to JSON, as string starting with "_JSON " 
+    *   all info keys, per-config calculator results that are not representable (i.e. not prim type scalar, 1-D, or 2-D for per-config only) but can be mapped to JSON, as string starting with "\_JSON "
     *   same for arrays [?]
 *   In general, keep ASE data type/dimension, invert mapping of names for reading. For quantities that have multiple possible names, use:
     *   Lattice, not cell, 3x3 matrix
