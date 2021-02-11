@@ -22,7 +22,7 @@ from pyleri import Choice, Regex, Keyword, Token
 from extxyz_kv_grammar import (ExtxyzKVGrammar,
                                float_re, integer_re, bool_re, simplestring_re,
                                whitespace_re)
-
+import cextxyz
 from utils import create_single_point_calculator, update_atoms_from_calc
 
 import time
@@ -266,10 +266,10 @@ def momenta_to_velo(atoms, momenta):
 
 
 class Properties:
-    per_atom_dtype = {'R': np.float,
-                      'I': np.int,
+    per_atom_dtype = {'R': float,
+                      'I': int,
                       'S': 'U10', # FIXME can we avoid fixed string length?
-                      'L': np.bool}
+                      'L': bool}
     
     # map from numpy dtype.kind to extxyz property type
     format_map = {'d': 'R',
@@ -505,6 +505,7 @@ def result_to_dict(result, verbose=0):
 tg = 0.0
 td = 0.0
 tw = 0.0
+ta = 0.0
 
 def read_comment_line(line, verbose=0):
     """
@@ -525,11 +526,13 @@ def read_comment_line(line, verbose=0):
     return d
 
 
-def read_extxyz_frame(file, verbose=0, use_regex=True,
-                      create_calc=False, calc_prefix=''):
+def read_frame(file, verbose=0, use_regex=True,
+               create_calc=False, calc_prefix=''):
     """
     Read a single frame in extxyz format from `file`.
     """
+    global ta
+    
     file = iter(file)
     try:
         line = next(file)
@@ -543,12 +546,14 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
         pprint(info)
         print(f'lattice = {repr(lattice)}')
         print(f'properties = {repr(properties)}')
+    t0 = time.time()
     if use_regex:
         lines = [next(file) for line in range(natoms)]
         buffer = StringIO(''.join(lines))
         properties.data = np.fromregex(buffer, properties.regex, properties.dtype_scalar)
     else:
         properties.data = np.genfromtxt(file, properties.dtype_vector, max_rows=natoms)
+    ta += time.time() - t0
 
     names = list(properties.dtype_vector.names)
     assert 'pos' in names
@@ -588,22 +593,32 @@ def read_extxyz_frame(file, verbose=0, use_regex=True,
     return atoms
 
 
-def iread(file, **kwargs):
+def iread(file, use_cextxyz=False, **kwargs):
     own_fh = False
     if isinstance(file, str):
-        if file == '-':
-            file = sys.stdin
+        if use_cextxyz:
+            file = cextxyz.cfopen(file, 'r')
         else:
-            file = open(file, 'r')
-            own_fh = True
+            if file == '-':
+                file = sys.stdin
+            else:
+                file = open(file, 'r')
+                own_fh = True
     try:
         while file:
-            atoms = read_extxyz_frame(file, **kwargs)
+            if use_cextxyz:
+                atoms = cextxyz.read_frame(file, **kwargs)
+            else:
+                atoms = read_frame(file, **kwargs)
             if atoms is None:
                 break
             yield atoms
     finally:
-        if own_fh: file.close()
+        if own_fh:
+            if use_cextxyz:
+                cextxyz.cfclose(file)
+            else:            
+                file.close()
 
 
 def read(file, **kwargs):
@@ -735,6 +750,7 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--write', action='store_true')
     parser.add_argument('-R', '--round-trip', action='store_true')
     parser.add_argument('-P', '--profile', action='store_true')
+    parser.add_argument('-C', '--cextxyz', action='store_true')
     args = parser.parse_args()
     if args.round_trip:
         args.write = True # -R implies -w too
@@ -745,19 +761,23 @@ if __name__ == '__main__':
             verbose=args.verbose,
             use_regex=args.regex,
             create_calc=args.create_calc,
-            calc_prefix=args.calc_prefix)""", "readstats")
+            calc_prefix=args.calc_prefix,
+            use_cextxyz=args.cextxyz)""", "readstats")
+    t0 = time.time()
     configs = read(args.file,
                    verbose=args.verbose,
                    use_regex=args.regex,
                    create_calc=args.create_calc,
-                   calc_prefix=args.calc_prefix)
+                   calc_prefix=args.calc_prefix,
+                   use_cextxyz=args.cextxyz)
+    tr = time.time() - t0
     if args.verbose:
         if isinstance(configs, Atoms):
             configs = [configs]
         for atoms in configs:
             pprint(atoms.info)
 
-    print('TIMER grammar.parse', tg, 'result_to_dict', td)
+    print('TIMER grammar.parse', tg, 'result_to_dict', td, 'read atoms', ta, 'read total', tr)
 
     if args.write:
         t0 = time.time()
@@ -783,7 +803,8 @@ if __name__ == '__main__':
                            verbose=args.verbose,
                            use_regex=args.regex,
                            create_calc=args.create_calc,
-                           calc_prefix=args.calc_prefix)
+                           calc_prefix=args.calc_prefix,
+                           use_cextxyz=args.cextxyz)
 
         assert configs == new_configs
         print('All configs match!')
