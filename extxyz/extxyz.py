@@ -20,7 +20,7 @@ from ase.symbols import symbols2numbers
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
 from extxyz_kv_grammar import (ExtxyzKVGrammar,
-                               float_re, integer_re, bool_re, simplestring_re, 
+                               float_re, integer_re, bool_re, simplestring_re,
                                whitespace_re)
 
 from utils import create_single_point_calculator, update_atoms_from_calc
@@ -147,8 +147,8 @@ class ExtractValues(NodeTransformer):
     Convert scalars and list of floats ints, strings, bools to Python types
     """
 
-    tf = {'k_true':  True,
-          'k_false': False}
+    tf = {'r_true':  True,
+          'r_false': False}
 
     def visit_properties(self, node):
         return Value(node.element.name)
@@ -165,10 +165,10 @@ class ExtractValues(NodeTransformer):
     def visit_r_integer(self, node):
         return Value(int(node.string))
 
-    def visit_k_true(self, node):
+    def visit_r_true(self, node):
         return Value(ExtractValues.tf[node.element.name])
 
-    visit_k_false = visit_k_true
+    visit_r_false = visit_r_true
 
     def visit_strings(self, node):
         return Value([c.string for c in node.children])

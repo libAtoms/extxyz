@@ -9,6 +9,8 @@ quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
 barestring_re = r"""(?:[^\s='",}{\]\[\\]|(?:\\[\s='",}{\]\]\\]))+"""
 float_re = r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 integer_re = r'[+-]?[0-9]+'
+true_re =  r'(?:T|[tT]rue|TRUE)'
+false_re = r'(?:F|[fF]alse|FALSE)'
 bool_re = r'(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)'
 whitespace_re = r'\s*'
 
@@ -22,22 +24,22 @@ class ExtxyzKVGrammar(Grammar):
     r_integer = Regex(integer_re)
     r_float = Regex(float_re)
 
-    k_true = Keyword('T')
-    k_false = Keyword('F')
+    r_true = Regex(true_re)
+    r_false = Regex(false_re)
 
     ints = List(r_integer, mi=1)
     floats = List(r_float, mi=1)
-    bools = List(Choice(k_true, k_false), mi=1)
+    bools = List(Choice(r_true, r_false), mi=1)
     strings = List(r_string, mi=1)
 
     ints_sp = Repeat(r_integer, mi=1)
     floats_sp = Repeat(r_float, mi=1)
-    bools_sp = Repeat(Choice(k_true, k_false), mi=1)
+    bools_sp = Repeat(Choice(r_true, r_false), mi=1)
     strings_sp = Repeat(r_string, mi=1)
 
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
                              Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
-    one_d_array = Sequence('[', Choice(ints, floats, strings, bools), ']')
+    one_d_array = Sequence('[', Choice(ints, floats, bools, strings), ']')
     one_d_arrays = List(one_d_array, mi=1)
     two_d_array = Sequence('[', one_d_arrays, ']')
 
@@ -46,8 +48,8 @@ class ExtxyzKVGrammar(Grammar):
     val_item = Choice(
         r_integer,
         r_float,
-        k_true,
-        k_false,
+        r_true,
+        r_false,
         old_one_d_array,
         one_d_array,
         two_d_array,

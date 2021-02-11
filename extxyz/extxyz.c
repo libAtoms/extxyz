@@ -78,7 +78,13 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 strncpy(str, node->str, node->len);
                 str[node->len] = 0;
 
-                if (node->cl_obj->gid == CLERI_GID_R_INTEGER) {
+                if (node->cl_obj->gid == CLERI_GID_R_TRUE || node->cl_obj->gid == CLERI_GID_R_FALSE) {
+                    //DEBUG printf("FOUND keyword bool\n");
+                    new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_R_TRUE);
+                    // not checking for mismatch, parsing should make sure data type is consistent
+                    (*cur_entry)->data_t = data_b;
+                    free(str);
+                } else if (node->cl_obj->gid == CLERI_GID_R_INTEGER) {
                     //DEBUG printf("FOUND int\n");
                     new_data_ll->data.i = atoi(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
@@ -112,19 +118,23 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 }
             } else {
                 // keyword
+                /*
                 if (node->cl_obj->gid == CLERI_GID_K_TRUE || node->cl_obj->gid == CLERI_GID_K_FALSE) {
                     //DEBUG printf("FOUND keyword bool\n");
                     new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_K_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     (*cur_entry)->data_t = data_b;
                 } else {
+                */
                     // allocate string for printing
                     char * str = (char *) malloc((node->len+1)*sizeof(char));
                     strncpy(str, node->str, node->len);
                     fprintf(stderr, "Failed to parse some keyword as data, key '%s' str '%s'\n", (*cur_entry)->key, str);
                     free(str);
                     return 1;
+                /*
                 }
+                */
             }
 
             if (*in_seq == 0) {
