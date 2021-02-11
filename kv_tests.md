@@ -2,7 +2,7 @@
 
 ## ones that should work
 
-* integer: all combinations of
+* scalar integer: all combinations of
     * initial sign in 
         * ''
         * '+'
@@ -11,7 +11,15 @@
         *  1
         *  12
         *  012
-* float: all combinations of
+    * "3"
+    * " 3"
+    * "3 "
+    * " 3 "
+    * {3}
+    * { 3}
+    * {3 }
+    * { 3 }
+* scalar float: all combinations of
     * initial sign in 
         * ''
         * '+'
@@ -43,7 +51,7 @@
                 * 0
                 * 2
                 * 12
-* boolean:
+* scalar boolean:
     * 't'
     * 'T'
     * 'true'
@@ -54,7 +62,7 @@
     * 'false'
     * 'False'
     * 'FALSE'
-* string
+* scalar string
     * bare string
         * string of all printable non-whitespace chars except =",\]\[\}\{\\
         * TRuE
@@ -104,8 +112,10 @@
         * \[ array of bool \]
         * \[ array of bool, array of bool \]
     * string
-        * \[ array of string \]
+        * \[ array of string, mix of bare and quoted \]
         * \[ array of string, array of string \]
+        * \[ array of bare strings, array of quoted string \]
+        * \[ array of quoted strings, array of bare string \]
         * \[ array of bool-like, array of string \]
         * \[ array of int-like, array of string \]
         * \[ array of bool-like, array of int-like, array of string, array of string \]
@@ -122,3 +132,11 @@
     * 'abc'
     * "abc'
     * "abc\"def
+* bad 1d array
+    * "1, 2 }
+    * {1, 2 "
+    * [ 1, 2, ]
+    * [ , 2, 3 ]
+* bad 2d array
+    * \[ \[ 1, 2 \], \[ 3 \] \]
+    * \[ \[ 1, 2 \] \[ 1, 2 \] \]
