@@ -89,8 +89,9 @@ class TreeDumper(NodeVisitor):
     of the parse tree.
     """
 
-    def __init__(self):
+    def __init__(self, prefix=''):
         self.depth = 0
+        self.prefix = prefix
 
     def generic_visit(self, node):
         if isinstance(node, Node):
@@ -100,7 +101,7 @@ class TreeDumper(NodeVisitor):
         else:
             str_repr = str(node)
 
-        print('  ' * self.depth + str_repr)
+        print(self.prefix + '  ' * self.depth + str_repr)
         self.depth += 1
         super().generic_visit(node)
         self.depth -= 1
@@ -470,18 +471,18 @@ def result_to_dict(result, verbose=0):
     tree = result.tree.children[0]
     if verbose >= 1:
         print('input tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('input').visit(tree)
     tree = TreeCleaner().visit(tree)
     tree = ExtractValues().visit(tree)
     if verbose >= 2:
         print('cleaned tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('cleaned').visit(tree)
     tree = OneDimArrays().visit(tree)
     tree = OneDimToTwoDim().visit(tree)
     tree = TwoDimArrays().visit(tree)
     if verbose >=1 :
         print('final tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('final').visit(tree)
 
     # now we should have a flat list of (key, value) pairs
     result_dict = {}
