@@ -67,6 +67,8 @@
         * string of all printable non-whitespace chars except =",\]\[\}\{\\
         * TRuE
         * 1.3k7
+        * \-2.75e
+        * \+2.75e\-
     * quoted string, all start and end with "
         * all bare strings from above
         * string of all printable non-whitespace chars, backslash escaping " and \\
