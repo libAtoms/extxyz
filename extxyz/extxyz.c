@@ -13,7 +13,7 @@
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     if (key) {
         if (key_len <= 0) {
-            fprintf(stderr, "INTERNAL ERROR: init_DictEntry with key %d and key_len %d <= 0\n", key, key_len);
+            fprintf(stderr, "INTERNAL ERROR: init_DictEntry with key '%s' and key_len %d <= 0\n", key, key_len);
             exit(1);
         }
         // copy into entry
@@ -253,7 +253,7 @@ void dump_tree(cleri_node_t *node, char *prefix) {
         }
         printf("\n");
     } else {
-        printf("%snode\n", prefix, node->cl_obj);
+        printf("%snode NULL\n", prefix);
     }
 
     for (cleri_children_t *child = node->children; child; child = child->next) {
@@ -434,7 +434,7 @@ void print_dict(DictEntry *dict) {
 
 
 #define STR_INCR 1024
-char *strcat_realloc(char **str, int *len, char *add_str) {
+void strcat_realloc(char **str, int *len, char *add_str) {
     if (strlen(*str) + strlen(add_str) + 1 > *len) {
         *len += STR_INCR;
         *str = (char *) realloc(*str, *len);
@@ -455,7 +455,7 @@ char *read_line(char **line, int *line_len, FILE *fp) {
         *line_len += STR_INCR;
         *line = (char *) realloc(*line, *line_len * sizeof(char));
         if (!*line) {
-            fprintf(stderr, "ERROR: failed to realloc in strcat_realloc\n");
+            fprintf(stderr, "ERROR: failed to realloc in read_line\n");
             exit(1);
         }
 
@@ -505,7 +505,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // actually parse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
     if (! tree->is_valid) {
-        fprintf(stderr, "Failed to parse string at pos %d\n", tree->pos);
+        fprintf(stderr, "Failed to parse string at pos %zd\n", tree->pos);
         cleri_parse_free(tree);
         free(line);
         return 0;
