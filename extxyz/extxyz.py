@@ -431,14 +431,12 @@ class Properties:
 
     @lazyproperty
     def regex(self):
-        regex = ''
+        regex = '^\s*'
         for (_, property_type, cols) in self.properties:
             this_regex = '('+Properties.per_atom_column_re[property_type]+')' + whitespace_re
-            if cols == 1:
+            for col in range(cols):
                 regex += this_regex
-            else:
-                for col in range(cols):
-                    regex += this_regex
+        regex = re.sub('.' * len(whitespace_re) + '$', '', regex)
         regex = re.compile(regex)
         return regex
 
@@ -548,11 +546,12 @@ def read_frame(file, verbose=0, use_regex=True,
     natoms = int(line)
     comment = next(file)
     info, lattice, properties = read_comment_line(comment, verbose)
-    # if verbose:
-        # print('read_frame info = ')
-        # pprint(info)
-        # print(f'lattice = {repr(lattice)}')
-        # print(f'properties = {repr(properties)}')
+    if verbose:
+        print('read_frame info = ')
+        print("info")
+        pprint(info)
+        print(f'lattice = {repr(lattice)}')
+        print(f'properties = {repr(properties)}')
     t0 = time.time()
     if use_regex:
         lines = [next(file) for line in range(natoms)]

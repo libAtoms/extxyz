@@ -1,4 +1,4 @@
-default: extxyz_kv_grammar.c extxyz_kv_grammar.h extxyz.so
+default: extxyz_kv_grammar.c extxyz_kv_grammar.h _extxyz.so
 
 extxyz_kv_grammar.c extxyz_kv_grammar.h: extxyz_kv_grammar.py
 	python3 extxyz_kv_grammar.py
@@ -17,7 +17,7 @@ parse_headers: extxyz_kv_grammar.c extxyz_kv_grammar.h parse_headers.c
 parse_C: parse_C.c extxyz.c extxyz_kv_grammar.c extxyz_kv_grammar.h
 	gcc -g -I/opt/local/include -I${HOME}/libcleri/include extxyz_kv_grammar.c extxyz.c parse_C.c -L${HOME}/libcleri/lib -lcleri -lpcre -o $@
 
-extxyz.so: extxyz.c extxyz_kv_grammar.c extxyz_kv_grammar.h
+_extxyz.so: extxyz.c extxyz_kv_grammar.c extxyz_kv_grammar.h
 	gcc -shared -g -I/opt/local/include -I${HOME}/libcleri/include extxyz_kv_grammar.c extxyz.c -L${HOME}/libcleri/lib -lcleri -lpcre -o $@
 
 clean:
