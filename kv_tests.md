@@ -8,6 +8,7 @@
         * '+'
         * '-'
     * followed by one of
+        *  1
         *  12
         *  012
 * float: all combinations of
@@ -16,13 +17,17 @@
         * '+'
         * '-'
     * main number in
+        * 1.0
+        * 1.
+        * 1
         * 12.0
-        * 012.0
         * 12
+        * 012.0
         * 012
         * 0.12
         * 00.12
         * 0.012
+        * .012
     * followed by exponent in
         * ''
         * one of 
@@ -30,12 +35,13 @@
             * 'E'
             * 'd'
             * 'E'
-            * followed by one of
+            * followed by sign, one of
                 * ''
                 * '+'
                 * '-'
             * followed by one of
                 * 0
+                * 2
                 * 12
 * boolean:
     * 't'
@@ -111,7 +117,7 @@
     * bare key, not = or value
 * almost bare string
     * abc + &lt;char> + def, &lt;char> is one of
-        * " = , \\ \[ \[ \{ \} &lt;some whitespace>
+        * " = , \\ \[ \] \{ \} &lt;some whitespace>
 * almost quoted string
     * 'abc'
     * "abc'
