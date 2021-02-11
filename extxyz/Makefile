@@ -1,3 +1,5 @@
+default: extxyz_kv_grammar.c extxyz_kv_grammar.h extxyz.so
+
 extxyz_kv_grammar.c extxyz_kv_grammar.h: extxyz_kv_grammar.py
 	python3 extxyz_kv_grammar.py
 	# fix pyleri bug that makes double quote token string """ instead of "\""
