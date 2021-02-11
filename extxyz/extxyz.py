@@ -204,6 +204,9 @@ class OneDimArrays(NodeTransformer):
         result = self.visit_one_d_array(node)
         if result.value.shape == (9, ):
             result.value = result.value.reshape((3, 3), order='F')
+        elif result.value.shape == (1, ):
+            # old array with one column is just a scalar
+            result.value = result.value[0]
         return result
 
 

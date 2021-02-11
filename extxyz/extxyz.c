@@ -31,7 +31,7 @@ void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     entry->next = 0;
 }
 
-int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair) {
+int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
     //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair);
     //DEBUG if (node->cl_obj) {
         //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid);
@@ -50,6 +50,11 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
     if (*in_kv_pair) {
         //DEBUG printf("in entry, looking for data\n");
         // have key, looking for data
+
+        if (node->cl_obj && (node->cl_obj->gid == CLERI_GID_OLD_ONE_D_ARRAY)) {
+            // noting entry into old one-d array
+            *in_old_one_d = 1;
+        }
         if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_SEQUENCE)) {
             // entering sequence, increment depth counter
             (*in_seq)++;
@@ -173,12 +178,16 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
     //DEBUG printf("looping over children\n");
     for (cleri_children_t *child = node->children; child; child = child->next) {
         //DEBUG printf("child\n");
-        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair);
+        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d);
         if (err) {
             return err;
         }
     }
 
+    if (node->cl_obj && (node->cl_obj->gid == CLERI_GID_OLD_ONE_D_ARRAY)) {
+        // noting exit from into old one-d array
+        *in_old_one_d = 0;
+    }
     if (node->cl_obj && node->cl_obj->tp == CLERI_TP_SEQUENCE) {
         //DEBUG printf("leaving sequence\n");
         if (*in_seq == 2) {
@@ -200,7 +209,13 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
             if ((*cur_entry)->ncols == 0) {
                 // Exiting sequence and ncols is still 0, so list was not nested.
                 // Need to store ncols here.
-                (*cur_entry)->ncols = (*cur_entry)->n_in_row;
+                if (*in_old_one_d && (*cur_entry)->n_in_row == 1) {
+                    // special case old 1-d arrays with one entry as scalar
+                    (*cur_entry)->ncols = 0;
+                    // should we also do 9-vector to 3x3 matrix?
+                } else{
+                    (*cur_entry)->ncols = (*cur_entry)->n_in_row;
+                }
                 (*cur_entry)->n_in_row = 0;
             }
             // exiting sequence
@@ -319,8 +334,8 @@ void *tree_to_dict(cleri_parse_t *tree) {
 
     DictEntry *cur_entry = dict;
 
-    int in_seq = 0, in_kv_pair = 0;
-    int err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair);
+    int in_seq = 0, in_kv_pair = 0, in_old_one_d = 0;
+    int err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
     if (err) {
         fprintf(stderr, "error parsing tree\n");
         return 0;
