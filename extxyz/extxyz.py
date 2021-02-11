@@ -215,6 +215,10 @@ class OneDimToTwoDim(NodeTransformer):
     Combine one dimensional arrays to form two dimensional arrays
     """
     def visit_one_d_arrays(self, node):
+        row_types = [c.value.dtype for c in node.children]
+        if (any([t != np.int64 and t != np.float64 for t in row_types]) and
+            not all([t != row_types[0] for t in row_types])):
+            raise ValueError(f'Got 2-D array with mismatching row types {row_types}')
         return Value(np.array([c.value for c in node.children]))
 
 

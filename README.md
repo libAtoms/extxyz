@@ -1,8 +1,8 @@
 # Remaining issues
-1. make sure single entry backward compatible single entry arrays are turned into scalara
-2. allow single quote inside bare string since it's no longer an allowed quoting character
-3. check what two-d array of mixed row _types_ gives
-4. check strings with various mismatched quotes, esp ones that do not conform to either bare or quoted string
+1. check more systematically two-d array of mixed row _types_ gives.  Mostly it tries to detect and give an error, but there are
+still some weirdnesses.  pyleri will promote anything to a string in a single one-d array or row of a 2-d array, and int to float.  Promoting int to float between rows is easy, and now being done, but other promotions (to string) are harder, because we don't keep the original string anyplace (and without it there's no guarantee things like floats will be converted back to a string in the exact form they started).  We should decide what level of consistency we want to enforce.
+2. check strings with various mismatched quotes, esp ones that do not conform to either bare or quoted string
+3. make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.
 
 # Extended XYZ specification and parsing tools
 

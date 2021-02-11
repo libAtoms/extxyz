@@ -72,6 +72,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 (*cur_entry)->last_data_ll->next = new_data_ll;
             }
             (*cur_entry)->last_data_ll = new_data_ll;
+            new_data_ll->data_t = data_none;
             new_data_ll->next = 0;
             (*cur_entry)->n_in_row++;
 
@@ -87,19 +88,19 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     //DEBUG printf("FOUND keyword bool\n");
                     new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_R_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
-                    (*cur_entry)->data_t = data_b;
+                    new_data_ll->data_t = data_b;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_INTEGER) {
                     //DEBUG printf("FOUND int\n");
                     new_data_ll->data.i = atoi(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
-                    (*cur_entry)->data_t = data_i;
+                    new_data_ll->data_t = data_i;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_FLOAT) {
                     //DEBUG printf("FOUND float\n");
                     new_data_ll->data.f = atof(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
-                    (*cur_entry)->data_t = data_f;
+                    new_data_ll->data_t = data_f;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_STRING || 
                            node->cl_obj->gid == CLERI_GID_R_BARESTRING || 
@@ -110,7 +111,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     // store pointer, do not copy, but data was still allocated
                     // in this routine, not in cleri parsing.
                     new_data_ll->data.s = str;
-                    (*cur_entry)->data_t = data_s;
+                    new_data_ll->data_t = data_s;
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
                     if (strlen(str) > 0) {
@@ -128,7 +129,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     //DEBUG printf("FOUND keyword bool\n");
                     new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_K_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
-                    (*cur_entry)->data_t = data_b;
+                    new_data_ll->data_t = data_b;
                 } else {
                 */
                     // allocate string for printing
@@ -279,14 +280,48 @@ void free_DataLinkedList(DataLinkedList *list, enum data_type data_t, int free_s
 }
 
 
-void DataLinkedList_to_data(DictEntry *dict) {
+int DataLinkedList_to_data(DictEntry *dict) {
+    int stat=0;
+
     for (DictEntry *entry = dict; entry; entry = entry->next) {
-        if (entry->first_data_ll) {
-            // has linked list contents
-            DataLinkedList *data_item = entry->first_data_ll;
-            int n_items;
-            for (n_items=0; data_item; n_items++, data_item = data_item->next) {
+        if (! entry->first_data_ll) {
+            // no linked list, nothing to copy
+            continue;
+        }
+
+        DataLinkedList *data_item = entry->first_data_ll;
+        int n_items;
+        enum data_type data_t = data_none;
+        // count items and check for data type consistency
+        for (n_items=0; data_item; n_items++, data_item = data_item->next) {
+            if (data_t == data_none) {
+                // no prev data type set yet, set it now
+                data_t = data_item->data_t;
+            } else if (data_item->data_t == data_i || data_item->data_t == data_f) {
+                // this item is a number
+                if (data_t != data_i && data_t != data_f) {
+                    // prev data is not a number, fail
+                    if (!stat) {
+                        fprintf(stderr, "ERROR: in an array got a number type %d after a non-number %d\n",
+                            data_item->data_t, data_t);
+                    }
+                    stat=1;
+                }
+                if (data_item->data_t == data_f || data_t == data_f) {
+                    // if any float appears, overall is a float
+                    data_t = data_f;
+                }
+            } else if (data_item->data_t != data_t) {
+                if (!stat) {
+                    fprintf(stderr, "ERROR: in an array got a change in type from %d to %dthat cannot be promoted\n",
+                        data_t, data_item->data_t);
+                }
+                stat=1;
             }
+        }
+
+        if (stat == 0) {
+            entry->data_t = data_t;
             data_item = entry->first_data_ll;
             // no checking for valid data_item in loops below because loop
             // iters were checked using empty data_item loop above
@@ -298,7 +333,11 @@ void DataLinkedList_to_data(DictEntry *dict) {
             } else if (entry->data_t == data_f) {
                 entry->data = (double *) malloc(n_items*sizeof(double));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    ((double *)(entry->data))[i] = data_item->data.f;
+                    if (data_item->data_t == data_f) {
+                        ((double *)(entry->data))[i] = data_item->data.f;
+                    } else {
+                        ((double *)(entry->data))[i] = data_item->data.i;
+                    }
                 }
             } else if (entry->data_t == data_b) {
                 entry->data = (int *) malloc(n_items*sizeof(int));
@@ -313,14 +352,16 @@ void DataLinkedList_to_data(DictEntry *dict) {
                     ((char **)(entry->data))[i] = data_item->data.s;
                 }
             }
-
-            // free data linked list, but keep strings allocated, since their
-            // pointers were copied to data
-            free_DataLinkedList(entry->first_data_ll, entry->data_t, 0);
-            entry->first_data_ll = 0;
-            entry->last_data_ll = 0;
         }
+
+        // free data linked list, but keep strings allocated, since their
+        // pointers were copied to data
+        free_DataLinkedList(entry->first_data_ll, entry->data_t, 0);
+        entry->first_data_ll = 0;
+        entry->last_data_ll = 0;
     }
+
+    return stat;
 }
 
 
@@ -335,13 +376,18 @@ void *tree_to_dict(cleri_parse_t *tree) {
     DictEntry *cur_entry = dict;
 
     int in_seq = 0, in_kv_pair = 0, in_old_one_d = 0;
-    int err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
+    int err;
+    err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
     if (err) {
         fprintf(stderr, "error parsing tree\n");
         return 0;
     }
 
-    DataLinkedList_to_data(dict);
+    err = DataLinkedList_to_data(dict);
+    if (err) {
+        fprintf(stderr, "ERROR converting data linked list to data arrays, probably inconsistent data types\n");
+        return 0;
+    }
 
     return dict;
 }

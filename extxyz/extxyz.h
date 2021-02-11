@@ -46,6 +46,8 @@ typedef struct data_list_struct {
         int b;
     } data;
 
+    enum data_type data_t;
+
     struct data_list_struct *next;
 } DataLinkedList;
 
