@@ -29,14 +29,14 @@
         * 1\.
         * 1
         * 12.0
-        * 12
         * 012.0
+        * 12
         * 012
         * 0.12
         * 00.12
         * 0.012
         * .012
-    * followed by exponent in
+    * for main number -12.0, all exponent combinations of
         * ''
         * one of 
             * 'e', 
@@ -50,6 +50,7 @@
             * followed by one of
                 * 0
                 * 2
+                * 02
                 * 12
 * scalar boolean:
     * 't'
@@ -64,7 +65,7 @@
     * 'FALSE'
 * scalar string
     * bare string
-        * string of all printable non-whitespace chars except =",\]\[\}\{\\
+        * string of all ASCII printable (32-127) non-whitespace chars except =",\]\[\}\{\\
         * TRuE
         * 1.3k7
         * \-2.75e
@@ -73,8 +74,6 @@
         * all bare strings from above
         * string of all printable non-whitespace chars, backslash escaping " and \\
         * "line one\\nline two"
-        * "abc\\"def"
-        * "abc\\\\def"
 * 1-d array
     * backward compatible
         * int
