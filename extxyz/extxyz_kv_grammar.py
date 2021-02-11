@@ -6,7 +6,7 @@ from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
 simplestring_re = r'\S*'
 quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
-barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\]\\]))+"""
+barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
 float_re = r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 integer_re = r'[+-]?[0-9]+'
 true_re =  r'(?:T|[tT]rue|TRUE)'
