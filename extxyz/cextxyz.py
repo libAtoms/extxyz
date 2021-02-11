@@ -65,15 +65,19 @@ def c_to_py_dict(c_dict, deepcopy=False):
     while node_ptr:
         node = node_ptr.contents
         data_ptr = ctypes.cast(node.data, type_map[node.data_t])
-        
+
         if node.nrows == 0 and node.ncols == 0:
             # scalar
             value = data_ptr.contents.value
             if node.data_t == data_s:
                 value = value.decode('utf-8')
+            elif node.data_t == data_b:
+                value = bool(value)
         elif node.nrows == 0:
             # vector
             value = np.ctypeslib.as_array(data_ptr, [node.ncols])
+            if node.data_t == data_b:
+                value = value.astype(bool)
         else:
             # matrix
             if node.data_t == data_s:
@@ -82,6 +86,8 @@ def c_to_py_dict(c_dict, deepcopy=False):
             else:            
                 value = np.ctypeslib.as_array(data_ptr, 
                                             [node.nrows, node.ncols])
+            if node.data_t == data_b:
+                value = value.astype(bool)
         if deepcopy:
             value = copy.copy(value)
         result[node.key.decode('utf-8')] = value
@@ -111,14 +117,14 @@ def read_frame(fp, create_calc=False, calc_prefix=''):
                                     ctypes.byref(info), 
                                     ctypes.byref(arrays)):
         return None
-        
+
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
-    
+
     cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
     symbols = py_arrays.pop('species')
     positions = py_arrays.pop('pos')
-    
+
     atoms = Atoms(symbols=symbols,
                     positions=positions,
                     cell=cell,
@@ -128,15 +134,15 @@ def read_frame(fp, create_calc=False, calc_prefix=''):
     if create_calc:
         atoms.calc = create_single_point_calculator(atoms, py_info, py_arrays,
                                                     calc_prefix=calc_prefix)        
-    
+
     atoms.info.update(py_info)
     atoms.arrays.update(py_arrays)
-                    
+
     assert len(atoms) == nat.value
 
     extxyz.free_dict(info)
     extxyz.free_dict(arrays)
-        
+
     return atoms
 
 
@@ -152,15 +158,22 @@ def iread(filename, **kwargs):
     finally:
         fclose(fp)   
 
+
 def read(filename, **kwargs):
     configs = list(iread(filename, **kwargs))
     if len(configs) == 1:
         return configs[0]
     else:
         return configs    
-       
+
 
 if __name__ == '__main__':
     import sys
     atoms = read(sys.argv[1])
     print(atoms)
+    print("info")
+    for k in atoms.info:
+        print(k, atoms.info[k])
+    print("arrays")
+    for k in atoms.arrays:
+        print(k, atoms.arrays[k])
