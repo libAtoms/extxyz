@@ -160,7 +160,7 @@ class ExtractValues(NodeTransformer):
         return Value(node.string[1:-1])
 
     def visit_r_float(self, node):
-        return Value(float(node.string))
+        return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
 
     def visit_r_integer(self, node):
         return Value(int(node.string))
@@ -181,7 +181,7 @@ class ExtractValues(NodeTransformer):
     visit_ints_sp = visit_ints
 
     def visit_floats(self, node):
-        return Value([float(c.string) for c in node.children])
+        return Value([float(c.string.replace('d', 'e').replace('D', 'e')) for c in node.children])
 
     visit_floats_sp = visit_floats
 
