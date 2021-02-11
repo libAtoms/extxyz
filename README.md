@@ -4,6 +4,7 @@ promoting types if possible, whether the variation is within or between rows, to
 2. check strings with various mismatched quotes, esp ones that do not conform to either bare or quoted string
 3. make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.
 4. Since we're using python regexp/PCRE, we could make per-atom strings be more complex, e.g. bare or quoted strings from key-value pairs.  Should we?
+5. Make sure backslash escaped things are handled correctly.
 
 # Extended XYZ specification and parsing tools
 
@@ -31,14 +32,16 @@ Sequence of one or more allowed characters, optionally quoted, but **must** be q
 *   Allowed characters - all except newline
 *   Entire string **may be** surrounded by double quotes, as first and last characters (must match). 
     Quotes inside string that are same as containing quotes must be escaped with backslash.
-*   Strings that contain any of the following characters **must** be quoted 
+*   Strings that contain any of the following characters **must** be quoted (not just backslash escaped)
     * whitespace (regex \\s)
-    * backslash, represented by double backslash \\\\
-    * newline, represented by \\n
+    * equals =
     * double quote "
+    * comma ,
     * open or close square bracket \[ \] or curly brackets \{ \}
-*   Backslash \\: only present in quoted string, only used for escaping quotes, encoding literal backslash with a 
-    double backslaw(\\\\), and encoding newline (\\n)
+    * backslash, must be represented by double backslash \\\\
+    * newline, must be represented by \\n
+*   Backslash \\: only present in quoted strings, only used for escaping next character. All backslash
+    escaped characters are the character itself except \\n, which encodes a newline.
 *   Must conform to one of the following regex
     * quoted string: \("\)\(?:\(?=\(\\\\?\)\)\\2.\)\*?\\1
     * bare \(unquoted\) string: \(?:\[^\\s=",\}\{\\\]\\\[\\\\\]|\(?:\\\\\[\\s=",\}\{\\\]\\\[\\\\\]\)\)\+
@@ -65,7 +68,6 @@ string of one or more decimal digits, optionally preceded by sign
 
 #### Floating point number
 
-possibly non-integer finite precision real number
 *   optional leading sign \[\+\-\], decimal number including optional decimal point \., 
     optional \[dDeE\] folllowed by exponent consisting of optional sign followed by string of 
     one or more digits
@@ -81,9 +83,9 @@ possibly non-integer finite precision real number
 #### one dimensional array (vector)
 
 sequence of one or more of the same primitive type
-*   new style: opens with \[, one or more of the same primitives separated by commas ',', ends with \]
+*   new style: opens with \[, one or more of the same primitives separated by commas and optional whitespace, ends with \]
 *   backward compatible: opens with " or \{, one or more of the same primitive types except strings,
-    separated by spaces, ends with matching " or \}.  For backward compatibility, a single element backward 
+    separated by whitespace, ends with matching " or \}.  For backward compatibility, a single element backward 
     compatible array is interpreted as a scalar of the same type.
 *   primitive data type is determined by same priority as single primitive item, but must be satisfied
     by entire list simultaneously.  E.g. all integers will result in an integer array, but a mix
@@ -93,7 +95,7 @@ sequence of one or more of the same primitive type
 #### two dimensional array (matrix)
 
 sequence of one or more new style one dimensional arrays of the same length and type
-*   opens with \[, one or more new style one dimensional arrays separated by commas ',', ends with \]
+*   opens with \[, one or more new style one dimensional arrays separated by commas, ends with \]
 *   all contained one dimensional arrays in a single two dimensional array must have same number and 
     primitive data type elements, and will be promoted to other possible types if necessary to parse entire
     array.  E.g. a row of integers followed by a row of strings will be promoted to a 2-d string array.
@@ -104,7 +106,7 @@ A concatenation of 1 or more FRAMES (below), with optional blank lines at the en
 
 #### **FRAME**
 
-*   Line 1: a single integer &lt;N&> preceded and followed by optional whitespace
+*   Line 1: a single integer &lt;N> preceded and followed by optional whitespace
 *   Line 2: zero or more per-config key=value pairs (see key-value pairs below)
 *   Lines 3..N+2: per-atom data lines with M columns each (see Properties and Per-Atom Data below)
 
@@ -122,12 +124,13 @@ Value: primitive type, 1-D array, or 2-D array.  Type is determined from context
 *   If after full parsing the key “Properties” is missing, the format is retroactively assumed to be plain xyz (4 columns, Z/species x y z), the entire second line is stored as a per-config “comment” property, and columns beyond the 4th are not read. 
 *   Value is a string with the format of a series of triplets, separated by “:”, each triplet having the format: “&lt;name>:&lt;T>:&lt;m>”. 
     *   The &lt;name> (string) names the column(s), &lt;T> is a one of “S”, “I”, “R”, “L”, and indicates the type in the column, “string”, “integer”, “real”, “logical”, respectively. &lt;m> is an integer > 0 specifying how many consecutive columns are being referred to.
+    * The sum of the counts "m" must equal M (defined in **FRAME**)
 
 #### **Per-atom data lines**
 
-Each column contains a sequence of primitive types, except string, which is replaced with simple string, separated by one or more whitespace characters, ending with EOL (optional for last line).  The total number of columns in each row must be equal to the sum of the counts "m" in the "Properties" value string.
+Each column contains a sequence of primitive types, except string, which is replaced with simple string, separated by one or more whitespace characters, ending with EOL (optional for last line).  The total number of columns in each row must be equal to the M and to the sum of the counts "m" in the "Properties" value string.
 
-## READING ase.atoms.Atoms FROM THIS FORMAT
+## READING `ase.atoms.Atoms` FROM THIS FORMAT
 
 Specific keys indicate special values, with specific order for overriding
 
