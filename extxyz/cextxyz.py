@@ -77,12 +77,17 @@ def c_to_py_dict(c_dict, deepcopy=False):
             # array, either 1D or 2D
             if node.nrows == 0:
                 # vector (1D array)
-                value = np.ctypeslib.as_array(data_ptr, [node.ncols])
+                if node.data_t == data_s:
+                    value = np.array([data_ptr[i].decode('utf-8')
+                                    for i in range(node.ncols)])
+                else:
+                    value = np.ctypeslib.as_array(data_ptr, [node.ncols])
             else:
                 # matrix (2D array)
                 if node.data_t == data_s:
                     value = np.array([data_ptr[i].decode('utf-8')
-                                    for i in range(node.nrows)])
+                                    for i in range(node.nrows*node.ncols)])
+                    value = value.reshape(node.nrows, node.ncols)
                 else:
                     value = np.ctypeslib.as_array(data_ptr,
                                                 [node.nrows, node.ncols])

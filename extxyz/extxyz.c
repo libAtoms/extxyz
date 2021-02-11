@@ -575,6 +575,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
+        // make an nat x ncol matrix
         cur_array->nrows = *nat;
         cur_array->ncols = col_num;
 
@@ -648,8 +649,8 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
-        // use PCRE + atoi/f
-        // printf("applying pcre to '%s'\n", line);
+        // read data with PCRE + atoi/f
+        // apply PCRE
         int rc = pcre_exec(re, NULL, line, strlen(line), 0, 0, ovector, ovector_len);
         if (rc != tot_col_num+1) {
             if (rc > 0) {
@@ -660,6 +661,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             free(line); free(re_str);
             return 0;
         }
+        // loop through parsed strings and fill in allocated data structures
         int field_i = 1;
         for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
             int nc = cur_array->ncols;
@@ -702,6 +704,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 }
             }
         } */
+
+    }
+
+    // convert per-atom nat x 1 array to nat-long vector
+    for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
+        if (cur_array->ncols == 1) {
+            cur_array->ncols = cur_array->nrows;
+            cur_array->nrows = 0;
+        }
     }
 
     // return true

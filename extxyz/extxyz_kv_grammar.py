@@ -39,8 +39,17 @@ class ExtxyzKVGrammar(Grammar):
 
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
                              Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
-    one_d_array = Sequence('[', Choice(ints, floats, bools, strings), ']')
-    one_d_arrays = List(one_d_array, mi=1)
+
+    # one_d_array = Sequence('[', Choice(ints, floats, bools, strings), ']')
+    one_d_array_i = Sequence('[', ints, ']')
+    one_d_array_f = Sequence('[', floats, ']')
+    one_d_array_b = Sequence('[', bools, ']')
+    one_d_array_s = Sequence('[', strings, ']')
+
+    # one_d_arrays = List(one_d_array, mi=1)
+    one_d_arrays = Choice(List(one_d_array_i, mi=1), List(one_d_array_f, mi=1),
+                          List(one_d_array_b, mi=1), List(one_d_array_s, mi=1))
+
     two_d_array = Sequence('[', one_d_arrays, ']')
 
     key_item = Choice(r_string)
@@ -51,7 +60,10 @@ class ExtxyzKVGrammar(Grammar):
         r_true,
         r_false,
         old_one_d_array,
-        one_d_array,
+        one_d_array_i,
+        one_d_array_f,
+        one_d_array_b,
+        one_d_array_s,
         two_d_array,
         r_string)
 
