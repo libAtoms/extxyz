@@ -63,15 +63,15 @@ Sequence of one or more allowed characters, unquoted (so even outermost quotes a
 
 #### Integer number
 
-string of one or more decimal digits, optionally preceded by sign, with no leading zeros
-*   regex \[\+\-\]?\(?:\[0\-9\]|\[1-9\]\[0-9\]\+\)
+string of one or more decimal digits, optionally preceded by sign
+*   regex \[\+\-\]?\[0\-9\]\+
 
 #### Floating point number
 
 *   optional leading sign \[\+\-\], decimal number including optional decimal point \., 
     optional \[dDeE\] folllowed by exponent consisting of optional sign followed by string of 
     one or more digits
-*   regex \[\+\-\]?(?:\(?:\[0\-9\]|\[1-9\]\[0-9\]\+\)|\\.\[0\-9\]\+)(?:\[dDeE\]\[\+\-\]?\[0\-9\]\+)?
+*   regex \[\+\-\]?(?:\[0\-9\]\+\[\.\]?\[0\-9\]\*|\\.\[0\-9\]\+)(?:\[dDeE\]\[\+\-\]?\[0\-9\]\+)?
 
 ### Order for identifying primitive data types, accept first one that matches
 *   int
