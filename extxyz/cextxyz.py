@@ -58,7 +58,7 @@ extxyz.free_dict.args = [ctypes.POINTER(Dict_entry_ptr)]
 
 def c_to_py_dict(c_dict, deepcopy=False):
     """
-    Convert DictEntry `c_dict` as a Python dict
+    Convert DictEntry `c_dict` to a Python dict
     """
     result = {}
     node_ptr = c_dict
@@ -71,17 +71,23 @@ def c_to_py_dict(c_dict, deepcopy=False):
             value = data_ptr.contents.value
             if node.data_t == data_s:
                 value = value.decode('utf-8')
-        elif node.nrows == 0:
-            # vector
-            value = np.ctypeslib.as_array(data_ptr, [node.ncols])
+            if node.data_t == data_b:
+                value = bool(value)
         else:
-            # matrix
-            if node.data_t == data_s:
-                value = np.array([data_ptr[i].decode('utf-8') 
-                                for i in range(node.nrows)])
-            else:            
-                value = np.ctypeslib.as_array(data_ptr, 
-                                            [node.nrows, node.ncols])
+            # array, either 1D or 2D
+            if node.nrows == 0:
+                # vector (1D array)
+                value = np.ctypeslib.as_array(data_ptr, [node.ncols])
+            else:
+                # matrix (2D array)
+                if node.data_t == data_s:
+                    value = np.array([data_ptr[i].decode('utf-8') 
+                                    for i in range(node.nrows)])
+                else:            
+                    value = np.ctypeslib.as_array(data_ptr, 
+                                                [node.nrows, node.ncols])
+            if node.data_t == data_b:
+                value = value.astype(bool)
         if deepcopy:
             value = copy.copy(value)
         result[node.key.decode('utf-8')] = value
@@ -93,24 +99,36 @@ _kv_grammar = extxyz.compile_extxyz_kv_grammar()
 
 libc = ctypes.CDLL("/usr/lib/libc.dylib")
 
-fopen = libc.fopen
-fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-fopen.restype = FILE_ptr
 
-fclose = libc.fclose
-fclose.args = [FILE_ptr]
+def cfopen(filename, mode):
+    fopen = libc.fopen
+    fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    fopen.restype = FILE_ptr
+    return fopen(filename.encode('utf-8'), 
+                 mode.encode('utf-8'))
+        
+    
+def cfclose(fp):
+    fclose = libc.fclose
+    fclose.args = [FILE_ptr]
+    fclose(fp)
 
-def read_frame(fp, create_calc=False, calc_prefix=''):
+
+def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     nat = ctypes.c_int()
     info = Dict_entry_ptr()
     arrays = Dict_entry_ptr()
 
     if not extxyz.extxyz_read_ll(_kv_grammar, 
-                                    fp,
-                                    ctypes.byref(nat), 
-                                    ctypes.byref(info), 
-                                    ctypes.byref(arrays)):
+                                 fp,
+                                 ctypes.byref(nat),
+                                 ctypes.byref(info),
+                                 ctypes.byref(arrays)):
         return None
+
+    if verbose:
+        extxyz.print_dict(info)
+        extxyz.print_dict(arrays)
         
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
@@ -127,8 +145,7 @@ def read_frame(fp, create_calc=False, calc_prefix=''):
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
         atoms.calc = create_single_point_calculator(atoms, py_info, py_arrays,
-                                                    calc_prefix=calc_prefix)        
-    
+                                                    calc_prefix=calc_prefix)    
     atoms.info.update(py_info)
     atoms.arrays.update(py_arrays)
                     
@@ -138,29 +155,3 @@ def read_frame(fp, create_calc=False, calc_prefix=''):
     extxyz.free_dict(arrays)
         
     return atoms
-
-
-def iread(filename, **kwargs):
-    fp = fopen(filename.encode('utf-8'), 
-               "r".encode('utf-8'))
-    try:
-        while True:
-            atoms = read_frame(fp, **kwargs)
-            if atoms is None:
-                break
-            yield atoms
-    finally:
-        fclose(fp)   
-
-def read(filename, **kwargs):
-    configs = list(iread(filename, **kwargs))
-    if len(configs) == 1:
-        return configs[0]
-    else:
-        return configs    
-       
-
-if __name__ == '__main__':
-    import sys
-    atoms = read(sys.argv[1])
-    print(atoms)
