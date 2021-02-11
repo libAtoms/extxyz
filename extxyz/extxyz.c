@@ -31,6 +31,16 @@ void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     entry->next = 0;
 }
 
+double atof_eEdD(char *str) {
+    for (int i=0; i < strlen(str); i++) {
+        if (str[i] == 'd' || str[i] == 'D') {
+            str[i] = 'e';
+            break;
+        }
+    }
+    return (atof(str));
+}
+
 int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
     //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair);
     //DEBUG if (node->cl_obj) {
@@ -98,7 +108,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_FLOAT) {
                     //DEBUG printf("FOUND float\n");
-                    new_data_ll->data.f = atof(str);
+                    new_data_ll->data.f = atof_eEdD(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_f;
                     free(str);
@@ -672,7 +682,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 if (cur_array->data_t == data_i) { 
                     ((int *)(cur_array->data))[li*nc + col_i] = atoi(pf);
                 } else if (cur_array->data_t == data_f) {
-                    ((double *)(cur_array->data))[li*nc + col_i] = atof(pf);
+                    ((double *)(cur_array->data))[li*nc + col_i] = atof_eEdD(pf);
                 } else if (cur_array->data_t == data_b) {
                     ((int *)(cur_array->data))[li*nc + col_i] = (pf[0] == 'T');
                 } else if (cur_array->data_t == data_s) {
