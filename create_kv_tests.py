@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import glob
 import os
 import re
@@ -36,7 +38,7 @@ for init_sign in ['', '+', '-']:
                     print_config(f'tests_float_{f_str}.xyz', 'f='+init_sign+num+exp_lett+exp_sign+exp_num)
 
 # bool
-for b in ['t', 'T', 'true', 'True', 'TRUE', 'f', 'F', 'false', 'False', 'FALSE']:
+for b in ['T', 'true', 'True', 'TRUE', 'F', 'false', 'False', 'FALSE']:
     b_str = b.startswith('t') or b.startswith('T')
     print_config(f'tests_bool_{b_str}.xyz', 'b='+b)
 
@@ -44,29 +46,30 @@ for b in ['t', 'T', 'true', 'True', 'TRUE', 'f', 'F', 'false', 'False', 'FALSE']
 bare_strings = []
 all_bare_str = ''
 for c in [chr(i) for i in range(32, 127)]:
-    if re.search('\S', c) and c not in r'="][}{\\':
+    if re.search('\S', c) and c not in r'"=,\\][}{':
         all_bare_str += c
 bare_strings += [all_bare_str]
-print_config(f'tests_bare_string.xyz', 'bs='+all_bare_str)
-for s in ['TRuE', '1.3k7', '-2.75e', '+2.75e-']:
+print_config(f'tests_barestring.xyz', 'bs='+all_bare_str)
+for s in ['TRuE', '1.3k7', '-2.75e', '+2.75e-', '+2.75e+']:
     bare_strings += [s]
-    print_config(f'tests_bare_string.xyz', 'bs='+s)
+    print_config(f'tests_barestring.xyz', 'bs='+s)
 for s in bare_strings:
-    print_config(f'tests_bare_string.xyz', 'bs = '+s)
-    print_config(f'tests_bare_string.xyz', 'bs= '+s)
-    print_config(f'tests_bare_string.xyz', 'bs ='+s)
+    print_config(f'tests_barestring.xyz', 'bs = '+s)
+    print_config(f'tests_barestring.xyz', 'bs= '+s)
+    print_config(f'tests_barestring.xyz', 'bs ='+s)
 
 # quoted strings
 for s in bare_strings:
-    print_config(f'tests_quoted_string.xyz', 'qs="'+s+'"')
+    print_config(f'tests_quotedstring.xyz', 'qs="'+s+'"')
 all_quoted_str = ''
 for c in [chr(i) for i in range(32, 127)]:
     if re.search('\S', c):
         if c == '"' or c == '\\':
             all_quoted_str += '\\'
         all_quoted_str += c
-print_config(f'tests_quoted_string.xyz', 'qs="'+all_quoted_str+'"')
-print_config(f'tests_quoted_string.xyz', 'qs="line one\\nline two"')
+print_config(f'tests_quotedstring.xyz', 'qs="'+all_quoted_str+'"')
+print_config(f'tests_quotedstring.xyz', 'qs="line one\\nline two"')
+print_config(f'tests_quotedstring_"a".xyz', 'qs="\\"a\\""')
 
 # backward compat one-d arrays
 for seps in [ ('"', '"'), ('{', '}'), ('[', ']') ]:
@@ -103,10 +106,10 @@ for l_i, l in enumerate(['i 5', 'i_a [2, 3]']):
     print_config(f'tests_fail_no_equals_{l_i}.xyz', l)
 
 for c_i, c in enumerate('"=,\[]{} '):
-    print_config(f'tests_fail_bare_str_{c_i}.xyz', 's=abc'+c+'def')
+    print_config(f'tests_fail_barestring_{c_i}.xyz', 's=abc'+c+'def')
 
 for l_i, l in enumerate(["'abc'", "\"abc'", "\"abc\\\"def"]):
-    print_config(f'tests_fail_quoted_str_{l_i}.xyz', 's='+l)
+    print_config(f'tests_fail_quotedstring_{l_i}.xyz', 's='+l)
 
 for l_i, l in enumerate(['"1, 2}', '{1, 2"', '[1, 2, ]', '[ , 2, 3]']):
     print_config(f'tests_fail_one_d_array_{l_i}.xyz', 's='+l)
