@@ -14,7 +14,7 @@ for f in glob.glob('tests_*.xyz'):
 
 # integer
 for sign in ['', '+', '-']:
-    for num in [ '1', '12', '012' ]:
+    for num in [ '1', '12' ]:
         istr = int(sign+num)
         print_config(f'tests_integer_{istr}.xyz', 'i='+sign+num)
 
@@ -28,7 +28,7 @@ for pre_sp in ['', ' ']:
 
 # float
 for init_sign in ['', '+', '-']:
-    for num in [ '1.0', '1.', '1', '12.0', '012.0', '12', '012', '012.0', '012', '0.12', '00.12', '0.012', '.012']:
+    for num in [ '1.0', '1.', '1', '12.0', '12', '0.12', '0.012', '.012']:
         f_str = float(init_sign+num)
         print_config(f'tests_float_{f_str}.xyz', 'f='+init_sign+num)
         for exp_lett in ['e', 'E', 'd', 'D']:
@@ -50,7 +50,7 @@ for c in [chr(i) for i in range(32, 127)]:
         all_bare_str += c
 bare_strings += [all_bare_str]
 print_config(f'tests_barestring.xyz', 'bs='+all_bare_str)
-for s in ['TRuE', '1.3k7', '-2.75e', '+2.75e-', '+2.75e+']:
+for s in ['TRuE', '1.3k7', '-2.75e', '+2.75e-', '+2.75e+', '0012.1e-6']:
     bare_strings += [s]
     print_config(f'tests_barestring.xyz', 'bs='+s)
 for s in bare_strings:
@@ -76,31 +76,31 @@ for seps in [ ('"', '"'), ('{', '}'), ('[', ']') ]:
     ## integer
     for l, f in [('1 2 3', 'integer'), ('1.0 2.0 3.0', 'float'), ('1 2.0 3', 'float'), ('1.0 2 3', 'float'), ('T F True FALSE', 'bool')]:
         if seps[0] == '[':
-            print_config(f'tests_one_d_array_{f}.xyz', 'i_a='+seps[0]+', '.join(l.split())+seps[1])
+            print_config(f'tests_onedarray_{f}.xyz', 'i_a='+seps[0]+', '.join(l.split())+seps[1])
         else:
-            print_config(f'tests_one_d_array_{f}.xyz', 'i_a='+seps[0]+l+seps[1])
+            print_config(f'tests_onedarray_{f}.xyz', 'i_a='+seps[0]+l+seps[1])
 
 # one-d array of string, only new style  
 for l in [ ' "a", "b" ', ' a, b ', 'a,b', '"a","b"', ' a, "b", "c" ', ' a, "b", c ', 
            ' "a", b, c ', ' "a", b, "c" ', ' "a, b", "c]" ', ' T, F, bob ', ' T, F, "bob" ', 
            ' T, F, bob, TRUE ', ' T, F, "bob", TRUE ' ]:
-    print_config('tests_one_d_array_string.xyz', 's_a=['+l+']')
+    print_config('tests_onedarray_string.xyz', 's_a=['+l+']')
 
 # two d array, only new style
-print_config('tests_two_d_array_integer.xyz', 'i_aa=[ [ 1, 2 ] ]')
-print_config('tests_two_d_array_integer.xyz', 'i_aa=[ [ 1, 2 ], [ 3, 4 ] ]')
-print_config('tests_two_d_array_float.xyz', 'f_aa=[ [ 1.0, 2.2 ] ]')
-print_config('tests_two_d_array_float.xyz', 'f_aa=[ [ 1.1, 2.0 ], [ -3.2, 4.5 ] ]')
-print_config('tests_two_d_array_float.xyz', 'f_aa=[ [ 1, 2 ], [ -3.2, 4.5 ] ]')
-print_config('tests_two_d_array_integer.xyz', 'b_aa=[ [ T, F ] ]')
-print_config('tests_two_d_array_integer.xyz', 'b_aa=[ [ F, False ], [ TRUE, true ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ a, b, bob, "joe", sam, "end" ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ a, "joe" ], [ "b", sam ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ a, joe ], [ "b", "sam" ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ "a", "joe" ], [ b, sam ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ T, F ], [ b, sam ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ 12, -5 ], [ b, sam ] ]')
-print_config('tests_two_d_array_string.xyz', 's_aa=[ [ T, FALSE], [ 12, -5 ], [ b, sam ], [ "a", "joe"] ]')
+print_config('tests_twodarray_integer.xyz', 'i_aa=[ [ 1, 2 ] ]')
+print_config('tests_twodarray_integer.xyz', 'i_aa=[ [ 1, 2 ], [ 3, 4 ] ]')
+print_config('tests_twodarray_float.xyz', 'f_aa=[ [ 1.0, 2.2 ] ]')
+print_config('tests_twodarray_float.xyz', 'f_aa=[ [ 1.1, 2.0 ], [ -3.2, 4.5 ] ]')
+print_config('tests_twodarray_float.xyz', 'f_aa=[ [ 1, 2 ], [ -3.2, 4.5 ] ]')
+print_config('tests_twodarray_bool.xyz', 'b_aa=[ [ T, F ] ]')
+print_config('tests_twodarray_bool.xyz', 'b_aa=[ [ F, False ], [ TRUE, true ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ a, b, bob, "joe", sam, "end" ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ a, "joe" ], [ "b", sam ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ a, joe ], [ "b", "sam" ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ "a", "joe" ], [ b, sam ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ T, F ], [ b, sam ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ 12, -5 ], [ b, sam ] ]')
+print_config('tests_twodarray_string.xyz', 's_aa=[ [ T, FALSE], [ 12, -5 ], [ b, sam ], [ "a", "joe"] ]')
 
 for l_i, l in enumerate(['i 5', 'i_a [2, 3]']):
     print_config(f'tests_fail_no_equals_{l_i}.xyz', l)
@@ -112,7 +112,7 @@ for l_i, l in enumerate(["'abc'", "\"abc'", "\"abc\\\"def"]):
     print_config(f'tests_fail_quotedstring_{l_i}.xyz', 's='+l)
 
 for l_i, l in enumerate(['"1, 2}', '{1, 2"', '[1, 2, ]', '[ , 2, 3]']):
-    print_config(f'tests_fail_one_d_array_{l_i}.xyz', 's='+l)
+    print_config(f'tests_fail_onedarray_{l_i}.xyz', 's='+l)
 
 for l_i, l in enumerate(['[ [ 1, 2], [ 3 ] ]', '[ [ 1, 2 ] [ 1, 2 ] ]']):
-    print_config(f'tests_fail_two_d_array_{l_i}.xyz', 's='+l)
+    print_config(f'tests_fail_twodarray_{l_i}.xyz', 's='+l)

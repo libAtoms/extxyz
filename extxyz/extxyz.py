@@ -157,7 +157,10 @@ class ExtractValues(NodeTransformer):
         return Value(node.string)
 
     def visit_r_quotedstring(self, node):
-        return Value(node.string[1:-1])
+        v = node.string[1:-1]
+        v = v.replace('\\n', '\n')
+        v = re.sub(r'\\(.)', r'\1', v)
+        return Value(v)
 
     def visit_r_float(self, node):
         return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
