@@ -11,7 +11,7 @@ quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
 # <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
 bare_int = r'(?:[0-9]|[1-9][0-9]+)'
-float_re = r'[+-]?(?:'+bare_int+'[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
+float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 integer_re = r'[+-]?'+bare_int
 true_re =  r'(?:[tT]rue|TRUE|T)'
 false_re = r'(?:[fF]alse|FALSE|F)'
