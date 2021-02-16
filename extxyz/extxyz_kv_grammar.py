@@ -5,19 +5,20 @@ from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
 # These regexs are defined outside grammar so they can be reused
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
 simplestring_re = r'\S+'
+# any sequence surrounded by double quotes, with internal double quotes backslash escaped
 quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+# string without quotes, some characters must be escaped 
+# <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
 bare_int = r'(?:[0-9]|[1-9][0-9]+)'
 float_re = r'[+-]?(?:'+bare_int+'[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 integer_re = r'[+-]?'+bare_int
-true_re =  r'(?:T|[tT]rue|TRUE)'
-false_re = r'(?:F|[fF]alse|FALSE)'
-bool_re = r'(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)'
+true_re =  r'(?:[tT]rue|TRUE|T)'
+false_re = r'(?:[fF]alse|FALSE|F)'
+bool_re = r'(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])'
 whitespace_re = r'\s+'
 
 class ExtxyzKVGrammar(Grammar):
-    # string without quotes, some characters must be escaped 
-    # <whitespace>='",}{][\
     r_barestring = Regex(barestring_re)
     r_quotedstring = Regex(quotedstring_re)
     r_string = Choice(r_barestring, r_quotedstring)
@@ -41,7 +42,6 @@ class ExtxyzKVGrammar(Grammar):
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
                              Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
 
-    # one_d_array = Sequence('[', Choice(ints, floats, bools, strings), ']')
     one_d_array_i = Sequence('[', ints, ']')
     one_d_array_f = Sequence('[', floats, ']')
     one_d_array_b = Sequence('[', bools, ']')
