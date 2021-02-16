@@ -70,6 +70,7 @@ for c in [chr(i) for i in range(32, 127)]:
 print_config(f'tests_quotedstring.xyz', 'qs="'+all_quoted_str+'"')
 print_config(f'tests_quotedstring.xyz', 'qs="line one\\nline two"')
 print_config(f'tests_quotedstring_"a".xyz', 'qs="\\"a\\""')
+print_config(f'tests_quotedstring_a\\b.xyz', 'qs="a\\\\b"')
 
 # backward compat one-d arrays
 for seps in [ ('"', '"'), ('{', '}'), ('[', ']') ]:
