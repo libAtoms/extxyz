@@ -15,43 +15,57 @@ def do_test_config(path, key, val, kv_str, **read_kwargs):
             print(''.join(fin.readlines()))
 
     at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
-    print("got info", at.info)
+
+    if at.info[key] != val:
+        print("got info", at.info, val)
+        with open(path / Path('test_file.extxyz')) as fin:
+            print(''.join(fin.readlines()))
     assert at.info[key] == val
+
+def do_test_scalar(path, strings, old_one_d_array=True):
+    for read_kwargs in kwargs_variants:
+        print("Using kwargs", read_kwargs)
+        for v, v_str in strings:
+            # plain scalar
+            do_test_config(path, 'scalar', v, 'scalar='+v_str, **read_kwargs)
+
+            if old_one_d_array:
+                # backward compat one-d array interpreted as a scalar
+                for pre_sp in ['', ' ']:
+                    for post_sp in ['', ' ']:
+                        do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar="'+pre_sp+v_str+post_sp+'"', **read_kwargs)
+                        do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar={'+pre_sp+v_str+post_sp+'}', **read_kwargs)
 
 def integer_strings():
     ints = []
     for sign in ['', '+', '-']:
-        for num in [ '1', '12' ]:
-            istr = int(sign+num)
-
-            ints.append(('i', istr, 'i='+sign+num))
-
-            for pre_sp in ['', ' ']:
-                for post_sp in ['', ' ']:
-                    ints.append(('i', istr, 'i="'+pre_sp+sign+num+post_sp+'"'))
-            for pre_sp in ['', ' ']:
-                for post_sp in ['', ' ']:
-                    ints.append(('i', istr, 'i={'+pre_sp+sign+num+post_sp+'}'))
+        for num in [ '2', '12' ]:
+            ints.append((int(sign+num), sign+num))
 
     return ints
 
-def test_integer(tmp_path):
-    for read_kwargs in kwargs_variants:
-        print("Using kwargs", read_kwargs)
-        for k, v, kv in integer_strings():
-            do_test_config(tmp_path, k, v, kv, **read_kwargs)
-
+def test_integer_values(tmp_path):
+    do_test_scalar(tmp_path, integer_strings())
  
-# # float
-# for init_sign in ['', '+', '-']:
-#     for num in [ '1.0', '1.', '1', '12.0', '12', '0.12', '0.012', '.012']:
-#         f_str = float(init_sign+num)
-#         print_config(f'tests_float_{f_str}.xyz', 'f='+init_sign+num)
-#         for exp_lett in ['e', 'E', 'd', 'D']:
-#             for exp_sign in ['', '+', '-']:
-#                 for exp_num in ['0', '2', '02', '12']:
-#                     f_str = float((init_sign+num+exp_lett+exp_sign+exp_num).replace('d','e').replace('D','e'))
-#                     print_config(f'tests_float_{f_str}.xyz', 'f='+init_sign+num+exp_lett+exp_sign+exp_num)
+def float_strings():
+    floats = []
+
+    for init_sign in ['', '+', '-']:
+        for num in [ '1.0', '1.', '1', '12.0', '12', '0.12', '0.012', '.012']:
+            f_str = float(init_sign+num)
+            floats.append((f_str, init_sign+num))
+
+            for exp_lett in ['e', 'E', 'd', 'D']:
+                for exp_sign in ['', '+', '-']:
+                    for exp_num in ['0', '2', '02', '12']:
+                        f_val = float((init_sign+num+exp_lett+exp_sign+exp_num).replace('d','e').replace('D','e'))
+                        floats.append((f_val, init_sign+num+exp_lett+exp_sign+exp_num))
+
+    return floats
+
+def test_float_values(tmp_path):
+    do_test_scalar(tmp_path, float_strings())
+ 
 # 
 # # bool
 # for b in ['T', 'true', 'True', 'TRUE', 'F', 'false', 'False', 'FALSE']:
