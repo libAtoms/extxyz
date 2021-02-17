@@ -15,10 +15,7 @@ def bare_string_strings():
 
     return bare_strings
 
-def test_bare_string_scalars(tmp_path, helpers):
-    helpers.do_test_scalar(tmp_path, bare_string_strings(), is_string=True)
-
-def test_quoted_string_scalars(tmp_path, helpers):
+def quoted_string_strings():
     bare_strings = bare_string_strings()
     print("bare_strings", bare_strings)
     quoted_strings = [(c[0], '"'+c[1]+'"') for c in bare_strings]
@@ -38,4 +35,22 @@ def test_quoted_string_scalars(tmp_path, helpers):
     # backslash escape of a non-special character, which is just literally that character 
     quoted_strings.append(('ab', '"a\\b"'))
 
-    helpers.do_test_scalar(tmp_path, quoted_strings, is_string=True)
+    return quoted_strings
+
+def test_bare_string_scalars(tmp_path, helpers):
+    helpers.do_test_scalar(tmp_path, bare_string_strings(), is_string=True)
+
+def test_quoted_string_scalars(tmp_path, helpers):
+    helpers.do_test_scalar(tmp_path, quoted_string_strings(), is_string=True)
+
+def test_bare_string_one_d_arrays(tmp_path, helpers):
+    helpers.do_test_one_d_array(tmp_path, bare_string_strings(), is_string=True)
+
+def test_quoted_string_one_d_arrays(tmp_path, helpers):
+    helpers.do_test_one_d_array(tmp_path, quoted_string_strings(), is_string=True)
+
+def test_bare_string_two_d_arrays(tmp_path, helpers):
+    helpers.do_test_two_d_array(tmp_path, bare_string_strings())
+
+def test_quoted_string_two_d_arrays(tmp_path, helpers):
+    helpers.do_test_two_d_array(tmp_path, quoted_string_strings())

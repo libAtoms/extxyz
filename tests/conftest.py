@@ -82,7 +82,7 @@ class Helpers:
 
 
     @staticmethod
-    def do_test_two_d_array(path, strings, ns=None, is_string=False):
+    def do_test_two_d_array(path, strings, ns=None):
         if ns is None:
             ns = [(1,1), (1,3), (3,1), (3,3)]
 
