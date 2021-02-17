@@ -613,6 +613,7 @@ def iread(file, use_cextxyz=False, **kwargs):
     if isinstance(file, str):
         if use_cextxyz:
             file = cextxyz.cfopen(file, 'r')
+            own_fh = True
         else:
             if file == '-':
                 file = sys.stdin
