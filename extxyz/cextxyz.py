@@ -6,7 +6,7 @@ import numpy as np
 
 from ase.atoms import Atoms
 
-from utils import create_single_point_calculator, update_atoms_from_calc
+from .utils import create_single_point_calculator, update_atoms_from_calc
 
 class FILE_ptr(ctypes.c_void_p):
     pass
