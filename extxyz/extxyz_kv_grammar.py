@@ -4,19 +4,21 @@ from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
 
 # These regexs are defined outside grammar so they can be reused
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
-simplestring_re = r'\S*'
+simplestring_re = r'\S+'
+# any sequence surrounded by double quotes, with internal double quotes backslash escaped
 quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
-barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\]\\]))+"""
-float_re = r'[+-]?(?:[0-9]+[.]?[0-9]*|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
-integer_re = r'[+-]?[0-9]+'
-true_re =  r'(?:T|[tT]rue|TRUE)'
-false_re = r'(?:F|[fF]alse|FALSE)'
-bool_re = r'(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)'
-whitespace_re = r'\s*'
+# string without quotes, some characters must be escaped 
+# <whitespace>=",}{][\
+barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
+bare_int = r'(?:[0-9]|[1-9][0-9]+)'
+float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
+integer_re = r'[+-]?'+bare_int
+true_re =  r'(?:[tT]rue|TRUE|T)'
+false_re = r'(?:[fF]alse|FALSE|F)'
+bool_re = r'(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])'
+whitespace_re = r'\s+'
 
 class ExtxyzKVGrammar(Grammar):
-    # string without quotes, some characters must be escaped 
-    # <whitespace>='",}{][\
     r_barestring = Regex(barestring_re)
     r_quotedstring = Regex(quotedstring_re)
     r_string = Choice(r_barestring, r_quotedstring)
@@ -39,8 +41,16 @@ class ExtxyzKVGrammar(Grammar):
 
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
                              Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
-    one_d_array = Sequence('[', Choice(ints, floats, bools, strings), ']')
-    one_d_arrays = List(one_d_array, mi=1)
+
+    one_d_array_i = Sequence('[', ints, ']')
+    one_d_array_f = Sequence('[', floats, ']')
+    one_d_array_b = Sequence('[', bools, ']')
+    one_d_array_s = Sequence('[', strings, ']')
+
+    # one_d_arrays = List(one_d_array, mi=1)
+    one_d_arrays = Choice(List(one_d_array_i, mi=1), List(one_d_array_f, mi=1),
+                          List(one_d_array_b, mi=1), List(one_d_array_s, mi=1))
+
     two_d_array = Sequence('[', one_d_arrays, ']')
 
     key_item = Choice(r_string)
@@ -51,7 +61,10 @@ class ExtxyzKVGrammar(Grammar):
         r_true,
         r_false,
         old_one_d_array,
-        one_d_array,
+        one_d_array_i,
+        one_d_array_f,
+        one_d_array_b,
+        one_d_array_s,
         two_d_array,
         r_string)
 

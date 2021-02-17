@@ -31,6 +31,16 @@ void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     entry->next = 0;
 }
 
+double atof_eEdD(char *str) {
+    for (int i=0; i < strlen(str); i++) {
+        if (str[i] == 'd' || str[i] == 'D') {
+            str[i] = 'e';
+            break;
+        }
+    }
+    return (atof(str));
+}
+
 int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
     //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair);
     //DEBUG if (node->cl_obj) {
@@ -98,7 +108,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_FLOAT) {
                     //DEBUG printf("FOUND float\n");
-                    new_data_ll->data.f = atof(str);
+                    new_data_ll->data.f = atof_eEdD(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_f;
                     free(str);
@@ -110,7 +120,38 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     //DEBUG printf("FOUND string\n");
                     // store pointer, do not copy, but data was still allocated
                     // in this routine, not in cleri parsing.
-                    new_data_ll->data.s = str;
+                    if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
+                        // remove quotes and do backslash escapes
+                        int output_len = 0;
+                        for (char *si = str+1, *so = str; *(si+1) != 0; si++) {
+                            if (*si == '\\') {
+                                if (*(si+1) == 'n') {
+                                    char *newline = "\n";
+                                    for (char *c = newline; *c; c++) {
+                                        output_len++;
+                                        *so = *c;
+                                        so++;
+                                    }
+                                    si++;
+                                } if (*(si+1) == '\\') {
+                                    *so = '\\';
+                                    output_len++;
+                                    si++;
+                                    so++;
+                                }
+                                continue;
+                            }
+                            if (so != si) {
+                                *so = *si;
+                                output_len++;
+                            }
+                            so++;
+                        }
+                        str[output_len] = 0;
+                        new_data_ll->data.s = str;
+                    } else {
+                        new_data_ll->data.s = str;
+                    }
                     new_data_ll->data_t = data_s;
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
@@ -575,6 +616,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
+        // make an nat x ncol matrix
         cur_array->nrows = *nat;
         cur_array->ncols = col_num;
 
@@ -648,8 +690,8 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
-        // use PCRE + atoi/f
-        // printf("applying pcre to '%s'\n", line);
+        // read data with PCRE + atoi/f
+        // apply PCRE
         int rc = pcre_exec(re, NULL, line, strlen(line), 0, 0, ovector, ovector_len);
         if (rc != tot_col_num+1) {
             if (rc > 0) {
@@ -660,6 +702,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             free(line); free(re_str);
             return 0;
         }
+        // loop through parsed strings and fill in allocated data structures
         int field_i = 1;
         for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
             int nc = cur_array->ncols;
@@ -670,7 +713,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 if (cur_array->data_t == data_i) { 
                     ((int *)(cur_array->data))[li*nc + col_i] = atoi(pf);
                 } else if (cur_array->data_t == data_f) {
-                    ((double *)(cur_array->data))[li*nc + col_i] = atof(pf);
+                    ((double *)(cur_array->data))[li*nc + col_i] = atof_eEdD(pf);
                 } else if (cur_array->data_t == data_b) {
                     ((int *)(cur_array->data))[li*nc + col_i] = (pf[0] == 'T');
                 } else if (cur_array->data_t == data_s) {
@@ -702,6 +745,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 }
             }
         } */
+
+    }
+
+    // convert per-atom nat x 1 array to nat-long vector
+    for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
+        if (cur_array->ncols == 1) {
+            cur_array->ncols = cur_array->nrows;
+            cur_array->nrows = 0;
+        }
     }
 
     // return true

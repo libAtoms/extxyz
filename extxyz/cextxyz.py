@@ -30,7 +30,7 @@ class Dict_entry_struct(ctypes.Structure):
     pass
 
 Dict_entry_struct._fields_ = [("key", ctypes.c_char_p),
-                              ("data", ctypes.c_void_p),                              
+                              ("data", ctypes.c_void_p),
                               ("data_t", ctypes.c_int),
                               ("nrows", ctypes.c_int),
                               ("ncols", ctypes.c_int),
@@ -41,15 +41,15 @@ Dict_entry_struct._fields_ = [("key", ctypes.c_char_p),
 
 Dict_entry_ptr = ctypes.POINTER(Dict_entry_struct)
 
-extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)), 
-                        'extxyz.so')
+extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                        '_extxyz.so')
 extxyz = ctypes.CDLL(extxyz_so)
 
 extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr
 
-extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p, 
+extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(ctypes.c_int),
-                              ctypes.POINTER(Dict_entry_ptr), 
+                              ctypes.POINTER(Dict_entry_ptr),
                               ctypes.POINTER(Dict_entry_ptr)]
 
 extxyz.print_dict.args = [ctypes.POINTER(Dict_entry_ptr)]
@@ -65,7 +65,7 @@ def c_to_py_dict(c_dict, deepcopy=False):
     while node_ptr:
         node = node_ptr.contents
         data_ptr = ctypes.cast(node.data, type_map[node.data_t])
-        
+
         if node.nrows == 0 and node.ncols == 0:
             # scalar
             value = data_ptr.contents.value
@@ -78,15 +78,21 @@ def c_to_py_dict(c_dict, deepcopy=False):
             # array, either 1D or 2D
             if node.nrows == 0:
                 # vector (1D array)
-                value = np.ctypeslib.as_array(data_ptr, [node.ncols])
+                if node.data_t == data_s:
+                    value = np.array([data_ptr[i].decode('utf-8')
+                                    for i in range(node.ncols)])
+                else:
+                    value = np.ctypeslib.as_array(data_ptr, [node.ncols])
             else:
                 # matrix (2D array)
                 if node.data_t == data_s:
-                    value = np.array([data_ptr[i].decode('utf-8') 
-                                    for i in range(node.nrows)])
-                else:            
-                    value = np.ctypeslib.as_array(data_ptr, 
+                    value = np.array([data_ptr[i].decode('utf-8')
+                                    for i in range(node.nrows*node.ncols)])
+                    value = value.reshape(node.nrows, node.ncols)
+                else:
+                    value = np.ctypeslib.as_array(data_ptr,
                                                 [node.nrows, node.ncols])
+            # convert fake bool integer to python bool
             if node.data_t == data_b:
                 value = value.astype(bool)
 
@@ -107,10 +113,10 @@ def cfopen(filename, mode):
     fopen = libc.fopen
     fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     fopen.restype = FILE_ptr
-    return fopen(filename.encode('utf-8'), 
+    return fopen(filename.encode('utf-8'),
                  mode.encode('utf-8'))
-        
-    
+
+
 def cfclose(fp):
     fclose = libc.fclose
     fclose.args = [FILE_ptr]
@@ -122,7 +128,7 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     info = Dict_entry_ptr()
     arrays = Dict_entry_ptr()
 
-    if not extxyz.extxyz_read_ll(_kv_grammar, 
+    if not extxyz.extxyz_read_ll(_kv_grammar,
                                  fp,
                                  ctypes.byref(nat),
                                  ctypes.byref(info),
@@ -132,14 +138,15 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     if verbose:
         extxyz.print_dict(info)
         extxyz.print_dict(arrays)
-        
+
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
-    
+
+    py_info.pop('Properties')
     cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
     symbols = py_arrays.pop('species')
     positions = py_arrays.pop('pos')
-    
+
     atoms = Atoms(symbols=symbols,
                     positions=positions,
                     cell=cell,
@@ -148,13 +155,13 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
         atoms.calc = create_single_point_calculator(atoms, py_info, py_arrays,
-                                                    calc_prefix=calc_prefix)    
+                                                    calc_prefix=calc_prefix)
     atoms.info.update(py_info)
     atoms.arrays.update(py_arrays)
-                    
+
     assert len(atoms) == nat.value
 
     extxyz.free_dict(info)
     extxyz.free_dict(arrays)
-        
+
     return atoms

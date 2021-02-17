@@ -89,8 +89,9 @@ class TreeDumper(NodeVisitor):
     of the parse tree.
     """
 
-    def __init__(self):
+    def __init__(self, prefix=''):
         self.depth = 0
+        self.prefix = prefix
 
     def generic_visit(self, node):
         if isinstance(node, Node):
@@ -100,7 +101,7 @@ class TreeDumper(NodeVisitor):
         else:
             str_repr = str(node)
 
-        print('  ' * self.depth + str_repr)
+        print(self.prefix + '  ' * self.depth + str_repr)
         self.depth += 1
         super().generic_visit(node)
         self.depth -= 1
@@ -130,7 +131,6 @@ class TreeCleaner(NodeTransformer):
             return None
         return self.generic_visit(node)
 
-
 class Value:
     def __init__(self, value):
         """
@@ -156,11 +156,22 @@ class ExtractValues(NodeTransformer):
     def visit_r_barestring(self, node):
         return Value(node.string)
 
+    @staticmethod
+    def clean_qs(string):
+        # remove initial and final quotes
+        string = string[1:-1]
+        # replace escaped newline
+        string = string.replace('\\n', '\n')
+        # replace everything else as escaped literal
+        string = re.sub(r'\\(.)', r'\1', string)
+
+        return string
+
     def visit_r_quotedstring(self, node):
-        return Value(node.string[1:-1])
+        return Value(ExtractValues.clean_qs(node.string))
 
     def visit_r_float(self, node):
-        return Value(float(node.string))
+        return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
 
     def visit_r_integer(self, node):
         return Value(int(node.string))
@@ -171,7 +182,7 @@ class ExtractValues(NodeTransformer):
     visit_r_false = visit_r_true
 
     def visit_strings(self, node):
-        return Value([c.string for c in node.children])
+        return Value([c.string if c.element.name != 'r_quotedstring' else ExtractValues.clean_qs(c.string) for c in node.children])
 
     def visit_ints(self, node):
         return Value([int(c.string) for c in node.children])
@@ -179,7 +190,7 @@ class ExtractValues(NodeTransformer):
     visit_ints_sp = visit_ints
 
     def visit_floats(self, node):
-        return Value([float(c.string) for c in node.children])
+        return Value([float(c.string.replace('d', 'e').replace('D', 'e')) for c in node.children])
 
     visit_floats_sp = visit_floats
 
@@ -200,6 +211,11 @@ class OneDimArrays(NodeTransformer):
         assert len(node.children) == 1
         return Value(np.array(node.children[0].value))
 
+    visit_one_d_array_i = visit_one_d_array
+    visit_one_d_array_f = visit_one_d_array
+    visit_one_d_array_b = visit_one_d_array
+    visit_one_d_array_s = visit_one_d_array
+
     def visit_old_one_d_array(self, node):
         result = self.visit_one_d_array(node)
         if result.value.shape == (9, ):
@@ -216,9 +232,9 @@ class OneDimToTwoDim(NodeTransformer):
     """
     def visit_one_d_arrays(self, node):
         row_types = [c.value.dtype for c in node.children]
-        if (any([t != np.int64 and t != np.float64 for t in row_types]) and
-            not all([t != row_types[0] for t in row_types])):
-            raise ValueError(f'Got 2-D array with mismatching row types {row_types}')
+        # if (any([t != np.int64 and t != np.float64 for t in row_types]) and
+            # not all([t != row_types[0] for t in row_types])):
+            # raise ValueError(f'Got 2-D array with mismatching row types {row_types}')
         return Value(np.array([c.value for c in node.children]))
 
 
@@ -424,14 +440,12 @@ class Properties:
 
     @lazyproperty
     def regex(self):
-        regex = ''
+        regex = '^\s*'
         for (_, property_type, cols) in self.properties:
             this_regex = '('+Properties.per_atom_column_re[property_type]+')' + whitespace_re
-            if cols == 1:
+            for col in range(cols):
                 regex += this_regex
-            else:
-                for col in range(cols):
-                    regex += this_regex
+        regex = re.sub('.' * len(whitespace_re) + '$', '', regex)
         regex = re.compile(regex)
         return regex
 
@@ -470,18 +484,18 @@ def result_to_dict(result, verbose=0):
     tree = result.tree.children[0]
     if verbose >= 1:
         print('input tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('input').visit(tree)
     tree = TreeCleaner().visit(tree)
     tree = ExtractValues().visit(tree)
     if verbose >= 2:
         print('cleaned tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('cleaned').visit(tree)
     tree = OneDimArrays().visit(tree)
     tree = OneDimToTwoDim().visit(tree)
     tree = TwoDimArrays().visit(tree)
     if verbose >=1 :
         print('final tree:')
-        TreeDumper().visit(tree)
+        TreeDumper('final').visit(tree)
 
     # now we should have a flat list of (key, value) pairs
     result_dict = {}
@@ -495,7 +509,7 @@ def result_to_dict(result, verbose=0):
         if key.value in result_dict:
             raise KeyError(f'duplicate key {key.value}')
         if not isinstance(value, Value):
-            raise ValueError(f'unsupported value {value}')
+            raise ValueError(f'unsupported value {value}, key {key.value}')
         result_dict[key.value] = value.value
 
     lattice = extract_lattice(result_dict)
@@ -542,7 +556,8 @@ def read_frame(file, verbose=0, use_regex=True,
     comment = next(file)
     info, lattice, properties = read_comment_line(comment, verbose)
     if verbose:
-        print('info = ')
+        print('read_frame info = ')
+        print("info")
         pprint(info)
         print(f'lattice = {repr(lattice)}')
         print(f'properties = {repr(properties)}')
@@ -772,10 +787,12 @@ if __name__ == '__main__':
                    use_cextxyz=args.cextxyz)
     tr = time.time() - t0
     if args.verbose:
+        print("main output of read()")
         if isinstance(configs, Atoms):
             configs = [configs]
         for atoms in configs:
             pprint(atoms.info)
+            pprint(atoms.arrays)
 
     print('TIMER grammar.parse', tg, 'result_to_dict', td, 'read atoms', ta, 'read total', tr)
 
