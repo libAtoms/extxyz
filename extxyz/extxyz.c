@@ -120,7 +120,38 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     //DEBUG printf("FOUND string\n");
                     // store pointer, do not copy, but data was still allocated
                     // in this routine, not in cleri parsing.
-                    new_data_ll->data.s = str;
+                    if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
+                        // remove quotes and do backslash escapes
+                        int output_len = 0;
+                        for (char *si = str+1, *so = str; *(si+1) != 0; si++) {
+                            if (*si == '\\') {
+                                if (*(si+1) == 'n') {
+                                    char *newline = "\n";
+                                    for (char *c = newline; *c; c++) {
+                                        output_len++;
+                                        *so = *c;
+                                        so++;
+                                    }
+                                    si++;
+                                } if (*(si+1) == '\\') {
+                                    *so = '\\';
+                                    output_len++;
+                                    si++;
+                                    so++;
+                                }
+                                continue;
+                            }
+                            if (so != si) {
+                                *so = *si;
+                                output_len++;
+                            }
+                            so++;
+                        }
+                        str[output_len] = 0;
+                        new_data_ll->data.s = str;
+                    } else {
+                        new_data_ll->data.s = str;
+                    }
                     new_data_ll->data_t = data_s;
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
