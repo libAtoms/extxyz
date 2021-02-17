@@ -1,70 +1,12 @@
-from pathlib import Path
+def bool_strings():
+    bools = []
+    for b in ['T', 'true', 'True', 'TRUE', 'F', 'false', 'False', 'FALSE']:
+        bools.append((b.lower().startswith('t'), b))
 
-from extxyz.extxyz import read
+    return bools
 
-kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False } ]
-
-verbose = 0
-
-def do_test_config(path, key, val, kv_str, **read_kwargs):
-    with open(path / Path('test_file.extxyz'), 'w') as fout:
-        fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
-
-    if verbose > 0:
-        with open(path / Path('test_file.extxyz')) as fin:
-            print(''.join(fin.readlines()))
-
-    at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
-
-    if at.info[key] != val:
-        print("got info", at.info, val)
-        with open(path / Path('test_file.extxyz')) as fin:
-            print(''.join(fin.readlines()))
-    assert at.info[key] == val
-
-def do_test_scalar(path, strings, old_one_d_array=True):
-    for read_kwargs in kwargs_variants:
-        print("Using kwargs", read_kwargs)
-        for v, v_str in strings:
-            # plain scalar
-            do_test_config(path, 'scalar', v, 'scalar='+v_str, **read_kwargs)
-
-            if old_one_d_array:
-                # backward compat one-d array interpreted as a scalar
-                for pre_sp in ['', ' ']:
-                    for post_sp in ['', ' ']:
-                        do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar="'+pre_sp+v_str+post_sp+'"', **read_kwargs)
-                        do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar={'+pre_sp+v_str+post_sp+'}', **read_kwargs)
-
-def integer_strings():
-    ints = []
-    for sign in ['', '+', '-']:
-        for num in [ '2', '12' ]:
-            ints.append((int(sign+num), sign+num))
-
-    return ints
-
-def test_integer_values(tmp_path):
-    do_test_scalar(tmp_path, integer_strings())
- 
-def float_strings():
-    floats = []
-
-    for init_sign in ['', '+', '-']:
-        for num in [ '1.0', '1.', '1', '12.0', '12', '0.12', '0.012', '.012']:
-            f_str = float(init_sign+num)
-            floats.append((f_str, init_sign+num))
-
-            for exp_lett in ['e', 'E', 'd', 'D']:
-                for exp_sign in ['', '+', '-']:
-                    for exp_num in ['0', '2', '02', '12']:
-                        f_val = float((init_sign+num+exp_lett+exp_sign+exp_num).replace('d','e').replace('D','e'))
-                        floats.append((f_val, init_sign+num+exp_lett+exp_sign+exp_num))
-
-    return floats
-
-def test_float_values(tmp_path):
-    do_test_scalar(tmp_path, float_strings())
+def test_bool_values(tmp_path, helpers):
+    helpers.do_test_scalar(tmp_path, bool_strings())
  
 # 
 # # bool

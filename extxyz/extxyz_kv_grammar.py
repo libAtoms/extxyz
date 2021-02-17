@@ -11,7 +11,8 @@ quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
 # <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
 bare_int = r'(?:[0-9]|[1-9][0-9]+)'
-float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?\b'
+# can't put \b at the end, allows it to end match before decimal point
+float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
 # can't put a \b at the beginning, causes parser to not include sign as part of regexp match
 # \b at end ensures that parser does not consider only initial digit of number as a complete match
 integer_re = r'[+-]?'+bare_int+r'\b'
