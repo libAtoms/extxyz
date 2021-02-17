@@ -440,7 +440,7 @@ class Properties:
 
     @lazyproperty
     def regex(self):
-        regex = '^\s*'
+        regex = r'^\s*'
         for (_, property_type, cols) in self.properties:
             this_regex = '('+Properties.per_atom_column_re[property_type]+')' + whitespace_re
             for col in range(cols):
