@@ -5,7 +5,8 @@ from extxyz.extxyz import read
 
 verbose = 0
 
-kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False } ]
+kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
+                    { 'use_regex' : False, 'use_cextxyz' : True  } ]
 
 class Helpers:
     @staticmethod
@@ -27,19 +28,20 @@ class Helpers:
 
 
     @staticmethod
-    def do_test_scalar(path, strings, old_one_d_array=True):
+    def do_test_scalar(path, strings, single_elem_array_delims=['{}', '""']):
         for read_kwargs in kwargs_variants:
             print("Using kwargs", read_kwargs)
             for v, v_str in strings:
                 # plain scalar
                 Helpers.do_test_config(path, 'scalar', v, 'scalar='+v_str, **read_kwargs)
 
-                if old_one_d_array:
+                for delims in single_elem_array_delims:
                     # backward compat one-d array interpreted as a scalar
                     for pre_sp in ['', ' ']:
                         for post_sp in ['', ' ']:
-                            Helpers.do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar="'+pre_sp+v_str+post_sp+'"', **read_kwargs)
-                            Helpers.do_test_config(path, 'old_oned_scalar', v, 'old_oned_scalar={'+pre_sp+v_str+post_sp+'}', **read_kwargs)
+                            Helpers.do_test_config(path, 'old_oned_scalar', v,
+                                'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1],
+                                **read_kwargs)
 
 
 
