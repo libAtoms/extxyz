@@ -664,12 +664,14 @@ class ExtXYZEncoder(json.JSONEncoder):
             return _tf(obj)
         return super().default(obj)
 
+
 def extxyz_value_to_string(value):
     if isinstance(value, str):
         return escape(value)
     else:
         string = ExtXYZEncoder().encode(value)
         return string.replace('@@"', '').replace('"@@', '')
+
 
 def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
                        write_calc=False, calc_prefix='', verbose=0,
