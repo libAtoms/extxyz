@@ -1,12 +1,16 @@
 import pytest
 
 from pathlib import Path
+import numpy as np
+
 from extxyz.extxyz import read
 
 verbose = 0
 
 kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
                     { 'use_regex' : False, 'use_cextxyz' : True  } ]
+
+
 
 class Helpers:
     @staticmethod
@@ -22,17 +26,7 @@ class Helpers:
 
         print(key, val, 'at.info', at.info)
 
-        if not isinstance(val, str):
-            # check for iterable
-            try:
-                # will work only if iterable
-                for vi, v in zip(at.info[key], val):
-                    assert vi == v
-            except TypeError:
-                # not iterable
-                assert at.info[key] == val
-        else:
-            assert at.info[key] == val
+        assert np.all(at.info[key] == val)
 
 
     @staticmethod
@@ -85,6 +79,32 @@ class Helpers:
                                             Helpers.do_test_config(path, 'array', v_array,
                                                 'array=' + do + global_pre_sp + v_str_array + global_post_sp + dc,
                                                 **read_kwargs)
+
+
+    @staticmethod
+    def do_test_two_d_array(path, strings, ns=None, is_string=False):
+        if ns is None:
+            ns = [(1,1), (1,3), (3,1), (3,3)]
+
+        for nrow, ncol in ns:
+            for read_kwargs in kwargs_variants:
+                for v, v_str in strings:
+                    for global_pre_sp in ['', ' ']:
+                        for global_post_sp in ['', ' ']:
+                            for pre_sp in ['', ' ']:
+                                for post_sp in ['', ' ']:
+                                    v_array = np.asarray([ [v] * ncol ] * nrow)
+
+                                    v_str_array = v_str
+                                    if ncol > 2:
+                                        v_str_array += ',' + ','.join([pre_sp + v_str + post_sp]*(ncol-2))
+                                    if ncol > 1:
+                                        v_str_array += ',' + pre_sp + v_str
+                                    v_str_array = '[' + global_pre_sp + v_str_array + global_post_sp + ']'
+
+                                    Helpers.do_test_config(path, 'array', v_array,
+                                        'array=' + '[' + global_pre_sp + ','.join([v_str_array]*nrow) + global_post_sp + ']',
+                                        **read_kwargs)
 
 
 @pytest.fixture

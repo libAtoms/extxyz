@@ -33,5 +33,8 @@ def float_strings(minimal=False):
 def test_float_scalars(tmp_path, helpers):
     helpers.do_test_scalar(tmp_path, float_strings())
 
-def test_float_arrays(tmp_path, helpers):
+def test_float_one_darrays(tmp_path, helpers):
     helpers.do_test_one_d_array(tmp_path, float_strings(minimal=True))
+
+def test_float_two_darrays(tmp_path, helpers):
+    helpers.do_test_two_d_array(tmp_path, float_strings(minimal=True))

@@ -8,5 +8,8 @@ def bool_strings():
 def test_bool_scalars(tmp_path, helpers):
     helpers.do_test_scalar(tmp_path, bool_strings())
 
-def test_bool_arrays(tmp_path, helpers):
+def test_bool_one_d_arrays(tmp_path, helpers):
     helpers.do_test_one_d_array(tmp_path, bool_strings())
+
+def test_bool_two_d_arrays(tmp_path, helpers):
+    helpers.do_test_two_d_array(tmp_path, bool_strings())
