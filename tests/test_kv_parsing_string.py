@@ -24,4 +24,18 @@ def test_quoted_string_values(tmp_path, helpers):
     quoted_strings = [(c[0], '"'+c[1]+'"') for c in bare_strings]
     print("quoted_strings", quoted_strings)
 
+    def quote_string(string):
+        quoted_string = string.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+        return string, '"' + quoted_string + '"'
+
+    all_nonwhitespace = ''.join([chr(c) for c in range(32,127) if re.search(r'\S', chr(c))])
+    quoted_strings.append(quote_string(all_nonwhitespace))
+
+    # various special escaped things: newline, internal matching quotes, and literal backslash
+    for string in [ 'line one\nline two', '"a"', 'a\\b' ]:
+        quoted_strings.append(quote_string(string))
+
+    # backslash escape of a non-special character, which is just literally that character 
+    quoted_strings.append(('ab', '"a\\b"'))
+
     helpers.do_test_scalar(tmp_path, quoted_strings, single_elem_array_delims=['{}'])
