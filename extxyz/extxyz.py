@@ -156,11 +156,19 @@ class ExtractValues(NodeTransformer):
     def visit_r_barestring(self, node):
         return Value(node.string)
 
+    @staticmethod
+    def clean_qs(string):
+        # remove initial and final quotes
+        string = string[1:-1]
+        # replace escaped newline
+        string = string.replace('\\n', '\n')
+        # replace everything else as escaped literal
+        string = re.sub(r'\\(.)', r'\1', string)
+
+        return string
+
     def visit_r_quotedstring(self, node):
-        v = node.string[1:-1]
-        v = v.replace('\\n', '\n')
-        v = re.sub(r'\\(.)', r'\1', v)
-        return Value(v)
+        return Value(ExtractValues.clean_qs(node.string))
 
     def visit_r_float(self, node):
         return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
@@ -174,9 +182,7 @@ class ExtractValues(NodeTransformer):
     visit_r_false = visit_r_true
 
     def visit_strings(self, node):
-        # FIXME need to treate bare and quoted strings differently, 
-        # stripping outer quotes from latter
-        return Value([c.string for c in node.children])
+        return Value([c.string if c.element.name != 'r_quotedstring' else ExtractValues.clean_qs(c.string) for c in node.children])
 
     def visit_ints(self, node):
         return Value([int(c.string) for c in node.children])
