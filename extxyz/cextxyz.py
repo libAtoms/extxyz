@@ -69,9 +69,10 @@ def c_to_py_dict(c_dict, deepcopy=False):
         if node.nrows == 0 and node.ncols == 0:
             # scalar
             value = data_ptr.contents.value
+            # convert to Python primitive types
             if node.data_t == data_s:
                 value = value.decode('utf-8')
-            if node.data_t == data_b:
+            elif node.data_t == data_b:
                 value = bool(value)
         else:
             # array, either 1D or 2D
@@ -88,8 +89,10 @@ def c_to_py_dict(c_dict, deepcopy=False):
                                                 [node.nrows, node.ncols])
             if node.data_t == data_b:
                 value = value.astype(bool)
+
         if deepcopy:
             value = copy.copy(value)
+
         result[node.key.decode('utf-8')] = value
         node_ptr = node.next
     return result
