@@ -17,3 +17,11 @@ def bare_string_strings():
 
 def test_bare_string_values(tmp_path, helpers):
     helpers.do_test_scalar(tmp_path, bare_string_strings(), single_elem_array_delims=['{}'])
+
+def test_quoted_string_values(tmp_path, helpers):
+    bare_strings = bare_string_strings()
+    print("bare_strings", bare_strings)
+    quoted_strings = [(c[0], '"'+c[1]+'"') for c in bare_strings]
+    print("quoted_strings", quoted_strings)
+
+    helpers.do_test_scalar(tmp_path, quoted_strings, single_elem_array_delims=['{}'])
