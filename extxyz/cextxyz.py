@@ -139,6 +139,7 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
 
+    py_info.pop('Properties')
     cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
     symbols = py_arrays.pop('species')
     positions = py_arrays.pop('pos')
