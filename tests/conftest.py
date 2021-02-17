@@ -14,38 +14,36 @@ kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
 
 class Helpers:
     @staticmethod
-    def do_test_config(path, key, val, kv_str, **read_kwargs):
-        with open(path / Path('test_file.extxyz'), 'w') as fout:
-            fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
+    def do_test_config(path, key, val, kv_str):
+        for read_kwargs in kwargs_variants:
+            with open(path / Path('test_file.extxyz'), 'w') as fout:
+                fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
 
-        # if verbose != 0:
-        with open(path / Path('test_file.extxyz')) as fin:
-            print(''.join(fin.readlines()))
+            # if verbose != 0:
+            with open(path / Path('test_file.extxyz')) as fin:
+                print(''.join(fin.readlines()))
 
-        at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
+            at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
 
-        assert np.all(at.info[key] == val)
+            assert np.all(at.info[key] == val)
 
 
     @staticmethod
     def do_test_scalar(path, strings, is_string=False):
-        for read_kwargs in kwargs_variants:
-            print("Using kwargs", read_kwargs)
-            for v, v_str in strings:
-                # plain scalar
-                Helpers.do_test_config(path, 'scalar', v, 'scalar='+v_str, **read_kwargs)
+        for v, v_str in strings:
+            # plain scalar
+            Helpers.do_test_config(path, 'scalar', v, 'scalar='+v_str)
 
-                if is_string:
-                    single_elem_array_delims = ['{}']
-                else:
-                    single_elem_array_delims = ['{}', '""']
-                for delims in single_elem_array_delims:
-                    # backward compat one-d array interpreted as a scalar
-                    for pre_sp in ['', ' ']:
-                        for post_sp in ['', ' ']:
-                            Helpers.do_test_config(path, 'old_oned_scalar', v,
-                                'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1],
-                                **read_kwargs)
+            if is_string:
+                single_elem_array_delims = ['{}']
+            else:
+                single_elem_array_delims = ['{}', '""']
+            for delims in single_elem_array_delims:
+                # backward compat one-d array interpreted as a scalar
+                for pre_sp in ['', ' ']:
+                    for post_sp in ['', ' ']:
+                        Helpers.do_test_config(path, 'old_oned_scalar', v,
+                            'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1])
 
 
     @staticmethod
@@ -55,21 +53,19 @@ class Helpers:
         else:
             delimsep=[('[',']',',', 1), ('{','}',' ', 2), ('"', '"', ' ', 2)]
 
-        for read_kwargs in kwargs_variants:
-            for do, dc, ds, min_n in delimsep:
-                if n >= min_n:
-                    for global_pre_sp in ['', ' ']:
-                        for global_post_sp in ['', ' ']:
-                            for pre_sp in ['', ' ']:
-                                for post_sp in ['', ' ']:
-                                    v_str = v_str_array[0]
-                                    if n > 2:
-                                        v_str += ds + ds.join([pre_sp + v_str_array[i] + post_sp for i in range(1,n-1)])
-                                    if n > 1:
-                                        v_str += ds + pre_sp + v_str_array[-1]
-                                    Helpers.do_test_config(path, 'array', v_array,
-                                        'array=' + do + global_pre_sp + v_str + global_post_sp + dc,
-                                        **read_kwargs)
+        for do, dc, ds, min_n in delimsep:
+            if n >= min_n:
+                for global_pre_sp in ['', ' ']:
+                    for global_post_sp in ['', ' ']:
+                        for pre_sp in ['', ' ']:
+                            for post_sp in ['', ' ']:
+                                v_str = v_str_array[0]
+                                if n > 2:
+                                    v_str += ds + ds.join([pre_sp + v_str_array[i] + post_sp for i in range(1,n-1)])
+                                if n > 1:
+                                    v_str += ds + pre_sp + v_str_array[-1]
+                                Helpers.do_test_config(path, 'array', v_array,
+                                    'array=' + do + global_pre_sp + v_str + global_post_sp + dc)
 
     @staticmethod
     def do_test_one_d_array(path, strings, ns=None, is_string=False):
@@ -88,31 +84,30 @@ class Helpers:
 
     @staticmethod
     def do_two_d_variants(path, nrow, ncol, v_array, v_str_array):
-        for read_kwargs in kwargs_variants:
-            for global_pre_sp in ['', ' ']:
-                for global_post_sp in ['', ' ']:
-                    for pre_sp in ['', ' ']:
-                        for post_sp in ['', ' ']:
-                            v_array = np.asarray(v_array).reshape(nrow, ncol)
+        for global_pre_sp in ['', ' ']:
+            for global_post_sp in ['', ' ']:
+                for pre_sp in ['', ' ']:
+                    for post_sp in ['', ' ']:
+                        v_array = np.asarray(v_array).reshape(nrow, ncol)
 
-                            v_str = '['
-                            i=0
-                            for row in range(nrow):
-                                v_str += global_pre_sp + '[' + global_pre_sp + v_str_array[i]
+                        v_str = '['
+                        i=0
+                        for row in range(nrow):
+                            v_str += global_pre_sp + '[' + global_pre_sp + v_str_array[i]
+                            i += 1
+                            for col in range(1, ncol-1):
+                                v_str += post_sp + ',' + pre_sp + v_str_array[i]
                                 i += 1
-                                for col in range(1, ncol-1):
-                                    v_str += post_sp + ',' + pre_sp + v_str_array[i]
-                                    i += 1
-                                if ncol > 1:
-                                    v_str += post_sp + ',' + pre_sp + v_str_array[i]
-                                    i += 1
-                                v_str += global_post_sp + ']'
-                                if row < nrow-1:
-                                    v_str += global_post_sp + ',' + global_pre_sp
+                            if ncol > 1:
+                                v_str += post_sp + ',' + pre_sp + v_str_array[i]
+                                i += 1
                             v_str += global_post_sp + ']'
+                            if row < nrow-1:
+                                v_str += global_post_sp + ',' + global_pre_sp
+                        v_str += global_post_sp + ']'
 
-                            Helpers.do_test_config(path, 'array', v_array,
-                                'array=' + v_str, **read_kwargs)
+                        Helpers.do_test_config(path, 'array', v_array,
+                            'array=' + v_str)
 
 
     @staticmethod

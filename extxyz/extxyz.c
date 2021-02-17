@@ -41,24 +41,54 @@ double atof_eEdD(char *str) {
     return (atof(str));
 }
 
+void unquote(char *str) {
+    // remove quotes and do backslash escapes
+    int output_len = 0;
+    for (char *si = str+1, *so = str; *(si+1) != 0; si++) {
+        if (*si == '\\') {
+            if (*(si+1) == 'n') {
+                char *newline = "\n";
+                for (char *c = newline; *c; c++) {
+                    output_len++;
+                    *so = *c;
+                    so++;
+                }
+                si++;
+            } if (*(si+1) == '\\') {
+                *so = '\\';
+                output_len++;
+                si++;
+                so++;
+            }
+            continue;
+        }
+        if (so != si) {
+            *so = *si;
+            output_len++;
+        }
+        so++;
+    }
+    str[output_len] = 0;
+}
+
 int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
-    //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair);
-    //DEBUG if (node->cl_obj) {
-        //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid);
-        //DEBUG if (1) { // node->cl_obj->tp == CLERI_TP_KEYWORD || node->cl_obj->tp == CLERI_TP_REGEX) {
-            //DEBUG char *str = (char *) malloc((node->len+1) * sizeof(char));
-            //DEBUG strncpy(str, node->str, node->len);
-            //DEBUG str[node->len] = 0;
-//DEBUG 
-            //DEBUG printf(" %s", str);
-//DEBUG 
-            //DEBUG free(str);
-        //DEBUG }
-        //DEBUG printf("\n");
-    //DEBUG }
+    //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair); //DEBUG
+    //DEBUG if (node->cl_obj) { //DEBUG
+        //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid); //DEBUG
+        //DEBUG if (1) { // node->cl_obj->tp == CLERI_TP_KEYWORD || node->cl_obj->tp == CLERI_TP_REGEX) { //DEBUG
+            //DEBUG char *str = (char *) malloc((node->len+1) * sizeof(char)); //DEBUG
+            //DEBUG strncpy(str, node->str, node->len); //DEBUG
+            //DEBUG str[node->len] = 0; //DEBUG
+//DEBUG  //DEBUG
+            //DEBUG printf(" %s", str); //DEBUG
+//DEBUG  //DEBUG
+            //DEBUG free(str); //DEBUG
+        //DEBUG } //DEBUG
+        //DEBUG printf("\n"); //DEBUG
+    //DEBUG } //DEBUG
 
     if (*in_kv_pair) {
-        //DEBUG printf("in entry, looking for data\n");
+        //DEBUG printf("in entry, looking for data\n"); //DEBUG
         // have key, looking for data
 
         if (node->cl_obj && (node->cl_obj->gid == CLERI_GID_OLD_ONE_D_ARRAY)) {
@@ -68,11 +98,11 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
         if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_SEQUENCE)) {
             // entering sequence, increment depth counter
             (*in_seq)++;
-            //DEBUG printf("sequence, new in_seq %d\n", *in_seq);
+            //DEBUG printf("sequence, new in_seq %d\n", *in_seq); //DEBUG
         } else if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_KEYWORD ||
                                     node->cl_obj->tp == CLERI_TP_REGEX)) {
             // something that contains actual data (keyword or regex)
-            //DEBUG printf("FOUND keyword or regex\n");
+            //DEBUG printf("FOUND keyword or regex\n"); //DEBUG
             DataLinkedList *new_data_ll = (DataLinkedList *) malloc(sizeof(DataLinkedList));
             if (! (*cur_entry)->first_data_ll) {
                 // no data here yet
@@ -95,19 +125,19 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 str[node->len] = 0;
 
                 if (node->cl_obj->gid == CLERI_GID_R_TRUE || node->cl_obj->gid == CLERI_GID_R_FALSE) {
-                    //DEBUG printf("FOUND keyword bool\n");
+                    //DEBUG printf("FOUND keyword bool\n"); //DEBUG
                     new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_R_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_b;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_INTEGER) {
-                    //DEBUG printf("FOUND int\n");
+                    //DEBUG printf("FOUND int\n"); //DEBUG
                     new_data_ll->data.i = atoi(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_i;
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_FLOAT) {
-                    //DEBUG printf("FOUND float\n");
+                    //DEBUG printf("FOUND float\n"); //DEBUG
                     new_data_ll->data.f = atof_eEdD(str);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_f;
@@ -117,41 +147,13 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                            node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING ||
                            node->cl_obj->gid == CLERI_GID_PROPERTIES_VAL_STR) {
                     // is it bad to just use CLERI_GID_PROPERTIES_VAL_STR as though it's a plain string?
-                    //DEBUG printf("FOUND string\n");
+                    //DEBUG printf("FOUND string\n"); //DEBUG
                     // store pointer, do not copy, but data was still allocated
                     // in this routine, not in cleri parsing.
                     if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
-                        // remove quotes and do backslash escapes
-                        int output_len = 0;
-                        for (char *si = str+1, *so = str; *(si+1) != 0; si++) {
-                            if (*si == '\\') {
-                                if (*(si+1) == 'n') {
-                                    char *newline = "\n";
-                                    for (char *c = newline; *c; c++) {
-                                        output_len++;
-                                        *so = *c;
-                                        so++;
-                                    }
-                                    si++;
-                                } if (*(si+1) == '\\') {
-                                    *so = '\\';
-                                    output_len++;
-                                    si++;
-                                    so++;
-                                }
-                                continue;
-                            }
-                            if (so != si) {
-                                *so = *si;
-                                output_len++;
-                            }
-                            so++;
-                        }
-                        str[output_len] = 0;
-                        new_data_ll->data.s = str;
-                    } else {
-                        new_data_ll->data.s = str;
+                        unquote(str);
                     }
+                    new_data_ll->data.s = str;
                     new_data_ll->data_t = data_s;
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
@@ -167,7 +169,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 // keyword
                 /*
                 if (node->cl_obj->gid == CLERI_GID_K_TRUE || node->cl_obj->gid == CLERI_GID_K_FALSE) {
-                    //DEBUG printf("FOUND keyword bool\n");
+                    //DEBUG printf("FOUND keyword bool\n"); //DEBUG
                     new_data_ll->data.b = (node->cl_obj->gid == CLERI_GID_K_TRUE);
                     // not checking for mismatch, parsing should make sure data type is consistent
                     new_data_ll->data_t = data_b;
@@ -186,12 +188,12 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
 
             if (*in_seq == 0) {
                 // end of a scalar, not longer in a k-v pair
-                //DEBUG printf("got scalar, setting in_kv_pair=0\n");
+                //DEBUG printf("got scalar, setting in_kv_pair=0\n"); //DEBUG
                 *in_kv_pair = 0;
             }
         }
     } else {
-        //DEBUG printf("looking for key\n");
+        //DEBUG printf("looking for key\n"); //DEBUG
         // looking for key
         if (node->cl_obj && (node->cl_obj->tp == CLERI_TP_KEYWORD ||
                              node->cl_obj->tp == CLERI_TP_REGEX)) {
@@ -200,9 +202,8 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 // empty regex, skip
                 return 0;
             }
-            //DEBUG printf("got key, setting in_kv_pair=1\n");
+            //DEBUG printf("got key, setting in_kv_pair=1\n"); //DEBUG
             *in_kv_pair = 1;
-            //DEBUG printf("FOUND keyword or regex\n");
             // found something that can contain key
             if ((*cur_entry)->key) {
                 // non-zero key indicates a real dict entry, extend linked list
@@ -210,16 +211,27 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 (*cur_entry)->next = new_entry;
                 (*cur_entry) = new_entry;
             }
-            init_DictEntry(*cur_entry, node->str, node->len);
-            //DEBUG printf("got key '%s'\n", (*cur_entry)->key);
+            if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
+                char *str = (char *) malloc((node->len+1) * sizeof(char));
+                strncpy(str, node->str, node->len);
+                str[node->len] = 0;
+                //DEBUG printf("got quoted str '%s'\n", str); //DEBUG
+                unquote(str);
+                //DEBUG printf("got unquoted str '%s'\n", str); //DEBUG
+                init_DictEntry(*cur_entry, str, node->len);
+                free(str);
+            } else {
+                init_DictEntry(*cur_entry, node->str, node->len);
+            }
+            //DEBUG printf("got key '%s'\n", (*cur_entry)->key); //DEBUG
             // key containing nodes never have children, so return now
             return 0;
         }
     }
 
-    //DEBUG printf("looping over children\n");
+    //DEBUG printf("looping over children\n"); //DEBUG
     for (cleri_children_t *child = node->children; child; child = child->next) {
-        //DEBUG printf("child\n");
+        //DEBUG printf("child\n"); //DEBUG
         int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d);
         if (err) {
             return err;
@@ -231,9 +243,9 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
         *in_old_one_d = 0;
     }
     if (node->cl_obj && node->cl_obj->tp == CLERI_TP_SEQUENCE) {
-        //DEBUG printf("leaving sequence\n");
+        //DEBUG printf("leaving sequence\n"); //DEBUG
         if (*in_seq == 2) {
-            //DEBUG printf("leaving inner row\n");
+            //DEBUG printf("leaving inner row\n"); //DEBUG
             // leaving a row in a nested list
             if ((*cur_entry)->ncols > 0 && (*cur_entry)->ncols != (*cur_entry)->n_in_row) {
                 // not first row, check for consistency
@@ -247,7 +259,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
             // decrease nested sequence depth
             (*in_seq)--;
         } else if (*in_seq == 1) {
-            //DEBUG printf("leaving outer row\n");
+            //DEBUG printf("leaving outer row\n"); //DEBUG
             if ((*cur_entry)->ncols == 0) {
                 // Exiting sequence and ncols is still 0, so list was not nested.
                 // Need to store ncols here.
@@ -262,7 +274,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
             }
             // exiting sequence
             (*in_seq)--;
-            //DEBUG printf("exiting top level sequence, setting in_kv_pair=0\n");
+            //DEBUG printf("exiting top level sequence, setting in_kv_pair=0\n"); //DEBUG
             // this is maybe not the best way of figuring out if you're leaving a 
             // key-value pair, but since everything is either a scalar or sequence
             // it's OK for now
@@ -270,7 +282,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
         }
     }
 
-    //DEBUG printf("leaving parse\n");
+    //DEBUG printf("leaving parse\n"); //DEBUG
     return 0;
 }
 
@@ -407,7 +419,7 @@ int DataLinkedList_to_data(DictEntry *dict) {
 
 
 void *tree_to_dict(cleri_parse_t *tree) {
-    // dump_tree(tree->tree, "");
+    //DEBUG dump_tree(tree->tree, ""); //DEBUG
     // printf("END DUMP\n");
 
     DictEntry *dict = (DictEntry *) malloc(sizeof(DictEntry));
