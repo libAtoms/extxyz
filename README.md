@@ -27,17 +27,18 @@
 Sequence of one or more allowed characters, optionally quoted, but **must** be quoted in some circumstances.
 *   Allowed characters - all except newline
 *   Entire string **may be** surrounded by double quotes, as first and last characters (must match). 
-    Quotes inside string that are same as containing quotes must be escaped with backslash.
+    Quotes inside string that are same as containing quotes must be escaped with backslash.  Outermost
+    double quotes are not considered part of string value.
 *   Strings that contain any of the following characters **must** be quoted (not just backslash escaped)
     * whitespace (regex \\s)
     * equals =
-    * double quote "
+    * double quote ", must be represented by \\"
     * comma ,
     * open or close square bracket \[ \] or curly brackets \{ \}
     * backslash, must be represented by double backslash \\\\
     * newline, must be represented by \\n
 *   Backslash \\: only present in quoted strings, only used for escaping next character. All backslash
-    escaped characters are the character itself except \\n, which encodes a newline.
+    escaped characters are the following character itself except \\n, which encodes a newline.
 *   Must conform to one of the following regex
     * quoted string: \("\)\(?:\(?=\(\\\\?\)\)\\2.\)\*?\\1
     * bare \(unquoted\) string: \(?:\[^\\s=",\}\{\\\]\\\[\\\\\]|\(?:\\\\\[\\s=",\}\{\\\]\\\[\\\\\]\)\)\+
@@ -52,22 +53,27 @@ Sequence of one or more allowed characters, unquoted (so even outermost quotes a
 
 #### Logical/boolean
 
-*   [tT] or [fF] or [tT]rue or [fF]alse or TRUE or FALSE
+*   T or F or [tT]rue or [fF]alse or TRUE or FALSE
 *   regex
-    * true: \(?:T|\[tT\]rue|TRUE\)
-    * false: \(?:F|\[fF\]alse|FALSE\)
+    * true: \(?:\[tT\]rue|TRUE\|T)\\b
+    * false: \(?:\[fF\]alse|FALSE\|F)\\b
 
 #### Integer number
 
 string of one or more decimal digits, optionally preceded by sign
-*   regex \[\+\-\]?\[0\-9\]\+
-
+*   regex \[+\-\]?+(?:0|\[1-9\]\[0-9\]\*)\+\\b
 #### Floating point number
 
 *   optional leading sign \[\+\-\], decimal number including optional decimal point \., 
     optional \[dDeE\] folllowed by exponent consisting of optional sign followed by string of 
     one or more digits
-*   regex \[\+\-\]?(?:\[0\-9\]\+\[\.\]?\[0\-9\]\*|\\.\[0\-9\]\+)(?:\[dDeE\]\[\+\-\]?\[0\-9\]\+)?
+*   regex
+    * integer without leading sing bare\_int = '(?:0|\[1\-9\]\[0\-9\]\*)'
+    * optional sign opt\_sign = '\[\+\-\]?'
+    * floating number with decimal point float\_dec = '(?:' \+ bare\_int \+ '\\\.|\\\.)\[0\-9\]\*'
+    * exponent exp = '(?:\[dDeE\]'+opt_sign+'\[0\-9\]\+)?'
+    * end of number num\_end = '(?:\\b|(?=\\W)|$)'
+    * combined float regexp opt\_sign \+ '(?:' \+ float\_dec \+ exp \+ '|' \+ bare\_int \+ exp \+ '|' + bare\_int \+ ')' + num\_end
 
 ### Order for identifying primitive data types, accept first one that matches
 *   int
@@ -79,8 +85,8 @@ string of one or more decimal digits, optionally preceded by sign
 #### one dimensional array (vector)
 
 sequence of one or more of the same primitive type
-*   new style: opens with \[, one or more of the same primitives separated by commas and optional whitespace, ends with \]
-*   backward compatible: opens with " or \{, one or more of the same primitive types except strings,
+*   new style: opens with \[, one or more of the same primitive type separated by commas and optional whitespace, ends with \]
+*   backward compatible: opens with " or \{, one or more of the same primitive types (strings only in \{\})
     separated by whitespace, ends with matching " or \}.  For backward compatibility, a single element backward 
     compatible array is interpreted as a scalar of the same type.
 *   primitive data type is determined by same priority as single primitive item, but must be satisfied
@@ -117,10 +123,10 @@ Value: primitive type, 1-D array, or 2-D array.  Type is determined from context
 
 #### **Special key "Properties”**: defines the columns in the subsequent lines in the frame. 
 
-*   If after full parsing the key “Properties” is missing, the format is retroactively assumed to be plain xyz (4 columns, Z/species x y z), the entire second line is stored as a per-config “comment” property, and columns beyond the 4th are not read. 
 *   Value is a string with the format of a series of triplets, separated by “:”, each triplet having the format: “&lt;name>:&lt;T>:&lt;m>”. 
     *   The &lt;name> (string) names the column(s), &lt;T> is a one of “S”, “I”, “R”, “L”, and indicates the type in the column, “string”, “integer”, “real”, “logical”, respectively. &lt;m> is an integer > 0 specifying how many consecutive columns are being referred to.
-    * The sum of the counts "m" must equal M (defined in **FRAME**)
+    * The sum of the counts "m" must equal number of per-atom columns M (as defined in **FRAME**)
+*   If after full parsing the key “Properties” is missing, the format is retroactively assumed to be plain xyz (4 columns, Z/species x y z), the entire second line is stored as a per-config “comment” property, and columns beyond the 4th are not read. 
 
 #### **Per-atom data lines**
 
