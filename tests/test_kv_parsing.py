@@ -2,13 +2,19 @@ from pathlib import Path
 
 from extxyz.extxyz import read
 
-kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
-                    { 'use_regex' : False, 'use_cextxyz' : True } ]
+kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False } ]
+
+verbose = 0
 
 def do_test_config(path, key, val, kv_str, **read_kwargs):
     with open(path / Path('test_file.extxyz'), 'w') as fout:
         fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
-    at = read(str(path / Path('test_file.extxyz')), **read_kwargs)
+
+    if verbose > 0:
+        with open(path / Path('test_file.extxyz')) as fin:
+            print(''.join(fin.readlines()))
+
+    at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
     print("got info", at.info)
     assert at.info[key] == val
 

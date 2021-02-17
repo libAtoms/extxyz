@@ -11,11 +11,13 @@ quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
 # <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
 bare_int = r'(?:[0-9]|[1-9][0-9]+)'
-float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
-integer_re = r'[+-]?'+bare_int
-true_re =  r'(?:[tT]rue|TRUE|T)'
-false_re = r'(?:[fF]alse|FALSE|F)'
-bool_re = r'(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])'
+float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?\b'
+# can't put a \b at the beginning, causes parser to not include sign as part of regexp match
+# \b at end ensures that parser does not consider only initial digit of number as a complete match
+integer_re = r'[+-]?'+bare_int+r'\b'
+true_re =  r'\b(?:[tT]rue|TRUE|T)\b'
+false_re = r'\b(?:[fF]alse|FALSE|F)\b'
+bool_re = r'\b(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])\b'
 whitespace_re = r'\s+'
 
 class ExtxyzKVGrammar(Grammar):
