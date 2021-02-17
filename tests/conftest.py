@@ -49,70 +49,70 @@ class Helpers:
 
 
     @staticmethod
-    def do_one_d_variants(path, delimsep, n, v_array, v_str_array, **read_kwargs):
-        # new style
-        for do, dc, ds, min_n in delimsep:
-            if n >= min_n:
-                for global_pre_sp in ['', ' ']:
-                    for global_post_sp in ['', ' ']:
-                        for pre_sp in ['', ' ']:
-                            for post_sp in ['', ' ']:
-                                v_str = v_str_array[0]
-                                if n > 2:
-                                    v_str += ds + ds.join([pre_sp + v_str_array[i] + post_sp for i in range(1,n-1)])
-                                if n > 1:
-                                    v_str += ds + pre_sp + v_str_array[-1]
-                                Helpers.do_test_config(path, 'array', v_array,
-                                    'array=' + do + global_pre_sp + v_str + global_post_sp + dc,
-                                    **read_kwargs)
-
-    @staticmethod
-    def do_test_one_d_array(path, strings, ns=None, is_string=False):
+    def do_one_d_variants(path, is_string, n, v_array, v_str_array):
         if is_string:
             delimsep=[('[',']',',', 1), ('{','}',' ', 2)]
         else:
             delimsep=[('[',']',',', 1), ('{','}',' ', 2), ('"', '"', ' ', 2)]
 
+        for read_kwargs in kwargs_variants:
+            for do, dc, ds, min_n in delimsep:
+                if n >= min_n:
+                    for global_pre_sp in ['', ' ']:
+                        for global_post_sp in ['', ' ']:
+                            for pre_sp in ['', ' ']:
+                                for post_sp in ['', ' ']:
+                                    v_str = v_str_array[0]
+                                    if n > 2:
+                                        v_str += ds + ds.join([pre_sp + v_str_array[i] + post_sp for i in range(1,n-1)])
+                                    if n > 1:
+                                        v_str += ds + pre_sp + v_str_array[-1]
+                                    Helpers.do_test_config(path, 'array', v_array,
+                                        'array=' + do + global_pre_sp + v_str + global_post_sp + dc,
+                                        **read_kwargs)
+
+    @staticmethod
+    def do_test_one_d_array(path, strings, ns=None, is_string=False):
         if ns is None:
             ns = [1, 2, 3, 7, -10]
 
-        for read_kwargs in kwargs_variants:
-            for n in ns:
-                if n > 0:
-                    for v, v_str in strings:
-                        Helpers.do_one_d_variants(path, delimsep, n, [v]*n, [v_str]*n, **read_kwargs)
-                else:
-                    ntot = np.abs(n)
-                    selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
-                    selected  = [strings[i] for i in selected_inds]
-                    Helpers.do_one_d_variants(path, delimsep, ntot, [s[0] for s in selected], [s[1] for s in selected], **read_kwargs)
+        for n in ns:
+            if n > 0:
+                for v, v_str in strings:
+                    Helpers.do_one_d_variants(path, is_string, n, [v]*n, [v_str]*n)
+            else:
+                ntot = np.abs(n)
+                selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
+                selected  = [strings[i] for i in selected_inds]
+                Helpers.do_one_d_variants(path, is_string, ntot, [s[0] for s in selected], [s[1] for s in selected])
 
     @staticmethod
-    def do_two_d_variants(path, nrow, ncol, v_array, v_str_array, **read_kwargs):
-        for global_pre_sp in ['', ' ']:
-            for global_post_sp in ['', ' ']:
-                for pre_sp in ['', ' ']:
-                    for post_sp in ['', ' ']:
-                        v_array = np.asarray(v_array).reshape(nrow, ncol)
+    def do_two_d_variants(path, nrow, ncol, v_array, v_str_array):
+        for read_kwargs in kwargs_variants:
+            for global_pre_sp in ['', ' ']:
+                for global_post_sp in ['', ' ']:
+                    for pre_sp in ['', ' ']:
+                        for post_sp in ['', ' ']:
+                            v_array = np.asarray(v_array).reshape(nrow, ncol)
 
-                        v_str = '['
-                        i=0
-                        for row in range(nrow):
-                            v_str += global_pre_sp + '[' + global_pre_sp + v_str_array[i]
-                            i += 1
-                            for col in range(1, ncol-1):
-                                v_str += post_sp + ',' + pre_sp + v_str_array[i]
+                            v_str = '['
+                            i=0
+                            for row in range(nrow):
+                                v_str += global_pre_sp + '[' + global_pre_sp + v_str_array[i]
                                 i += 1
-                            if ncol > 1:
-                                v_str += post_sp + ',' + pre_sp + v_str_array[i]
-                                i += 1
+                                for col in range(1, ncol-1):
+                                    v_str += post_sp + ',' + pre_sp + v_str_array[i]
+                                    i += 1
+                                if ncol > 1:
+                                    v_str += post_sp + ',' + pre_sp + v_str_array[i]
+                                    i += 1
+                                v_str += global_post_sp + ']'
+                                if row < nrow-1:
+                                    v_str += global_post_sp + ',' + global_pre_sp
                             v_str += global_post_sp + ']'
-                            if row < nrow-1:
-                                v_str += global_post_sp + ',' + global_pre_sp
-                        v_str += global_post_sp + ']'
 
-                        Helpers.do_test_config(path, 'array', v_array,
-                            'array=' + v_str, **read_kwargs)
+                            Helpers.do_test_config(path, 'array', v_array,
+                                'array=' + v_str, **read_kwargs)
 
 
     @staticmethod
@@ -120,16 +120,15 @@ class Helpers:
         if ns is None:
             ns = [(1,1), (1,3), (3,1), (3,3), (-5,-5)]
 
-        for read_kwargs in kwargs_variants:
             for nrow, ncol in ns:
                 if nrow > 0:
                     for v, v_str in strings:
-                        Helpers.do_two_d_variants(path, nrow, ncol, [v] * nrow*ncol, [v_str] * nrow*ncol, **read_kwargs)
+                        Helpers.do_two_d_variants(path, nrow, ncol, [v] * nrow*ncol, [v_str] * nrow*ncol)
                 else:
                     ntot = np.abs(nrow) * np.abs(ncol)
                     selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
                     selected  = [strings[i] for i in selected_inds]
-                    Helpers.do_two_d_variants(path, np.abs(nrow), np.abs(ncol), [s[0] for s in selected], [s[1] for s in selected], **read_kwargs)
+                    Helpers.do_two_d_variants(path, np.abs(nrow), np.abs(ncol), [s[0] for s in selected], [s[1] for s in selected])
 
 
 @pytest.fixture
