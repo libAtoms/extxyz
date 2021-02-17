@@ -16,4 +16,4 @@ def bare_string_strings():
     return bare_strings
 
 def test_bare_string_values(tmp_path, helpers):
-    helpers.do_test_scalar(tmp_path, bare_string_strings(), single_elem_array_delims=[]) # '{}'])
+    helpers.do_test_scalar(tmp_path, bare_string_strings(), single_elem_array_delims=['{}'])

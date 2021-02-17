@@ -184,6 +184,8 @@ class ExtractValues(NodeTransformer):
     def visit_strings(self, node):
         return Value([c.string if c.element.name != 'r_quotedstring' else ExtractValues.clean_qs(c.string) for c in node.children])
 
+    visit_strings_sp = visit_strings
+
     def visit_ints(self, node):
         return Value([int(c.string) for c in node.children])
 
@@ -486,10 +488,13 @@ def result_to_dict(result, verbose=0):
         print('input tree:')
         TreeDumper('input').visit(tree)
     tree = TreeCleaner().visit(tree)
-    tree = ExtractValues().visit(tree)
-    if verbose >= 2:
+    if verbose >= 3:
         print('cleaned tree:')
         TreeDumper('cleaned').visit(tree)
+    tree = ExtractValues().visit(tree)
+    if verbose >= 2:
+        print('cleaned and extracted tree:')
+        TreeDumper('extracted').visit(tree)
     tree = OneDimArrays().visit(tree)
     tree = OneDimToTwoDim().visit(tree)
     tree = TwoDimArrays().visit(tree)
