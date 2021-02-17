@@ -1,10 +1,6 @@
 # Remaining issues
-1. check more systematically two-d array of mixed row _types_ gives.  Pyleri part now handles row type consistency,
-promoting types if possible, whether the variation is within or between rows, to make entire array parsable.
-2. check strings with various mismatched quotes, esp ones that do not conform to either bare or quoted string
-3. make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.
-4. Since we're using python regexp/PCRE, we could make per-atom strings be more complex, e.g. bare or quoted strings from key-value pairs.  Should we?
-5. Make sure backslash escaped things are handled correctly.
+1. make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.
+2. Since we're using python regexp/PCRE, we could make per-atom strings be more complex, e.g. bare or quoted strings from key-value pairs.  Should we?
 
 # Extended XYZ specification and parsing tools
 
