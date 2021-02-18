@@ -254,8 +254,6 @@ def test_complex_key_val(tmp_path, helpers):
     with open(tmp_path / 'complex.xyz', 'w', encoding='utf-8') as f_out:
         f_out.write('1\n{}\nH 1.0 1.0 1.0'.format(complex_xyz_string))
     for complex_atoms in helpers.read_all_variants(tmp_path / 'complex.xyz'):
-        complex_atoms = read('complex.xyz')
-
         # test all keys end up in info, as expected
         for key, value in expected_dict.items():
             if key in ['Properties', 'Lattice']:
