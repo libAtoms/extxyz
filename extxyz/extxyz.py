@@ -448,7 +448,7 @@ class Properties:
             for col in range(cols):
                 regex += this_regex
         regex = re.sub('.' * len(whitespace_re) + '$', '', regex)
-        regex = re.compile(regex)
+        regex = re.compile(regex, flags=re.M)
         return regex
 
     @lazyproperty
