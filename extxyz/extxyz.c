@@ -524,6 +524,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     char *line;
     int line_len;
     int line_len_init = 1024;
+    int locally_allocated_props=0;
 
     // from here on every return should free line first;
     line_len  = line_len_init;
@@ -581,7 +582,10 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
     if (! props) {
         // should we assume default xyz instead, and if so species or Z, or just species?
-        props = "species:S:1:pos:R:3";
+        char *p = "species:S:1:pos:R:3";
+        props = (char *) malloc((strlen(p)+1)*sizeof(char));
+        strcpy(props, p);
+        locally_allocated_props = 1;
         // fprintf(stderr, "ERROR: failed to find Properties keyword");
         // free(line);
         //eturn 0;
@@ -614,6 +618,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
             fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            if (locally_allocated_props) { free(props); }
             free(line); free(re_str);
             return 0;
         }
@@ -625,6 +630,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
             fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            if (locally_allocated_props) { free(props); }
             free(line); free(re_str);
             return 0;
         }
@@ -660,6 +666,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
+                if (locally_allocated_props) { free(props); }
                 free(line); free(re_str);
                 return 0;
         }
@@ -675,6 +682,10 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pf = strtok(NULL, ":");
         prop_i++;
         tot_col_num += col_num;
+    }
+
+    if (locally_allocated_props) {
+        free(props);
     }
 
     // trim off last \s+
