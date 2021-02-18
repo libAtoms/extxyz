@@ -5,7 +5,7 @@
  * should be used with the libcleri module.
  *
  * Source class: ExtxyzKVGrammar
- * Created at: 2021-02-18 11:23:04
+ * Created at: 2021-02-18 15:00:29
  */
 
 #include "extxyz_kv_grammar.h"
@@ -20,13 +20,17 @@
 cleri_grammar_t * compile_extxyz_kv_grammar(void)
 {
     cleri_t * r_barestring = cleri_regex(CLERI_GID_R_BARESTRING, "^(?:[^\\s=\",}{\\]\\[\\\\]|(?:\\\\[\\s=\",}{\\]\\[\\\\]))+");
-    cleri_t * r_quotedstring = cleri_regex(CLERI_GID_R_QUOTEDSTRING, "^(\")(?:(?=(\\\\?))\\2.)*?\\1");
+    cleri_t * r_dq_quotedstring = cleri_regex(CLERI_GID_R_DQ_QUOTEDSTRING, "^(\")(?:(?=(\\\\?))\\2.)*?\\1");
+    cleri_t * r_cb_quotedstring = cleri_regex(CLERI_GID_R_CB_QUOTEDSTRING, "^{(?:[^{}]|\\\\[{}])*(?<!\\\\)}");
+    cleri_t * r_sb_quotedstring = cleri_regex(CLERI_GID_R_SB_QUOTEDSTRING, "^\\[(?:[^\\[\\]]|\\\\[\\[\\]])*(?<!\\\\)\\]");
     cleri_t * r_string = cleri_choice(
         CLERI_GID_R_STRING,
         CLERI_MOST_GREEDY,
-        2,
+        4,
         r_barestring,
-        r_quotedstring
+        r_dq_quotedstring,
+        r_cb_quotedstring,
+        r_sb_quotedstring
     );
     cleri_t * r_integer = cleri_regex(CLERI_GID_R_INTEGER, "^[+-]?(?:0|[1-9][0-9]*)\\b");
     cleri_t * r_float = cleri_regex(CLERI_GID_R_FLOAT, "^[+-]?(?:(?:(?:0|[1-9][0-9]*)\\.|\\.)[0-9]*(?:[dDeE][+-]?[0-9]+)?|(?:0|[1-9][0-9]*)(?:[dDeE][+-]?[0-9]+)?|(?:0|[1-9][0-9]*))(?:\\b|(?=\\W)|$)");
@@ -151,12 +155,12 @@ cleri_grammar_t * compile_extxyz_kv_grammar(void)
         r_float,
         r_true,
         r_false,
+        two_d_array,
         old_one_d_array,
         one_d_array_i,
         one_d_array_f,
         one_d_array_b,
         one_d_array_s,
-        two_d_array,
         r_string
     );
     cleri_t * kv_pair = cleri_sequence(

@@ -172,6 +172,10 @@ class ExtractValues(NodeTransformer):
     def visit_r_quotedstring(self, node):
         return Value(ExtractValues.clean_qs(node.string))
 
+    visit_r_dq_quotedstring = visit_r_quotedstring
+    visit_r_cb_quotedstring = visit_r_quotedstring
+    visit_r_sb_quotedstring = visit_r_quotedstring
+
     def visit_r_float(self, node):
         return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
 
@@ -184,7 +188,7 @@ class ExtractValues(NodeTransformer):
     visit_r_false = visit_r_true
 
     def visit_strings(self, node):
-        return Value([c.string if c.element.name != 'r_quotedstring' else ExtractValues.clean_qs(c.string) for c in node.children])
+        return Value([c.string if '_quotedstring' not in c.element.name else ExtractValues.clean_qs(c.string) for c in node.children])
 
     visit_strings_sp = visit_strings
 

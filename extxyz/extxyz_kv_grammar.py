@@ -6,7 +6,9 @@ from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
 simplestring_re = r'\S+'
 # any sequence surrounded by double quotes, with internal double quotes backslash escaped
-quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+dq_quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+cb_quotedstring_re = r'{(?:[^{}]|\\[{}])*(?<!\\)}'
+sb_quotedstring_re = r'\[(?:[^\[\]]|\\[\[\]])*(?<!\\)\]'
 # string without quotes, some characters must be escaped 
 # <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
@@ -28,8 +30,10 @@ whitespace_re = r'\s+'
 
 class ExtxyzKVGrammar(Grammar):
     r_barestring = Regex(barestring_re)
-    r_quotedstring = Regex(quotedstring_re)
-    r_string = Choice(r_barestring, r_quotedstring)
+    r_dq_quotedstring = Regex(dq_quotedstring_re)
+    r_cb_quotedstring = Regex(cb_quotedstring_re)
+    r_sb_quotedstring = Regex(sb_quotedstring_re)
+    r_string = Choice(r_barestring, r_dq_quotedstring, r_cb_quotedstring, r_sb_quotedstring)
 
     r_integer = Regex(integer_re)
     r_float = Regex(float_re)
@@ -68,12 +72,12 @@ class ExtxyzKVGrammar(Grammar):
         r_float,
         r_true,
         r_false,
+        two_d_array,
         old_one_d_array,
         one_d_array_i,
         one_d_array_f,
         one_d_array_b,
         one_d_array_s,
-        two_d_array,
         r_string)
 
     kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))

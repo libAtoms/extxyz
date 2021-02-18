@@ -144,13 +144,17 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     free(str);
                 } else if (node->cl_obj->gid == CLERI_GID_R_STRING || 
                            node->cl_obj->gid == CLERI_GID_R_BARESTRING || 
-                           node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING ||
+                           node->cl_obj->gid == CLERI_GID_R_DQ_QUOTEDSTRING ||
+                           node->cl_obj->gid == CLERI_GID_R_CB_QUOTEDSTRING ||
+                           node->cl_obj->gid == CLERI_GID_R_SB_QUOTEDSTRING ||
                            node->cl_obj->gid == CLERI_GID_PROPERTIES_VAL_STR) {
                     // is it bad to just use CLERI_GID_PROPERTIES_VAL_STR as though it's a plain string?
                     //DEBUG printf("FOUND string\n"); //DEBUG
                     // store pointer, do not copy, but data was still allocated
                     // in this routine, not in cleri parsing.
-                    if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
+                    if (node->cl_obj->gid == CLERI_GID_R_DQ_QUOTEDSTRING ||
+                        node->cl_obj->gid == CLERI_GID_R_CB_QUOTEDSTRING ||
+                        node->cl_obj->gid == CLERI_GID_R_SB_QUOTEDSTRING) {
                         unquote(str);
                     }
                     new_data_ll->data.s = str;
@@ -211,7 +215,9 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 (*cur_entry)->next = new_entry;
                 (*cur_entry) = new_entry;
             }
-            if (node->cl_obj->gid == CLERI_GID_R_QUOTEDSTRING) {
+            if (node->cl_obj->gid == CLERI_GID_R_DQ_QUOTEDSTRING ||
+                node->cl_obj->gid == CLERI_GID_R_CB_QUOTEDSTRING ||
+                node->cl_obj->gid == CLERI_GID_R_SB_QUOTEDSTRING) {
                 char *str = (char *) malloc((node->len+1) * sizeof(char));
                 strncpy(str, node->str, node->len);
                 str[node->len] = 0;
