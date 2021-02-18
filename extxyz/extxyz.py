@@ -594,25 +594,6 @@ def read_frame(file, verbose=0, use_regex=True,
         symbols = properties.data['species']
         names.remove('species')
 
-    # vec_cell for full backward compatibility, may not be worth doing
-    vec_cell = np.zeros((3,3))
-    vec_cell_pbc = [False] * 3
-    nvec_cell = 0
-    for s, p in zip(symbols, positions):
-        m = re.match(r'^\s*VEC([1-3])$', s)
-        if m:
-            vi = int(m.group(1))-1
-            vec_cell[vi,  :] = p
-            vec_cell_pbc[vi] = True
-            nvec_cell += 1
-    if nvec_cell > 0:
-        natoms -= nvec_cell
-        positions = positions[:natoms,:]
-        symbols = symbols[:natoms]
-        properties.data = properties.data[:natoms]
-        lattice = vec_cell.T
-    # end of vec_cell
-
     numbers = None
     if 'Z' in names:
         numbers = properties.data['Z']
@@ -626,8 +607,6 @@ def read_frame(file, verbose=0, use_regex=True,
     if 'pbc' in info:
         pbc = info['pbc']
         del info['pbc']
-    elif nvec_cell > 0:
-        pbc = vec_cell_pbc
     else:
         pbc = [True]*3
 
