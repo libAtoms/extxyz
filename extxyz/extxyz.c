@@ -592,6 +592,20 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         init_DictEntry(*info, "comment", strlen("comment"));
         (*info)->data = (char **) malloc(sizeof(char *));
         ((char **)(*info)->data)[0] = (char *) malloc((strlen(line)+1) * sizeof(char));
+        // remove eol
+        if (strlen(line) >= strlen("\n")) {
+            char *eol = "\n";
+            int match=1;
+            for (int i=0; i < strlen(eol); i++) {
+                if (line[strlen(line)-i] != eol[strlen(eol)-i]) {
+                    match=0;
+                    break;
+                }
+            }
+            if (match) {
+                line[strlen(line)-strlen(eol)] = 0;
+            }
+        }
         strcpy(((char **)(*info)->data)[0], line);
         (*info)->data_t = data_s;
     }
