@@ -580,11 +580,20 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
 
     // grab and parse Properties string
     char *props = 0;
-    for (DictEntry *entry = *info; entry; entry = entry->next) {
-        if (! strcmp(entry->key, "Properties")) {
-            props = ((char **)(entry->data))[0];
-            break;
+    if ((*info)->key) {
+        // only try if first entry has key, otherwise must have parsed nothing
+        for (DictEntry *entry = *info; entry; entry = entry->next) {
+            if (! strcmp(entry->key, "Properties")) {
+                props = ((char **)(entry->data))[0];
+                break;
+            }
         }
+    } else {
+        init_DictEntry(*info, "comment", strlen("comment"));
+        (*info)->data = (char **) malloc(sizeof(char *));
+        ((char **)(*info)->data)[0] = (char *) malloc((strlen(line)+1) * sizeof(char));
+        strcpy(((char **)(*info)->data)[0], line);
+        (*info)->data_t = data_s;
     }
     if (! props) {
         // should we assume default xyz instead, and if so species or Z, or just species?
@@ -594,7 +603,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         locally_allocated_props = 1;
         // fprintf(stderr, "ERROR: failed to find Properties keyword");
         // free(line);
-        //eturn 0;
+        // return 0;
     }
 
     // from here on every return should also free re_str first;
