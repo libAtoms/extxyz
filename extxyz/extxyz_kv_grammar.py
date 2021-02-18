@@ -47,8 +47,8 @@ class ExtxyzKVGrammar(Grammar):
     bools_sp = Repeat(Choice(r_true, r_false), mi=1)
     strings_sp = Repeat(r_string, mi=1)
 
-    old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
-                             Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
+    old_one_d_array = Choice(Sequence('"', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools), '"'),
+                             Sequence('{', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools, strings_sp, strings), '}'))
 
     one_d_array_i = Sequence('[', ints, ']')
     one_d_array_f = Sequence('[', floats, ']')

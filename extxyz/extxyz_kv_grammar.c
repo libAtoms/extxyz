@@ -5,7 +5,7 @@
  * should be used with the libcleri module.
  *
  * Source class: ExtxyzKVGrammar
- * Created at: 2021-02-17 11:52:21
+ * Created at: 2021-02-18 11:23:04
  */
 
 #include "extxyz_kv_grammar.h"
@@ -63,10 +63,13 @@ cleri_grammar_t * compile_extxyz_kv_grammar(void)
             cleri_choice(
                 CLERI_NONE,
                 CLERI_MOST_GREEDY,
-                3,
+                6,
                 ints_sp,
+                ints,
                 floats_sp,
-                bools_sp
+                floats,
+                bools_sp,
+                bools
             ),
             cleri_token(CLERI_NONE, "\"")
         ),
@@ -77,11 +80,15 @@ cleri_grammar_t * compile_extxyz_kv_grammar(void)
             cleri_choice(
                 CLERI_NONE,
                 CLERI_MOST_GREEDY,
-                4,
+                8,
                 ints_sp,
+                ints,
                 floats_sp,
+                floats,
                 bools_sp,
-                strings_sp
+                bools,
+                strings_sp,
+                strings
             ),
             cleri_token(CLERI_NONE, "}")
         )
