@@ -636,7 +636,7 @@ def iread(file, use_cextxyz=False, **kwargs):
     own_fh = False
     if isinstance(file, str) or isinstance(file, PosixPath):
         if use_cextxyz:
-            file = cextxyz.cfopen(file, 'r')
+            file = cextxyz.cfopen(str(file), 'r')
             own_fh = True
         else:
             if file == '-':

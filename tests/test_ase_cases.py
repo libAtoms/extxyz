@@ -61,11 +61,11 @@ def write_ats(filename, ats, vec_cell=False):
                     fout.write('VEC3 {} {} {}\n'.format(*at.cell[2,:]))
 
 # write sequence of images with different numbers of atoms 
-def test_sequence(tmp_path, images):
+def test_sequence(tmp_path, images, helpers):
     write_ats(tmp_path / 'multi.xyz', images)
 
-    read_images = read(str(tmp_path / 'multi.xyz'))
-    assert read_images == images
+    for read_images in helpers.read_all_variants(tmp_path / 'multi.xyz'):
+        assert read_images == images
  
 ### no support for vec_cell
 ##def test_vec_cell(at, images):
@@ -110,7 +110,7 @@ def test_sequence(tmp_path, images):
 
 
 # read xyz with / and @ signs in key value
-def test_read_slash(tmp_path):
+def test_read_slash(tmp_path, helpers):
     (tmp_path / 'slash.xyz').write_text("""4
     key1=a key2=a/b key3=a@b key4="a@b"
     Mg        -4.25650        3.79180       -2.54123
@@ -119,14 +119,11 @@ def test_read_slash(tmp_path):
     C         -7.28250        4.71303       -3.82016
     """)
 
-    with open(tmp_path / 'slash.xyz') as fin:
-        print(''.join(fin.readlines()))
-
-    a = read('slash.xyz')
-    assert a.info['key1'] == r'a'
-    assert a.info['key2'] == r'a/b'
-    assert a.info['key3'] == r'a@b'
-    assert a.info['key4'] == r'a@b'
+    for a in helpers.read_all_variants(tmp_path / 'slash.xyz'):
+        assert a.info['key1'] == r'a'
+        assert a.info['key2'] == r'a/b'
+        assert a.info['key3'] == r'a@b'
+        assert a.info['key4'] == r'a@b'
 
 
 # writing not supported
@@ -149,7 +146,7 @@ def test_read_slash(tmp_path):
 
 # Complex properties line. Keys and values that break with a regex parser.
 # see https://gitlab.com/ase/ase/issues/53 for more info
-def test_complex_key_val():
+def test_complex_key_val(tmp_path, helpers):
     complex_xyz_string = (
         ' '  # start with a separator
         'str=astring '
@@ -254,16 +251,17 @@ def test_complex_key_val():
 
     # Round trip through a file with complex line.
     # Create file with the complex line and re-read it afterwards.
-    with open('complex.xyz', 'w', encoding='utf-8') as f_out:
+    with open(tmp_path / 'complex.xyz', 'w', encoding='utf-8') as f_out:
         f_out.write('1\n{}\nH 1.0 1.0 1.0'.format(complex_xyz_string))
-    complex_atoms = read('complex.xyz')
+    for complex_atoms in helpers.read_all_variants(tmp_path / 'complex.xyz'):
+        complex_atoms = read('complex.xyz')
 
-    # test all keys end up in info, as expected
-    for key, value in expected_dict.items():
-        if key in ['Properties', 'Lattice']:
-            continue  # goes elsewhere
-        else:
-            np.testing.assert_equal(complex_atoms.info[key], value)
+        # test all keys end up in info, as expected
+        for key, value in expected_dict.items():
+            if key in ['Properties', 'Lattice']:
+                continue  # goes elsewhere
+            else:
+                np.testing.assert_equal(complex_atoms.info[key], value)
 
 
 ##def test_write_multiple(at, images):

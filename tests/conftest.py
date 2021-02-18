@@ -14,7 +14,14 @@ kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
 
 class Helpers:
     @staticmethod
-    def do_test_config(path, key, val, kv_str):
+    def read_all_variants(filename):
+        ats_variants = []
+        for read_kwargs in kwargs_variants:
+            ats_variants.append(read(filename, verbose=verbose, **read_kwargs))
+        return ats_variants
+
+    @staticmethod
+    def do_test_kv_pair(path, key, val, kv_str):
         for read_kwargs in kwargs_variants:
             with open(path / Path('test_file.extxyz'), 'w') as fout:
                 fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
@@ -32,7 +39,7 @@ class Helpers:
     def do_test_scalar(path, strings, is_string=False):
         for v, v_str in strings:
             # plain scalar
-            Helpers.do_test_config(path, 'scalar', v, 'scalar='+v_str)
+            Helpers.do_test_kv_pair(path, 'scalar', v, 'scalar='+v_str)
 
             if is_string:
                 single_elem_array_delims = ['{}']
@@ -42,7 +49,7 @@ class Helpers:
                 # backward compat one-d array interpreted as a scalar
                 for pre_sp in ['', ' ']:
                     for post_sp in ['', ' ']:
-                        Helpers.do_test_config(path, 'old_oned_scalar', v,
+                        Helpers.do_test_kv_pair(path, 'old_oned_scalar', v,
                             'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1])
 
 
@@ -64,7 +71,7 @@ class Helpers:
                                     v_str += ds + ds.join([pre_sp + v_str_array[i] + post_sp for i in range(1,n-1)])
                                 if n > 1:
                                     v_str += ds + pre_sp + v_str_array[-1]
-                                Helpers.do_test_config(path, 'array', v_array,
+                                Helpers.do_test_kv_pair(path, 'array', v_array,
                                     'array=' + do + global_pre_sp + v_str + global_post_sp + dc)
 
     @staticmethod
@@ -106,7 +113,7 @@ class Helpers:
                                 v_str += global_post_sp + ',' + global_pre_sp
                         v_str += global_post_sp + ']'
 
-                        Helpers.do_test_config(path, 'array', v_array,
+                        Helpers.do_test_kv_pair(path, 'array', v_array,
                             'array=' + v_str)
 
 

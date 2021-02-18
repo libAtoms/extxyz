@@ -143,7 +143,10 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
         # if it was not specified, assumed species:S:1:pos:R:3 but didn't create and info
         # dict entry
         py_info.pop('Properties')
-    cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
+    if 'Lattice' in py_info:
+        cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
+    else:
+        cell = None
     symbols = py_arrays.pop('species')
     positions = py_arrays.pop('pos')
 
