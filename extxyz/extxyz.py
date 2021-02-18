@@ -5,6 +5,8 @@ import os
 import argparse
 import cProfile
 
+from pathlib import PosixPath
+
 from pprint import pprint
 from io import StringIO
 
@@ -517,6 +519,9 @@ def result_to_dict(result, verbose=0):
             raise ValueError(f'unsupported value {value}, key {key.value}')
         result_dict[key.value] = value.value
 
+    if properties is None:
+        properties = Properties("species:S:1:pos:R:3")
+
     lattice = extract_lattice(result_dict)
 
     return result_dict, lattice, properties
@@ -557,6 +562,10 @@ def read_frame(file, verbose=0, use_regex=True,
         line = next(file)
     except StopIteration:
         return None # end of file
+    if re.match(r'^\s*$', line):
+        # blank line assume end of file
+        return None
+
     natoms = int(line)
     comment = next(file)
     info, lattice, properties = read_comment_line(comment, verbose)
@@ -595,11 +604,17 @@ def read_frame(file, verbose=0, use_regex=True,
                              f'and numbers {numbers}')
         symbols = None
 
+    if 'pbc' in info:
+        pbc = info['pbc']
+        del info['pbc']
+    else:
+        pbc = [True]*3
+
     atoms = Atoms(symbols=symbols,
                   numbers=numbers,
                   positions=positions,
-                  cell=lattice.T,
-                  pbc=lattice is not None) # FIXME or should we check for pbc in info?
+                  cell=lattice.T if lattice is not None else None,
+                  pbc=pbc) # FIXME or should we check for pbc in info?
 
     # work with a copy of arrays so we can remove results if necessary
     arrays = properties.get_arrays(atoms)
@@ -615,7 +630,7 @@ def read_frame(file, verbose=0, use_regex=True,
 
 def iread(file, use_cextxyz=False, **kwargs):
     own_fh = False
-    if isinstance(file, str):
+    if isinstance(file, str) or isinstance(file, PosixPath):
         if use_cextxyz:
             file = cextxyz.cfopen(file, 'r')
             own_fh = True

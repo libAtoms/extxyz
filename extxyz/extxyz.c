@@ -581,9 +581,10 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
     if (! props) {
         // should we assume default xyz instead, and if so species or Z, or just species?
-        fprintf(stderr, "ERROR: failed to find Properties keyword");
-        free(line);
-        return 0;
+        props = "species:S:1:pos:R:3";
+        // fprintf(stderr, "ERROR: failed to find Properties keyword");
+        // free(line);
+        //eturn 0;
     }
 
     // from here on every return should also free re_str first;
