@@ -581,6 +581,8 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
     int line_len;
     int locally_allocated_props=0;
 
+    char *warning = 0;
+
     // from here on every return should free line first;
     line_len = STR_INCR;
     line = (char *) malloc(line_len * sizeof(char));
@@ -608,7 +610,7 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
     }
     // return no config if blank line
     int all_blank = 1;
-    for (char *c = line; c; c++) {
+    for (char *c = line; *c; c++) {
         if (! isspace(*c)) {
             all_blank = 0;
             break;
@@ -654,6 +656,7 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
             return err;
         }
     } else {
+        warning = strcpy_malloc("WARNING: cleri failed to parse comment line, reverting to plain xyz", 0);
         // tree not parseable, must decide if it's extxyz and we should fail, or just
         // revert to plain xyz
         char *err = tree_to_dict(tree, info);
@@ -686,7 +689,14 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
                 break;
             }
         }
+        if (!props && !warning) {
+            warning = strcpy_malloc("WARNING: converted tree to dict, but no Properties tag, assuming plain xyz for atoms", 0);
+        }
     } else {
+        // nothing parsed, store entire line in "comment"
+        if (!warning) {
+            warning = strcpy_malloc("WARNING: failed to convert tree to dict, reverting to plain xyz", 0);
+        }
         init_DictEntry(*info, "comment", strlen("comment"));
         (*info)->data = (char **) malloc(sizeof(char *));
         ((char **)(*info)->data)[0] = (char *) malloc((strlen(line)+1) * sizeof(char));
@@ -937,5 +947,5 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
 
     // return null pointer as error message
     free(line); free(re_str);
-    return 0;
+    return warning;
 }

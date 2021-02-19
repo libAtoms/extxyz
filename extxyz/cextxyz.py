@@ -1,6 +1,7 @@
 import os
 import ctypes
 import copy
+import warnings
 
 import numpy as np
 
@@ -136,7 +137,11 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
                                 ctypes.byref(arrays))
     if err is not None:
         # FIXME need to deallocate the memory associated with the err string
-        raise SyntaxError("Failed to parse atomic config, error "+err.decode('utf-8'))
+        err = err.decode('utf-8')
+        if err.startswith('WARNING'):
+            warnings.warn(err)
+        else:
+            raise SyntaxError("Failed to parse atomic config, error "+err)
 
     if verbose:
         extxyz.print_dict(info)
