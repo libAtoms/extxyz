@@ -36,6 +36,7 @@
 */
 
 enum data_type {data_none, data_i, data_f, data_b, data_s};
+char *data_type_rep = "Nifbs";
 
 // for internal use only
 typedef struct data_list_struct {
@@ -67,4 +68,4 @@ typedef struct dict_entry_struct {
 
 void print_dict(DictEntry *dict);
 void free_dict(DictEntry *dict);
-int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays);
+char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays);

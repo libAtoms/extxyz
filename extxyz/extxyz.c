@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <pcre.h>
 #include <cleri/cleri.h>
@@ -9,6 +10,11 @@
 #include "extxyz.h"
 
 #define MAX_RE_LEN 10240
+#define STR_INCR 1024
+
+#define ERR_NO_DATA 1
+#define ERR_FGETS_FAILED 2
+#define ERR_REALLOC_FAILED 3
 
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     if (key) {
@@ -71,11 +77,25 @@ void unquote(char *str) {
     str[output_len] = 0;
 }
 
-int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
+char *strcpy_malloc(const char *src, char *free_src) {
+    int extra_chars = 0;
+    if (free_src) {
+        extra_chars = strlen(free_src);
+    }
+    char *dest = (char *) malloc((strlen(src)+extra_chars+1)*sizeof(char));
+    strcpy(dest, src);
+    if (free_src) {
+        strcat(dest, free_src);
+        free(free_src);
+    }
+    return dest;
+}
+
+char *parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
     //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair); //DEBUG
     //DEBUG if (node->cl_obj) { //DEBUG
         //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid); //DEBUG
-        //DEBUG if (1) { // node->cl_obj->tp == CLERI_TP_KEYWORD || node->cl_obj->tp == CLERI_TP_REGEX) { //DEBUG
+        //DEBUG if (1) { //DEBUG
             //DEBUG char *str = (char *) malloc((node->len+1) * sizeof(char)); //DEBUG
             //DEBUG strncpy(str, node->str, node->len); //DEBUG
             //DEBUG str[node->len] = 0; //DEBUG
@@ -162,11 +182,13 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
                     if (strlen(str) > 0) {
-                        fprintf(stderr, "Failed to parse some regex as data key '%s' str '%s'\n", 
-                                (*cur_entry)->key, str);
                         // free before incomplete return
+                        char *err_msg = (char *) malloc ((strlen("Failed to parse some regex as data, key '")+
+                                                          strlen("' str  '") + strlen((*cur_entry)->key)+
+                                                          strlen(str) + strlen("'") + 1) * sizeof(char));
+                        sprintf(err_msg, "Failed to parse some regex as data, key  '%s' str  '%s'", (*cur_entry)->key, str);
                         free(str);
-                        return 1;
+                        return strcpy_malloc("ERROR: ", err_msg);
                     }
                 }
             } else {
@@ -179,12 +201,17 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     new_data_ll->data_t = data_b;
                 } else {
                 */
-                    // allocate string for printing
-                    char * str = (char *) malloc((node->len+1)*sizeof(char));
-                    strncpy(str, node->str, node->len);
-                    fprintf(stderr, "Failed to parse some keyword as data, key '%s' str '%s'\n", (*cur_entry)->key, str);
-                    free(str);
-                    return 1;
+
+                // allocate string for printing so it can be null terminated
+                char * str = (char *) malloc((node->len+1)*sizeof(char));
+                strncpy(str, node->str, node->len);
+                char *err_msg = (char *) malloc ((strlen("Failed to parse some keyword as data, key '")+
+                                                  strlen("' str  '") + strlen((*cur_entry)->key)+
+                                                  strlen(str) + strlen("'") + 1) * sizeof(char));
+                sprintf(err_msg, "Failed to parse some regex as data key  '%s' str  '%s'", (*cur_entry)->key, str);
+                free(str);
+                return strcpy_malloc("ERROR: ", err_msg);
+
                 /*
                 }
                 */
@@ -238,7 +265,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
     //DEBUG printf("looping over children\n"); //DEBUG
     for (cleri_children_t *child = node->children; child; child = child->next) {
         //DEBUG printf("child\n"); //DEBUG
-        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d);
+        char *err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d);
         if (err) {
             return err;
         }
@@ -254,10 +281,18 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
             //DEBUG printf("leaving inner row\n"); //DEBUG
             // leaving a row in a nested list
             if ((*cur_entry)->ncols > 0 && (*cur_entry)->ncols != (*cur_entry)->n_in_row) {
-                // not first row, check for consistency
-                fprintf(stderr, "key %s nested list row %d number of entries in row %d inconsistent with prev %d\n", 
-                        (*cur_entry)->key, (*cur_entry)->nrows+1, (*cur_entry)->n_in_row, (*cur_entry)->ncols);
-                return 1;
+                char *n0 = (char *) malloc(10*sizeof(char));
+                char *n1 = (char *) malloc(10*sizeof(char));
+                char *n2 = (char *) malloc(10*sizeof(char));
+                if ((*cur_entry)->nrows+1  > 999999999) { sprintf(n0, "%s", "-1"); } else { sprintf(n0, "%d", (*cur_entry)->nrows+1); }
+                if ((*cur_entry)->n_in_row > 999999999) { sprintf(n1, "%s", "-1"); } else { sprintf(n1, "%d", (*cur_entry)->n_in_row); }
+                if ((*cur_entry)->ncols    > 999999999) { sprintf(n2, "%s", "-1"); } else { sprintf(n2, "%d", (*cur_entry)->ncols); }
+                char *err_msg = (char *) malloc ((strlen("key '") + strlen("' nested list row ") + strlen(" number of entries in row ") +
+                                                  strlen(" inconsistent with prev ") + 9*3 + 1) * sizeof(char));
+                sprintf(err_msg, "key '%s' nested list row %d number of entries in row %d inconsistent with prev %d",
+                                 (*cur_entry)->key, n0, n1, n2);
+                free (n0); free (n1); free (n2);
+                return strcpy_malloc("ERROR: ", err_msg);
             }
             (*cur_entry)->nrows++;
             (*cur_entry)->ncols = (*cur_entry)->n_in_row;
@@ -339,8 +374,9 @@ void free_DataLinkedList(DataLinkedList *list, enum data_type data_t, int free_s
 }
 
 
-int DataLinkedList_to_data(DictEntry *dict) {
+char *DataLinkedList_to_data(DictEntry *dict) {
     int stat=0;
+    char *err_msg = 0;
 
     for (DictEntry *entry = dict; entry; entry = entry->next) {
         if (! entry->first_data_ll) {
@@ -361,8 +397,10 @@ int DataLinkedList_to_data(DictEntry *dict) {
                 if (data_t != data_i && data_t != data_f) {
                     // prev data is not a number, fail
                     if (!stat) {
-                        fprintf(stderr, "ERROR: in an array got a number type %d after a non-number %d\n",
-                            data_item->data_t, data_t);
+                        err_msg = (char *) malloc((strlen("ERROR: in an array got a number type ") +
+                                                   strlen(" after a non-number ") + 1 + 1 + 1) * sizeof(char));
+                        sprintf(err_msg, "ERROR: in an array got a number type %c after a non-number %c", 
+                                         data_type_rep[data_item->data_t], data_type_rep[data_t]);
                     }
                     stat=1;
                 }
@@ -372,8 +410,10 @@ int DataLinkedList_to_data(DictEntry *dict) {
                 }
             } else if (data_item->data_t != data_t) {
                 if (!stat) {
-                    fprintf(stderr, "ERROR: in an array got a change in type from %d to %dthat cannot be promoted\n",
-                        data_t, data_item->data_t);
+                    err_msg = (char *) malloc((strlen("ERROR: in an array got a change in type from ") +
+                                               strlen(" to ") + strlen(" that cannot be promoted") + 1 + 1 + 1) * sizeof(char));
+                    sprintf(err_msg, "ERROR: in an array got a change in type from %c to %c that cannot be promoted", 
+                                     data_type_rep[data_t], data_type_rep[data_item->data_t]);
                 }
                 stat=1;
             }
@@ -420,35 +460,32 @@ int DataLinkedList_to_data(DictEntry *dict) {
         entry->last_data_ll = 0;
     }
 
-    return stat;
+    return err_msg;
 }
 
 
-void *tree_to_dict(cleri_parse_t *tree) {
+char *tree_to_dict(cleri_parse_t *tree, DictEntry **dict) {
     //DEBUG dump_tree(tree->tree, ""); //DEBUG
     // printf("END DUMP\n");
 
-    DictEntry *dict = (DictEntry *) malloc(sizeof(DictEntry));
+    *dict = (DictEntry *) malloc(sizeof(DictEntry));
     // initialize empty dict entry with no key
-    init_DictEntry(dict, 0, -1);
+    init_DictEntry(*dict, 0, -1);
 
-    DictEntry *cur_entry = dict;
+    DictEntry *cur_entry = *dict;
 
     int in_seq = 0, in_kv_pair = 0, in_old_one_d = 0;
-    int err;
-    err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
+    char *err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
     if (err) {
-        fprintf(stderr, "error parsing tree\n");
-        return 0;
+        return err;
     }
 
-    err = DataLinkedList_to_data(dict);
+    err = DataLinkedList_to_data(*dict);
     if (err) {
-        fprintf(stderr, "ERROR converting data linked list to data arrays, probably inconsistent data types\n");
-        return 0;
+        return err;
     }
 
-    return dict;
+    return 0;
 }
 
 
@@ -492,7 +529,6 @@ void print_dict(DictEntry *dict) {
 }
 
 
-#define STR_INCR 1024
 void strcat_realloc(char **str, int *len, char *add_str) {
     if (strlen(*str) + strlen(add_str) + 1 > *len) {
         *len += STR_INCR;
@@ -505,35 +541,48 @@ void strcat_realloc(char **str, int *len, char *add_str) {
     strcat(*str, add_str);
 }
 
-char *read_line(char **line, int *line_len, FILE *fp) {
-    char *stat = fgets(*line, *line_len, fp);
-    if (!stat) {
-        return 0;
+int read_line(char **line, int *line_len, FILE *fp) {
+    char *fgets_stat = fgets(*line, *line_len, fp);
+    if (!fgets_stat) {
+        return ERR_NO_DATA;
     }
     while (strlen(*line) == *line_len-1) {
         *line_len += STR_INCR;
         *line = (char *) realloc(*line, *line_len * sizeof(char));
         if (!*line) {
-            fprintf(stderr, "ERROR: failed to realloc in read_line\n");
-            exit(1);
+            // fprintf(stderr, "ERROR: failed to realloc in read_line\n");
+            // exit(1);
+            return ERR_REALLOC_FAILED;
         }
 
-        stat = fgets(*line + *line_len - STR_INCR - 1, STR_INCR, fp);
-        if (!stat) {
-            return 0;
+        fgets_stat = fgets(*line + *line_len - STR_INCR - 1, STR_INCR, fp);
+        if (!fgets_stat) {
+            return ERR_FGETS_FAILED;
         }
     }
-    return *line;
+    return 0;
 }
 
-int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
+int appears_to_be_extxyz(DictEntry *info) {
+    int appears = 0;
+    for (DictEntry *entry = info; entry; entry = entry->next) {
+        if (entry->key) {
+            appears = !strcmp(entry->key, "Lattice") || !strcmp(entry->key, "Cell") || !strcmp(entry->key, "Properties");
+            if (appears) {
+                break;
+            }
+        }
+    }
+    return appears;
+}
+
+char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
     char *line;
     int line_len;
-    int line_len_init = 1024;
     int locally_allocated_props=0;
 
     // from here on every return should free line first;
-    line_len  = line_len_init;
+    line_len = STR_INCR;
     line = (char *) malloc(line_len * sizeof(char));
 
     // we could set this based on whether we want to default to 
@@ -543,39 +592,82 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // less restrictive alternative, allows for ignored extra columns
     // char *re_at_eol = "(?:\\s+|\\s*$)");
 
-    // nat
-    char *stat = read_line(&line, &line_len, fp);
-    if (! stat) {
+    // read natoms
+    int err = read_line(&line, &line_len, fp);
+    if (err) {
         free(line);
+        switch (err) {
+            case ERR_NO_DATA:
+                // no data to read, must be EOF, just return with no dicts set
+                return 0;
+            case ERR_REALLOC_FAILED:
+                return strcpy_malloc("ERROR: failed to realloc while reading natoms line", 0);
+            default:
+                return strcpy_malloc("ERROR: unknown error while reading natoms line", 0);
+        }
+    }
+    // return no config if blank line
+    int all_blank = 1;
+    for (char *c = line; c; c++) {
+        if (! isspace(*c)) {
+            all_blank = 0;
+            break;
+        }
+    }
+    if (all_blank) {
         return 0;
     }
+    // not blank line, parse natoms
     int nat_stat = sscanf(line, "%d", nat);
     if (nat_stat != 1) {
-        fprintf(stderr, "Failed to parse int natoms from '%s'\n", line);
         free(line);
-        return 0;
+        return strcpy_malloc("ERROR: failed to parse int natoms", 0);
+    }
+    if (nat <= 0) {
+        free(line);
+        return strcpy_malloc("ERROR: natoms <= 0", 0);
     }
 
     // info
-    stat = read_line(&line, &line_len, fp);
-    if (! stat) {
+    err = read_line(&line, &line_len, fp);
+    if (err) {
         free(line);
-        return 0;
+        switch (err) {
+            case ERR_NO_DATA:
+            case ERR_FGETS_FAILED:
+                return strcpy_malloc("ERROR: failed to read comment line with fgets", 0);
+            case ERR_REALLOC_FAILED:
+                return strcpy_malloc("ERROR: failed to realloc while reading comment line", 0);
+            default:
+                return strcpy_malloc("ERROR: unknown error while reading comment line", 0);
+        }
     }
     // actually parse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
-    if (! tree->is_valid) {
-        fprintf(stderr, "Failed to parse string at pos %zd\n", tree->pos);
+    if (tree->is_valid) {
+        // is fully parseable
+        char *err = tree_to_dict(tree, info);
         cleri_parse_free(tree);
-        free(line);
-        return 0;
-    }
-    *info = tree_to_dict(tree);
-    cleri_parse_free(tree);
-    if (! info) {
-        fprintf(stderr, "Failed to convert tree to dict\n");
-        free(line);
-        return 0;
+        if (err) {
+            // fail if we can't convert to extxyz-compatible dicts
+            free(line);
+            return err;
+        }
+    } else {
+        // tree not parseable, must decide if it's extxyz and we should fail, or just
+        // revert to plain xyz
+        char *err = tree_to_dict(tree, info);
+        if (appears_to_be_extxyz(*info)) {
+            // failed to parse file that matches extxyz closely enough to not revert to plain xyz
+            free(line);
+            char *parsed_part = (char *)malloc((tree->tree->children->node->len+1) * sizeof(char));
+            strncpy(parsed_part, tree->tree->children->node->str, tree->tree->children->node->len);
+            parsed_part[tree->tree->children->node->len] = 0;
+            cleri_parse_free(tree);
+            return strcpy_malloc("ERROR: appears to be an extxyz, but parsing failed at ", parsed_part);
+        } 
+        // revert to plain xyz, *info should be empty
+        cleri_parse_free(tree);
     }
 
     // grab and parse Properties string
@@ -615,9 +707,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         props = (char *) malloc((strlen(p)+1)*sizeof(char));
         strcpy(props, p);
         locally_allocated_props = 1;
-        // fprintf(stderr, "ERROR: failed to find Properties keyword");
-        // free(line);
-        // return 0;
     }
 
     // from here on every return should also free re_str first;
@@ -646,10 +735,13 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         // advance to col type
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
-            fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
             if (locally_allocated_props) { free(props); }
             free(line); free(re_str);
-            return 0;
+            char *err_msg = (char *) malloc ((strlen("Failed to parse property type '")+
+                                              strlen("' for property '") + strlen(pf)+
+                                              strlen(cur_array->key) + strlen("'") + 1) * sizeof(char));
+            sprintf(err_msg, "Failed to parse property type '%s' for property '%s'", pf, cur_array->key, prop_i);
+            return strcpy_malloc("ERROR: ", err_msg);
         }
         char col_type = pf[0];
 
@@ -658,10 +750,13 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num;
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
-            fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
             if (locally_allocated_props) { free(props); }
             free(line); free(re_str);
-            return 0;
+            char *err_msg = (char *) malloc ((strlen("Failed to parse int property ncolumns from '")+
+                                              strlen("' for property '") + strlen(pf)+
+                                              strlen(cur_array->key) + strlen("'") + 1) * sizeof(char));
+            sprintf(err_msg, "Failed to parse int property ncolumns from '%s' for property '%s'", pf, cur_array->key, prop_i);
+            return strcpy_malloc("ERROR: ", err_msg);
         }
 
         // make an nat x ncol matrix
@@ -691,13 +786,16 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 this_re="\\S+";
                 break;
             default:
-                fprintf(stderr, "Unknown property type '%c' for property key '%s' (# %d)\n", col_type, cur_array->key, prop_i);
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
                 if (locally_allocated_props) { free(props); }
                 free(line); free(re_str);
-                return 0;
+                char *err_msg = (char *) malloc ((strlen("Unknown property type '")+
+                                                  strlen("' for property '") + strlen(pf)+
+                                                  strlen(cur_array->key) + strlen("'") + 1) * sizeof(char));
+                sprintf(err_msg, "Unknown property type '%s' for property '%s'", pf, cur_array->key, prop_i);
+                return strcpy_malloc("ERROR: ", err_msg);
         }
 
         for (int ci=0; ci < col_num; ci++) {
@@ -737,23 +835,42 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
 
     // read per-atom data
     for (int li=0; li < (*nat); li++) {
-        stat = read_line(&line, &line_len, fp);
-        if (! stat) {
+        err = read_line(&line, &line_len, fp);
+        if (err) {
             free(line); free(re_str);
-            return 0;
+            switch (err) {
+                case ERR_NO_DATA:
+                case ERR_FGETS_FAILED:
+                    return strcpy_malloc("ERROR: failed to read per-atom line with fgets", 0);
+                case ERR_REALLOC_FAILED:
+                    return strcpy_malloc("ERROR: failed to realloc while reading per-atom line", 0);
+                default:
+                    return strcpy_malloc("ERROR: unknown error while reading per-atom line", 0);
+            }
         }
 
         // read data with PCRE + atoi/f
         // apply PCRE
         int rc = pcre_exec(re, NULL, line, strlen(line), 0, 0, ovector, ovector_len);
         if (rc != tot_col_num+1) {
-            if (rc > 0) {
-                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d at subgroup %d\n", li, rc-1);
-            } else {
-                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d error %d\n", li, rc);
-            }
             free(line); free(re_str);
-            return 0;
+
+            char *line_n = (char *) malloc(10*sizeof(char)); if (li > 999999999) { sprintf(line_n, "%d", -1); } else { sprintf(line_n, "%d", li); }
+            char *err_n = (char *) malloc(10*sizeof(char));
+            char *err_msg;
+            if (rc > 0) {
+                if (rc-1 > 999999999) { sprintf(err_n, "%d", -1); } else { sprintf(err_n, "%d", rc-1); }
+                err_msg = (char *) malloc ((strlen("failed to apply pcre regexp to atom line ")+
+                                            strlen(" at subroup ") + 9 + 9 + 1) * sizeof(char));
+                sprintf(err_msg, "failed to apply pcre regexp to atom line %s at subgroup %s", line_n, err_n);
+            } else {
+                if (rc < -99999999) { sprintf(err_n, "%d", -1); } else { sprintf(err_n, "%d", rc); }
+                err_msg = (char *) malloc ((strlen("failed to apply pcre regexp to atom line ")+
+                                            strlen(" error ") + 9 + 9 + 1) * sizeof(char));
+                sprintf(err_msg, "failed to apply pcre regexp to atom line %s error %s", line_n, err_n);
+            }
+            free (line_n); free (err_n);
+            return strcpy_malloc("ERROR: ", err_msg);
         }
         // loop through parsed strings and fill in allocated data structures
         int field_i = 1;
@@ -809,7 +926,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         }
     }
 
-    // return true
+    // return null pointer as error message
     free(line); free(re_str);
-    return 1;
+    return 0;
 }

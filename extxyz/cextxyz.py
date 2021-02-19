@@ -51,6 +51,7 @@ extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(ctypes.c_int),
                               ctypes.POINTER(Dict_entry_ptr),
                               ctypes.POINTER(Dict_entry_ptr)]
+extxyz.extxyz_read_ll.restype = ctypes.c_char_p
 
 extxyz.print_dict.args = [ctypes.POINTER(Dict_entry_ptr)]
 
@@ -128,12 +129,14 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     info = Dict_entry_ptr()
     arrays = Dict_entry_ptr()
 
-    if not extxyz.extxyz_read_ll(_kv_grammar,
-                                 fp,
-                                 ctypes.byref(nat),
-                                 ctypes.byref(info),
-                                 ctypes.byref(arrays)):
-        return None
+    err = extxyz.extxyz_read_ll(_kv_grammar,
+                                fp,
+                                ctypes.byref(nat),
+                                ctypes.byref(info),
+                                ctypes.byref(arrays))
+    if err is not None:
+        # FIXME need to deallocate the memory associated with the err string
+        raise SyntaxError("Failed to parse atomic config, error "+err.contents)
 
     if verbose:
         extxyz.print_dict(info)
@@ -141,6 +144,10 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
 
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
+
+    if (len(py_arrays) == 0):
+        # if there was no error but arrays is empty, must have gotten no or blank natoms line
+        return None
 
     if 'Properties' in py_info:
         # if it was not specified, assumed species:S:1:pos:R:3 but didn't create and info
