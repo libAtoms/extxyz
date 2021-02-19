@@ -573,6 +573,8 @@ def read_frame(file, verbose=0, use_regex=True,
     natoms = int(line)
     comment = next(file)
     info, lattice, properties = read_comment_line(comment, verbose)
+    if len(info) == 0:
+        info['comment'] = comment.strip()
     if verbose:
         print('read_frame info = ')
         print("info")
