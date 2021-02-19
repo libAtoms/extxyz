@@ -284,12 +284,12 @@ char *parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in
                 char *n0 = (char *) malloc(10*sizeof(char));
                 char *n1 = (char *) malloc(10*sizeof(char));
                 char *n2 = (char *) malloc(10*sizeof(char));
-                if ((*cur_entry)->nrows+1  > 999999999) { sprintf(n0, "%s", "-1"); } else { sprintf(n0, "%d", (*cur_entry)->nrows+1); }
-                if ((*cur_entry)->n_in_row > 999999999) { sprintf(n1, "%s", "-1"); } else { sprintf(n1, "%d", (*cur_entry)->n_in_row); }
-                if ((*cur_entry)->ncols    > 999999999) { sprintf(n2, "%s", "-1"); } else { sprintf(n2, "%d", (*cur_entry)->ncols); }
+                if ((*cur_entry)->nrows+1  > 999999999) { sprintf(n0, "%d", -1); } else { sprintf(n0, "%d", (*cur_entry)->nrows+1); }
+                if ((*cur_entry)->n_in_row > 999999999) { sprintf(n1, "%d", -1); } else { sprintf(n1, "%d", (*cur_entry)->n_in_row); }
+                if ((*cur_entry)->ncols    > 999999999) { sprintf(n2, "%d", -1); } else { sprintf(n2, "%d", (*cur_entry)->ncols); }
                 char *err_msg = (char *) malloc ((strlen("key '") + strlen("' nested list row ") + strlen(" number of entries in row ") +
                                                   strlen(" inconsistent with prev ") + 9*3 + 1) * sizeof(char));
-                sprintf(err_msg, "key '%s' nested list row %d number of entries in row %d inconsistent with prev %d",
+                sprintf(err_msg, "key '%s' nested list row %s number of entries in row %s inconsistent with prev %s",
                                  (*cur_entry)->key, n0, n1, n2);
                 free (n0); free (n1); free (n2);
                 return strcpy_malloc("ERROR: ", err_msg);
@@ -659,36 +659,46 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
             free(line);
             return err;
         }
-        // here iff we fully parsed comment line
+        // here iff we fully parsed comment line, info contains fields
     } else {
         // tree not parseable, must decide if it's extxyz and we should fail, or just
         // revert to plain xyz
-        warning = strcpy_malloc("WARNING: cleri failed to parse comment line, reverting to plain xyz", 0);
+
+        char *parsed_part = (char *)malloc((tree->tree->children->node->len+3) * sizeof(char));
+        strcpy(parsed_part, "'");
+        strncat(parsed_part, tree->tree->children->node->str, tree->tree->children->node->len);
+        strcat(parsed_part, "'");
+        parsed_part[tree->tree->children->node->len+2] = 0;
 
         char *err = tree_to_dict(tree, info);
         if (appears_to_be_extxyz(*info)) {
             // file appears to be close enough to extxyz, so we'll fail
             free(line);
-            char *parsed_part = (char *)malloc((tree->tree->children->node->len+3) * sizeof(char));
-            strcpy(parsed_part, "'");
-            strncat(parsed_part, tree->tree->children->node->str, tree->tree->children->node->len);
-            strcat(parsed_part, "'");
-            parsed_part[tree->tree->children->node->len+2] = 0;
             cleri_parse_free(tree);
             free_dict(*info);
             return strcpy_malloc("ERROR: appears to be an extxyz, but parsing failed after ", parsed_part);
         } 
 
+        // reset err before reverting to plain xyz
+        if (err) {
+            free(err);
+            err = 0;
+        }
+        warning = strcpy_malloc("WARNING: cleri failed to parse comment line, reverting to plain xyz, parsing failed after ", parsed_part);
+
         // file is not so close to extxyz, revert to plain xyz
         cleri_parse_free(tree);
+        // unknown status for info, free it
         free_dict(*info);
-        *info = 0;
+        // create new empty dict for comment line
+        *info = (DictEntry *) malloc(sizeof(DictEntry));
+        init_DictEntry(*info, 0, -1);
     }
 
     // grab and parse Properties string
     char *props = 0;
-    if (*info && (*info)->key) {
-        // parsing worked so info is allocated and has an entry with a key
+    if ((*info)->key) {
+        // must have parsed since first info entry has a key, search for Properties
         for (DictEntry *entry = *info; entry; entry = entry->next) {
             if (! strcmp(entry->key, "Properties")) {
                 if (entry->data_t != data_s) {
@@ -705,7 +715,7 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
     } else {
         // nothing parsed, store entire line in "comment"
         if (!warning) {
-            warning = strcpy_malloc("WARNING: failed to parse comment line, reverting to plain xyz", 0);
+            warning = strcpy_malloc("WARNING: parsed but got no info fields out of comment line (this should never happen), reverting to plain xyz", 0);
         }
         init_DictEntry(*info, "comment", strlen("comment"));
         (*info)->data = (char **) malloc(sizeof(char *));
