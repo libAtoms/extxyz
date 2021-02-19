@@ -660,11 +660,13 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
         if (appears_to_be_extxyz(*info)) {
             // failed to parse file that matches extxyz closely enough to not revert to plain xyz
             free(line);
-            char *parsed_part = (char *)malloc((tree->tree->children->node->len+1) * sizeof(char));
-            strncpy(parsed_part, tree->tree->children->node->str, tree->tree->children->node->len);
-            parsed_part[tree->tree->children->node->len] = 0;
+            char *parsed_part = (char *)malloc((tree->tree->children->node->len+3) * sizeof(char));
+            strcpy(parsed_part, "'");
+            strncat(parsed_part, tree->tree->children->node->str, tree->tree->children->node->len);
+            strcat(parsed_part, "'");
+            parsed_part[tree->tree->children->node->len+2] = 0;
             cleri_parse_free(tree);
-            return strcpy_malloc("ERROR: appears to be an extxyz, but parsing failed at ", parsed_part);
+            return strcpy_malloc("ERROR: appears to be an extxyz, but parsing failed after ", parsed_part);
         } 
         // revert to plain xyz, *info should be empty
         cleri_parse_free(tree);

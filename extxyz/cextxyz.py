@@ -136,7 +136,7 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
                                 ctypes.byref(arrays))
     if err is not None:
         # FIXME need to deallocate the memory associated with the err string
-        raise SyntaxError("Failed to parse atomic config, error "+err.contents)
+        raise SyntaxError("Failed to parse atomic config, error "+err.decode('utf-8'))
 
     if verbose:
         extxyz.print_dict(info)
