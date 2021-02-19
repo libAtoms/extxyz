@@ -126,7 +126,7 @@ def test_read_slash(tmp_path, helpers):
         assert a.info['key4'] == r'a@b'
 
 
-# writing not supported
+# writing not supported, don't know why this is called "test_read_struct"
 ##def test_read_struct():
 ##    struct = Atoms(
 ##        'H4', pbc=[True, True, True],
@@ -262,6 +262,7 @@ def test_complex_key_val(tmp_path, helpers):
                 np.testing.assert_equal(complex_atoms.info[key], value)
 
 
+# writing not supported
 ##def test_write_multiple(at, images):
 ##    # write multiple atoms objects to one xyz
 ##    for atoms in images:
@@ -274,28 +275,28 @@ def test_complex_key_val(tmp_path, helpers):
 ##    assert readFrames == images
 ##    singleFrame = ase.io.read('not_append.xyz', index=slice(0, None))
 ##    assert singleFrame[-1] == images[-1]
-##
-##
-### read xyz with blank comment line
-##def test_blank_comment():
-##    Path('blankcomment.xyz').write_text("""4
-##
-##    Mg        -4.25650        3.79180       -2.54123
-##    C         -1.15405        2.86652       -1.26699
-##    C         -5.53758        3.70936        0.63504
-##    C         -7.28250        4.71303       -3.82016
-##    """)
-##
-##    a = ase.io.read('blankcomment.xyz')
-##    assert a.info == {}
-##
-##
+
+
+# read xyz with blank comment line
+def test_blank_comment(tmp_path, helpers):
+    (tmp_path / 'blankcomment.xyz').write_text("""4
+
+    Mg        -4.25650        3.79180       -2.54123
+    C         -1.15405        2.86652       -1.26699
+    C         -5.53758        3.70936        0.63504
+    C         -7.28250        4.71303       -3.82016
+    """)
+
+    for ai, a in enumerate(helpers.read_all_variants(tmp_path / 'blankcomment.xyz')):
+        assert a.info == { 'comment' : ''}
+
+
 ##def test_escape():
 ##    assert escape('plain_string') == 'plain_string'
 ##    assert escape('string_containing_"') == r'"string_containing_\""'
 ##    assert escape('string with spaces') == '"string with spaces"'
-##
-##
+
+# no writing and calculator reading yet
 ##@pytest.mark.filterwarnings('ignore:write_xyz')
 ##def test_stress():
 ##    # build a water dimer, which has 6 atoms
@@ -316,8 +317,9 @@ def test_complex_key_val(tmp_path, helpers):
 ##    assert abs(b.arrays['stress'] - np.arange(6, dtype=float)).max() < 1e-6
 ##    b_stress = b.info['stress']
 ##    assert abs(full_3x3_to_voigt_6_stress(b_stress) - a_stress).max() < 1e-6
-##
-##
+
+
+# mostly testing writing, not implemented yet
 ##def test_json_scalars():
 ##    a = bulk('Si')
 ##    a.info['val_1'] = 42.0
@@ -331,8 +333,9 @@ def test_complex_key_val(tmp_path, helpers):
 ##    assert abs(b.info['val_1'] - 42.0) < 1e-6
 ##    assert abs(b.info['val_2'] - 42.0) < 1e-6
 ##    assert abs(b.info['val_3'] - 42) == 0
-##
-##
+
+
+# not constraint I/O support yet
 ##@pytest.mark.parametrize('constraint', [FixAtoms(indices=(0, 2)),
 ##                                        FixCartesian(1, mask=(1, 0, 1)),
 ##                                        [FixCartesian(0), FixCartesian(2)]])
