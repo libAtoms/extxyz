@@ -6,7 +6,7 @@ import numpy as np
 
 from ase.atoms import Atoms
 
-from utils import create_single_point_calculator, update_atoms_from_calc
+from .utils import create_single_point_calculator, update_atoms_from_calc
 
 class FILE_ptr(ctypes.c_void_p):
     pass
@@ -142,8 +142,14 @@ def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
     py_info = c_to_py_dict(info, deepcopy=True)
     py_arrays = c_to_py_dict(arrays, deepcopy=True)
 
-    py_info.pop('Properties')
-    cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
+    if 'Properties' in py_info:
+        # if it was not specified, assumed species:S:1:pos:R:3 but didn't create and info
+        # dict entry
+        py_info.pop('Properties')
+    if 'Lattice' in py_info:
+        cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
+    else:
+        cell = None
     symbols = py_arrays.pop('species')
     positions = py_arrays.pop('pos')
 

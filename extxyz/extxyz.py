@@ -5,6 +5,8 @@ import os
 import argparse
 import cProfile
 
+from pathlib import PosixPath
+
 from pprint import pprint
 from io import StringIO
 
@@ -19,11 +21,11 @@ from ase.symbols import symbols2numbers
 
 from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
-from extxyz_kv_grammar import (ExtxyzKVGrammar,
-                               float_re, integer_re, bool_re, simplestring_re,
-                               whitespace_re)
-import cextxyz
-from utils import create_single_point_calculator, update_atoms_from_calc
+from .extxyz_kv_grammar import (ExtxyzKVGrammar,
+                                float_re, integer_re, bool_re, simplestring_re,
+                                whitespace_re)
+from . import cextxyz
+from .utils import create_single_point_calculator, update_atoms_from_calc
 
 import time
 
@@ -170,6 +172,10 @@ class ExtractValues(NodeTransformer):
     def visit_r_quotedstring(self, node):
         return Value(ExtractValues.clean_qs(node.string))
 
+    visit_r_dq_quotedstring = visit_r_quotedstring
+    visit_r_cb_quotedstring = visit_r_quotedstring
+    visit_r_sb_quotedstring = visit_r_quotedstring
+
     def visit_r_float(self, node):
         return Value(float(node.string.replace('d', 'e').replace('D', 'e')))
 
@@ -182,7 +188,9 @@ class ExtractValues(NodeTransformer):
     visit_r_false = visit_r_true
 
     def visit_strings(self, node):
-        return Value([c.string if c.element.name != 'r_quotedstring' else ExtractValues.clean_qs(c.string) for c in node.children])
+        return Value([c.string if '_quotedstring' not in c.element.name else ExtractValues.clean_qs(c.string) for c in node.children])
+
+    visit_strings_sp = visit_strings
 
     def visit_ints(self, node):
         return Value([int(c.string) for c in node.children])
@@ -440,13 +448,13 @@ class Properties:
 
     @lazyproperty
     def regex(self):
-        regex = '^\s*'
+        regex = r'^\s*'
         for (_, property_type, cols) in self.properties:
             this_regex = '('+Properties.per_atom_column_re[property_type]+')' + whitespace_re
             for col in range(cols):
                 regex += this_regex
         regex = re.sub('.' * len(whitespace_re) + '$', '', regex)
-        regex = re.compile(regex)
+        regex = re.compile(regex, flags=re.M)
         return regex
 
     @lazyproperty
@@ -486,10 +494,13 @@ def result_to_dict(result, verbose=0):
         print('input tree:')
         TreeDumper('input').visit(tree)
     tree = TreeCleaner().visit(tree)
-    tree = ExtractValues().visit(tree)
-    if verbose >= 2:
+    if verbose >= 3:
         print('cleaned tree:')
         TreeDumper('cleaned').visit(tree)
+    tree = ExtractValues().visit(tree)
+    if verbose >= 2:
+        print('cleaned and extracted tree:')
+        TreeDumper('extracted').visit(tree)
     tree = OneDimArrays().visit(tree)
     tree = OneDimToTwoDim().visit(tree)
     tree = TwoDimArrays().visit(tree)
@@ -511,6 +522,9 @@ def result_to_dict(result, verbose=0):
         if not isinstance(value, Value):
             raise ValueError(f'unsupported value {value}, key {key.value}')
         result_dict[key.value] = value.value
+
+    if properties is None:
+        properties = Properties("species:S:1:pos:R:3")
 
     lattice = extract_lattice(result_dict)
 
@@ -552,9 +566,15 @@ def read_frame(file, verbose=0, use_regex=True,
         line = next(file)
     except StopIteration:
         return None # end of file
+    if re.match(r'^\s*$', line):
+        # blank line assume end of file
+        return None
+
     natoms = int(line)
     comment = next(file)
     info, lattice, properties = read_comment_line(comment, verbose)
+    if len(info) == 0:
+        info['comment'] = comment.strip()
     if verbose:
         print('read_frame info = ')
         print("info")
@@ -590,11 +610,17 @@ def read_frame(file, verbose=0, use_regex=True,
                              f'and numbers {numbers}')
         symbols = None
 
+    if 'pbc' in info:
+        pbc = info['pbc']
+        del info['pbc']
+    else:
+        pbc = [True]*3
+
     atoms = Atoms(symbols=symbols,
                   numbers=numbers,
                   positions=positions,
-                  cell=lattice.T,
-                  pbc=lattice is not None) # FIXME or should we check for pbc in info?
+                  cell=lattice.T if lattice is not None else None,
+                  pbc=pbc) # FIXME or should we check for pbc in info?
 
     # work with a copy of arrays so we can remove results if necessary
     arrays = properties.get_arrays(atoms)
@@ -610,9 +636,9 @@ def read_frame(file, verbose=0, use_regex=True,
 
 def iread(file, use_cextxyz=False, **kwargs):
     own_fh = False
-    if isinstance(file, str):
+    if isinstance(file, str) or isinstance(file, PosixPath):
         if use_cextxyz:
-            file = cextxyz.cfopen(file, 'r')
+            file = cextxyz.cfopen(str(file), 'r')
             own_fh = True
         else:
             if file == '-':

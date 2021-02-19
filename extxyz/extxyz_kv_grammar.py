@@ -6,22 +6,34 @@ from pyleri import (Ref, Choice, Grammar, Regex, Keyword, Optional,
 properties_val_re = '([a-zA-Z_][a-zA-Z_0-9]*):([RILS]):([0-9]+)'
 simplestring_re = r'\S+'
 # any sequence surrounded by double quotes, with internal double quotes backslash escaped
-quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+dq_quotedstring_re = r'(")(?:(?=(\\?))\2.)*?\1'
+cb_quotedstring_re = r'{(?:[^{}]|\\[{}])*(?<!\\)}'
+sb_quotedstring_re = r'\[(?:[^\[\]]|\\[\[\]])*(?<!\\)\]'
 # string without quotes, some characters must be escaped 
 # <whitespace>=",}{][\
 barestring_re = r"""(?:[^\s=",}{\]\[\\]|(?:\\[\s=",}{\]\[\\]))+"""
-bare_int = r'(?:[0-9]|[1-9][0-9]+)'
-float_re = r'[+-]?(?:(?:0|[1-9][0-9]*)(?:[.][0-9]*)?|\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?'
-integer_re = r'[+-]?'+bare_int
-true_re =  r'(?:[tT]rue|TRUE|T)'
-false_re = r'(?:[fF]alse|FALSE|F)'
-bool_re = r'(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])'
+bare_int = r'(?:0|[1-9][0-9]*)'
+# pieces of float regexp
+opt_sign = r'[+-]?'
+float_dec = r'(?:'+bare_int+r'\.|\.)[0-9]*'
+exp = r'(?:[dDeE]'+opt_sign+r'[0-9]+)?'
+# can't put \b at the end, because that won't match after non-word '.'
+num_end = r'(?:\b|(?=\W)|$)'
+float_re = opt_sign + r'(?:' + float_dec + exp + r'|' + bare_int + exp + r'|' + bare_int + r')' + num_end
+# int can't have \b at the beginning, causes parser to not include sign as part of regexp match
+# \b at end ensures that parser does not consider only initial digit of number as a complete match
+integer_re = r'[+-]?'+bare_int+r'\b'
+true_re =  r'\b(?:[tT]rue|TRUE|T)\b'
+false_re = r'\b(?:[fF]alse|FALSE|F)\b'
+bool_re = r'\b(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])\b'
 whitespace_re = r'\s+'
 
 class ExtxyzKVGrammar(Grammar):
     r_barestring = Regex(barestring_re)
-    r_quotedstring = Regex(quotedstring_re)
-    r_string = Choice(r_barestring, r_quotedstring)
+    r_dq_quotedstring = Regex(dq_quotedstring_re)
+    r_cb_quotedstring = Regex(cb_quotedstring_re)
+    r_sb_quotedstring = Regex(sb_quotedstring_re)
+    r_string = Choice(r_barestring, r_dq_quotedstring, r_cb_quotedstring, r_sb_quotedstring)
 
     r_integer = Regex(integer_re)
     r_float = Regex(float_re)
@@ -39,8 +51,8 @@ class ExtxyzKVGrammar(Grammar):
     bools_sp = Repeat(Choice(r_true, r_false), mi=1)
     strings_sp = Repeat(r_string, mi=1)
 
-    old_one_d_array = Choice(Sequence('"', Choice(ints_sp, floats_sp, bools_sp), '"'),
-                             Sequence('{', Choice(ints_sp, floats_sp, bools_sp, strings_sp), '}'))
+    old_one_d_array = Choice(Sequence('"', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools), '"'),
+                             Sequence('{', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools, strings_sp, strings), '}'))
 
     one_d_array_i = Sequence('[', ints, ']')
     one_d_array_f = Sequence('[', floats, ']')
@@ -60,12 +72,12 @@ class ExtxyzKVGrammar(Grammar):
         r_float,
         r_true,
         r_false,
+        two_d_array,
         old_one_d_array,
         one_d_array_i,
         one_d_array_f,
         one_d_array_b,
         one_d_array_s,
-        two_d_array,
         r_string)
 
     kv_pair = Sequence(key_item, '=', val_item, Regex(r'\s*'))
