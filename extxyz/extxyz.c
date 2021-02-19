@@ -506,8 +506,10 @@ void free_data(void *data, enum data_type data_t, int nrows, int ncols) {
     free(data);
 }
 
-
 void free_dict(DictEntry *dict) {
+    if (!dict) {
+        return;
+    }
     DictEntry *next_entry = dict->next;
     for (DictEntry *entry = dict; entry; entry = next_entry) {
         if (entry->key) {
@@ -564,6 +566,7 @@ int read_line(char **line, int *line_len, FILE *fp) {
 }
 
 int appears_to_be_extxyz(DictEntry *info) {
+    // has Lattice or Cell or Properties
     int appears = 0;
     for (DictEntry *entry = info; entry; entry = entry->next) {
         if (entry->key) {
@@ -647,21 +650,24 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
     // actually parse
     cleri_parse_t * tree = cleri_parse(kv_grammar, line);
     if (tree->is_valid) {
-        // is fully parseable
+        // line is fully parseable
         char *err = tree_to_dict(tree, info);
         cleri_parse_free(tree);
         if (err) {
             // fail if we can't convert to extxyz-compatible dicts
+            free_dict(*info);
             free(line);
             return err;
         }
+        // here iff we fully parsed comment line
     } else {
-        warning = strcpy_malloc("WARNING: cleri failed to parse comment line, reverting to plain xyz", 0);
         // tree not parseable, must decide if it's extxyz and we should fail, or just
         // revert to plain xyz
+        warning = strcpy_malloc("WARNING: cleri failed to parse comment line, reverting to plain xyz", 0);
+
         char *err = tree_to_dict(tree, info);
         if (appears_to_be_extxyz(*info)) {
-            // failed to parse file that matches extxyz closely enough to not revert to plain xyz
+            // file appears to be close enough to extxyz, so we'll fail
             free(line);
             char *parsed_part = (char *)malloc((tree->tree->children->node->len+3) * sizeof(char));
             strcpy(parsed_part, "'");
@@ -669,16 +675,20 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
             strcat(parsed_part, "'");
             parsed_part[tree->tree->children->node->len+2] = 0;
             cleri_parse_free(tree);
+            free_dict(*info);
             return strcpy_malloc("ERROR: appears to be an extxyz, but parsing failed after ", parsed_part);
         } 
-        // revert to plain xyz, *info should be empty
+
+        // file is not so close to extxyz, revert to plain xyz
         cleri_parse_free(tree);
+        free_dict(*info);
+        *info = 0;
     }
 
     // grab and parse Properties string
     char *props = 0;
-    if ((*info)->key) {
-        // only try if first entry has key, otherwise must have parsed nothing
+    if (*info && (*info)->key) {
+        // parsing worked so info is allocated and has an entry with a key
         for (DictEntry *entry = *info; entry; entry = entry->next) {
             if (! strcmp(entry->key, "Properties")) {
                 if (entry->data_t != data_s) {
@@ -690,12 +700,12 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
             }
         }
         if (!props && !warning) {
-            warning = strcpy_malloc("WARNING: converted tree to dict, but no Properties tag, assuming plain xyz for atoms", 0);
+            warning = strcpy_malloc("WARNING: fully parsed comment line but no Properties tag, assuming plain xyz format 'species:S:1:pos:R:3' for atoms", 0);
         }
     } else {
         // nothing parsed, store entire line in "comment"
         if (!warning) {
-            warning = strcpy_malloc("WARNING: failed to convert tree to dict, reverting to plain xyz", 0);
+            warning = strcpy_malloc("WARNING: failed to parse comment line, reverting to plain xyz", 0);
         }
         init_DictEntry(*info, "comment", strlen("comment"));
         (*info)->data = (char **) malloc(sizeof(char *));
@@ -718,7 +728,7 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
         (*info)->data_t = data_s;
     }
     if (! props) {
-        // should we assume default xyz instead, and if so species or Z, or just species?
+        // if we got this far without props, revert to plain xyz format
         char *p = "species:S:1:pos:R:3";
         props = (char *) malloc((strlen(p)+1)*sizeof(char));
         strcpy(props, p);
