@@ -678,6 +678,10 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
         // only try if first entry has key, otherwise must have parsed nothing
         for (DictEntry *entry = *info; entry; entry = entry->next) {
             if (! strcmp(entry->key, "Properties")) {
+                if (entry->data_t != data_s) {
+                    free(line);
+                    return strcpy_malloc("ERROR: Properties is not a string", 0);
+                }
                 props = ((char **)(entry->data))[0];
                 break;
             }
@@ -794,9 +798,12 @@ char *extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry 
                 if (locally_allocated_props) { free(props); }
                 free(line); free(re_str);
                 char *err_msg = (char *) malloc ((strlen("Unknown property type '")+
-                                                  strlen("' for property '") + strlen(pf)+
+                                                  strlen("' for property '") + 1 +
                                                   strlen(cur_array->key) + strlen("'") + 1) * sizeof(char));
-                sprintf(err_msg, "Unknown property type '%s' for property '%s'", pf, cur_array->key, prop_i);
+                char *col_type_s = (char *) malloc(2*sizeof(char));
+                col_type_s[0] = col_type; col_type_s[1] = 0;
+                sprintf(err_msg, "Unknown property type '%s' for property '%s'", col_type_s, cur_array->key, prop_i);
+                free(col_type_s);
                 return strcpy_malloc("ERROR: ", err_msg);
         }
 
