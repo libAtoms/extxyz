@@ -123,51 +123,42 @@ def cfclose(fp):
     fclose(fp)
 
 
-def read_frame(fp, verbose=False, create_calc=False, calc_prefix='', **kwargs):
+def read_frame_dicts(fp, verbose=False):
+    """Read a single frame using extxyz_read_ll() C function
+
+    Args:
+        fp (FILE_ptr): open file pointer, as returned by `cfopen()`
+        verbose (bool, optional): Dump C dictionaries to stdout. Defaults to False.
+
+    Returns:
+        nat, info, arrays: int, dict, dict
+    """
     nat = ctypes.c_int()
     info = Dict_entry_ptr()
     arrays = Dict_entry_ptr()
+    eof = False
 
-    if not extxyz.extxyz_read_ll(_kv_grammar,
-                                 fp,
-                                 ctypes.byref(nat),
-                                 ctypes.byref(info),
-                                 ctypes.byref(arrays)):
-        return None
+    try:
+        if not extxyz.extxyz_read_ll(_kv_grammar,
+                                    fp,
+                                    ctypes.byref(nat),
+                                    ctypes.byref(info),
+                                    ctypes.byref(arrays)):
+            eof = True
+            raise EOFError()
 
-    if verbose:
-        extxyz.print_dict(info)
-        extxyz.print_dict(arrays)
+        verbose = True
+        if verbose:
+            extxyz.print_dict(info)
+            extxyz.print_dict(arrays)
 
-    py_info = c_to_py_dict(info, deepcopy=True)
-    py_arrays = c_to_py_dict(arrays, deepcopy=True)
+        py_info = c_to_py_dict(info, deepcopy=True)
+        print('cextxyz.py property string', py_info['Properties'])
+        py_arrays = c_to_py_dict(arrays, deepcopy=True)
 
-    if 'Properties' in py_info:
-        # if it was not specified, assumed species:S:1:pos:R:3 but didn't create and info
-        # dict entry
-        py_info.pop('Properties')
-    if 'Lattice' in py_info:
-        cell = py_info.pop('Lattice').reshape((3, 3), order='F').T
-    else:
-        cell = None
-    symbols = py_arrays.pop('species')
-    positions = py_arrays.pop('pos')
+    finally:
+        if not eof:
+            extxyz.free_dict(info)
+            extxyz.free_dict(arrays)
 
-    atoms = Atoms(symbols=symbols,
-                    positions=positions,
-                    cell=cell,
-                    pbc=py_info.get('pbc'))  # FIXME consistent pbc semantics
-
-    # optionally create a SinglePointCalculator from stored results
-    if create_calc:
-        atoms.calc = create_single_point_calculator(atoms, py_info, py_arrays,
-                                                    calc_prefix=calc_prefix)
-    atoms.info.update(py_info)
-    atoms.arrays.update(py_arrays)
-
-    assert len(atoms) == nat.value
-
-    extxyz.free_dict(info)
-    extxyz.free_dict(arrays)
-
-    return atoms
+    return nat.value, py_info, py_arrays

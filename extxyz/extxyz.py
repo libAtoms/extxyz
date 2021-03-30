@@ -188,7 +188,8 @@ class ExtractValues(NodeTransformer):
     visit_r_false = visit_r_true
 
     def visit_strings(self, node):
-        return Value([c.string if '_quotedstring' not in c.element.name else ExtractValues.clean_qs(c.string) for c in node.children])
+        return Value([c.string if '_quotedstring' not in c.element.name
+                      else ExtractValues.clean_qs(c.string) for c in node.children])
 
     visit_strings_sp = visit_strings
 
@@ -318,7 +319,7 @@ class Properties:
         'symbols': ('species', None),
         'numbers': ('Z', None),
         'masses': ('mass', None), # FIXME should we convert amu to QUIP mass units?
-        'momenta': ('velo', velo_to_momenta)
+        'momenta': ('velo', momenta_to_velo)
     }
     
     # regular expressions for data columns, imported from grammar definition
@@ -330,10 +331,10 @@ class Properties:
     }
     
     default_format_dict = {
-        'R':    '%16.8f',
-        'I':      '%8d',
-        'S':      '%s',
-        'L':     '%.1s'
+        'R': '%16.8f',
+        'I': '%8d',
+        'S': '%s',
+        'L': '%.1s'
     }
 
     def __init__(self, property_string=None, properties=None, format_dict=None, data=None):
@@ -510,85 +511,84 @@ def result_to_dict(result, verbose=0):
 
     # now we should have a flat list of (key, value) pairs
     result_dict = {}
-    properties = None
     for (key, value) in [node.children for node in tree.children]:
-        if key.value == 'properties':
-            if properties is not None:
-                raise KeyError(f'Duplicate properties entry {value.value}')
-            properties = Properties(property_string=value.value)
-            continue
         if key.value in result_dict:
             raise KeyError(f'duplicate key {key.value}')
         if not isinstance(value, Value):
             raise ValueError(f'unsupported value {value}, key {key.value}')
         result_dict[key.value] = value.value
 
-    if properties is None:
-        properties = Properties("species:S:1:pos:R:3")
+    return result_dict
 
-    lattice = extract_lattice(result_dict)
-
-    return result_dict, lattice, properties
-
-tg = 0.0
-td = 0.0
-tw = 0.0
-ta = 0.0
 
 def read_comment_line(line, verbose=0):
     """
     Use pyleri to parse an extxyz comment line
     """
-    global tg, td
-
-    t0 = time.time()
     result = grammar.parse(line)
-    tg += time.time() - t0
     parsed_part = result.tree.children[0].string
     if not result.is_valid:
         raise SyntaxError(f"Failed to parse entire input line, only '{parsed_part}'. "
                           f'Expecting one of : {result.expecting}')
-    t0 = time.time()
-    d = result_to_dict(result, verbose=verbose)
-    td += time.time() - t0
-    return d
+    return result_to_dict(result, verbose=verbose)
 
 
-def read_frame(file, verbose=0, use_regex=True,
-               create_calc=False, calc_prefix=''):
-    """
-    Read a single frame in extxyz format from `file`.
-    """
-    global ta
-    
+def read_frame_dicts(file, verbose=0, use_regex=True):
     file = iter(file)
     try:
         line = next(file)
     except StopIteration:
-        return None # end of file
+        raise EOFError()
     if re.match(r'^\s*$', line):
         # blank line assume end of file
-        return None
+        raise EOFError()
 
     natoms = int(line)
     comment = next(file)
-    info, lattice, properties = read_comment_line(comment, verbose)
+    info = read_comment_line(comment, verbose)
     if len(info) == 0:
         info['comment'] = comment.strip()
     if verbose:
         print('read_frame info = ')
         print("info")
         pprint(info)
-        print(f'lattice = {repr(lattice)}')
-        print(f'properties = {repr(properties)}')
-    t0 = time.time()
+        
+    properties = info.get('Properties', 'species:S:1:pos:R:3')
+    print('extxyz.py property string', properties)
+    properties = Properties(property_string=properties)
+
     if use_regex:
         lines = [next(file) for line in range(natoms)]
         buffer = StringIO(''.join(lines))
-        properties.data = np.fromregex(buffer, properties.regex, properties.dtype_scalar)
+        data = np.fromregex(buffer, properties.regex, properties.dtype_scalar)
     else:
-        properties.data = np.genfromtxt(file, properties.dtype_vector, max_rows=natoms)
-    ta += time.time() - t0
+        data = np.genfromtxt(file, properties.dtype_vector, max_rows=natoms)
+        
+    return natoms, info, data, properties   
+
+
+def read_frame(file, verbose=0, use_cextxyz=True,
+               use_regex=True, create_calc=False, calc_prefix=''):
+    """
+    Read a single frame in extxyz format from `file`.
+    """
+
+    try:
+        if use_cextxyz:
+            natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose)        
+            properties = info.get('Properties', 'species:S:1:pos:R:3')
+            properties = Properties(properties)
+            data = np.zeros(natoms, properties.dtype_vector)
+            for name, value in arrays.items():
+                data[name] = value            
+        else:
+            natoms, info, data, properties = read_frame_dicts(file, verbose=verbose, 
+                                                                use_regex=use_regex)
+    except EOFError:
+        return None
+    
+    properties.data = data
+    lattice = extract_lattice(info)
 
     names = list(properties.dtype_vector.names)
     assert 'pos' in names
@@ -620,7 +620,7 @@ def read_frame(file, verbose=0, use_regex=True,
                   numbers=numbers,
                   positions=positions,
                   cell=lattice.T if lattice is not None else None,
-                  pbc=pbc) # FIXME or should we check for pbc in info?
+                  pbc=pbc)
 
     # work with a copy of arrays so we can remove results if necessary
     arrays = properties.get_arrays(atoms)
@@ -648,10 +648,9 @@ def iread(file, use_cextxyz=False, **kwargs):
                 own_fh = True
     try:
         while file:
-            if use_cextxyz:
-                atoms = cextxyz.read_frame(file, **kwargs)
-            else:
-                atoms = read_frame(file, **kwargs)
+            atoms = read_frame(file, 
+                               use_cextxyz=use_cextxyz, 
+                               **kwargs)
             if atoms is None:
                 break
             yield atoms
@@ -823,7 +822,7 @@ if __name__ == '__main__':
             pprint(atoms.info)
             pprint(atoms.arrays)
 
-    print('TIMER grammar.parse', tg, 'result_to_dict', td, 'read atoms', ta, 'read total', tr)
+    print('TIMER read', tr)
 
     if args.write:
         t0 = time.time()
