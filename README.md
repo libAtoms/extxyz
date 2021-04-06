@@ -70,7 +70,7 @@ string of one or more decimal digits, optionally preceded by sign
     optional \[dDeE\] folllowed by exponent consisting of optional sign followed by string of 
     one or more digits
 *   regex
-    * integer without leading sing bare\_int = '(?:0|\[1\-9\]\[0\-9\]\*)'
+    * integer without leading sign bare\_int = '(?:0|\[1\-9\]\[0\-9\]\*)'
     * optional sign opt\_sign = '\[\+\-\]?'
     * floating number with decimal point float\_dec = '(?:' \+ bare\_int \+ '\\\.|\\\.)\[0\-9\]\*'
     * exponent exp = '(?:\[dDeE\]'+opt_sign+'\[0\-9\]\+)?'
