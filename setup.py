@@ -1,13 +1,13 @@
 import subprocess
 from setuptools import setup
-from distutils.command.install import install as _install
+from distutils.command.build_clib import build_clib as _build_clib
 
 
-class install(_install):
+class build_clib(_build_clib):
     def run(self):
         subprocess.call(['make', 'clean', '-C', 'extxyz'])
         subprocess.call(['make', '-C', 'extxyz'])
-        _install.run(self)
+        _build_clib.run(self)
 
 setup(
     name='extxyz',
@@ -15,6 +15,6 @@ setup(
     author='various',
     packages=['extxyz'],
     package_data={'extxyz': ['_extxyz.so']},
-    cmdclass={'install': install},
+    cmdclass={'build_clib': build_clib},
 )
 
