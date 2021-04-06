@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <pcre.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 #include <cleri/cleri.h>
 
 #include "extxyz_kv_grammar.h"
@@ -746,40 +747,48 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // tack on to EOL
     strcat_realloc(&re_str, &re_str_len, re_at_eol);
 
-    const char *pcre_error;
-    int erroffset;
-    pcre *re = pcre_compile(re_str, 0, &pcre_error, &erroffset, NULL);
-    if (pcre_error != 0) {
+    // should consider doing string types more carefully, e.g. as shown in
+    // https://www.pcre.org/current/doc/html/pcre2demo.html 
+    // with PCRE2_SPTR
+    int pcre2_error;
+    PCRE2_SIZE erroffset;
+    pcre2_code *re = pcre2_compile(re_str, PCRE2_ZERO_TERMINATED, 0, &pcre2_error, &erroffset, NULL);
+    if (pcre2_error != 0) {
         fprintf(stderr, "ERROR compiling pcre pattern for atoms lines offset %d re '%s'\n", erroffset, re_str);
     }
-    // this will not work with exactly 3*tot_col_num, for reasons that are
-    // apparetntly explained in the PCRE docs 
-    // ("There  are  some  cases where zero is returned"...)
-    int ovector_len = 3*tot_col_num+3;
-    int *ovector = (int *) malloc(ovector_len * sizeof(int));
-    // pcre_study?
+    pcre2_match_data *match_data;
+    match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
     // read per-atom data
     for (int li=0; li < (*nat); li++) {
         stat = read_line(&line, &line_len, fp);
         if (! stat) {
+            pcre2_match_data_free(match_data); pcre2_code_free(re);
             free(line); free(re_str);
             return 0;
         }
 
         // read data with PCRE + atoi/f
         // apply PCRE
-        int rc = pcre_exec(re, NULL, line, strlen(line), 0, 0, ovector, ovector_len);
+        int rc = pcre2_match(re, line, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL);
         if (rc != tot_col_num+1) {
-            if (rc > 0) {
-                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d at subgroup %d\n", li, rc-1);
+            if (rc < 0) {
+                if (rc == PCRE2_ERROR_NOMATCH) {
+                    fprintf(stderr, "ERROR: pcre2 regexp got NOMATCH on atom line %d\n", li);
+                } else {
+                    fprintf(stderr, "ERROR: pcre2 regexp got error %d on atom line %d %d\n", rc, li);
+                }
+            } else if (rc == 0) {
+                fprintf(stderr, "ERROR: pcre2 regexp got match_data not big enough (should never happen) on atom line %d %d\n", li);
             } else {
-                fprintf(stderr, "ERROR: failed to apply pcre regexp to atom line %d error %d\n", li, rc);
+                fprintf(stderr, "ERROR: pcre2 regexp failed on atom line %d at group %d\n", li, rc-1);
             }
+            pcre2_match_data_free(match_data); pcre2_code_free(re);
             free(line); free(re_str);
             return 0;
         }
         // loop through parsed strings and fill in allocated data structures
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
         int field_i = 1;
         for (DictEntry *cur_array = *arrays; cur_array; cur_array = cur_array->next) {
             int nc = cur_array->ncols;
@@ -834,6 +843,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
 
     // return true
+    pcre2_match_data_free(match_data); pcre2_code_free(re);
     free(line); free(re_str);
     return 1;
 }
