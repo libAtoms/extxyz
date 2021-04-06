@@ -272,8 +272,12 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 if (*in_old_one_d && (*cur_entry)->n_in_row == 1) {
                     // special case old 1-d arrays with one entry as scalar
                     (*cur_entry)->ncols = 0;
-                    // should we also do 9-vector to 3x3 matrix?
-                } else{
+                } else if (*in_old_one_d && (*cur_entry)->n_in_row == 9) {
+                    // special case old 1-d arrays with 9 entries as 3x3
+                    (*cur_entry)->ncols = 3;
+                    (*cur_entry)->nrows = 3;
+                } else {
+                    // 1-d array
                     (*cur_entry)->ncols = (*cur_entry)->n_in_row;
                 }
                 (*cur_entry)->n_in_row = 0;
