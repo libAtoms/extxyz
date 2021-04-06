@@ -1,0 +1,3 @@
+[submodule "extxyz/libcleri"]
+	path = extxyz/libcleri
+	url = https://github.com/transceptor-technology/libcleri
