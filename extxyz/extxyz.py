@@ -267,6 +267,8 @@ def extract_lattice(result_dict):
             lattice = lattice.astype(float)
         elif lattice.shape == (3,):
             lattice = np.diag(lattice).astype(float)
+        elif lattice.shape == (9,):
+            lattice = np.reshape(lattice, (3, 3), order='F').astype(float)
         else:
             raise ValueError(f'Lattice has wrong shape {lattice.shape}')
     return lattice

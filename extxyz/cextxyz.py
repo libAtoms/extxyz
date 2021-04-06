@@ -1,5 +1,7 @@
 import os
 import ctypes
+from ctypes.util import find_library
+
 import copy
 
 import numpy as np
@@ -106,8 +108,8 @@ def c_to_py_dict(c_dict, deepcopy=False):
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
 
-libc = ctypes.CDLL("/usr/lib/libc.dylib")
-
+libc_path = find_library('c')
+libc = ctypes.CDLL(libc_path)
 
 def cfopen(filename, mode):
     fopen = libc.fopen
