@@ -274,8 +274,9 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     (*cur_entry)->ncols = 0;
                 } else if (*in_old_one_d && (*cur_entry)->n_in_row == 9) {
                     // special case old 1-d arrays with 9 entries as 3x3
-                    (*cur_entry)->ncols = 3;
-                    (*cur_entry)->nrows = 3;
+                    // negative value is ugly hack to indicate that data should be transposed
+                    (*cur_entry)->ncols = -3;
+                    (*cur_entry)->nrows = -3;
                 } else {
                     // 1-d array
                     (*cur_entry)->ncols = (*cur_entry)->n_in_row;
@@ -324,6 +325,18 @@ void dump_tree(cleri_node_t *node, char *prefix) {
     }
 
     free(new_prefix);
+}
+
+
+int opt_transpose(int i, int nrows, int ncols) {
+    if (nrows < 0 || ncols < 0) {
+        // < 0 indicates a transpose (e.g. old-style 9-elem vector -> 3x3)
+        int icol = i / abs(ncols);
+        int irow = i % abs(ncols);
+        return irow*abs(nrows) + icol;
+    } else{
+        return i;
+    }
 }
 
 
@@ -391,29 +404,35 @@ int DataLinkedList_to_data(DictEntry *dict) {
             if (entry->data_t == data_i) {
                 entry->data = (int *) malloc(n_items*sizeof(int));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    ((int *)(entry->data))[i] = data_item->data.i;
+                    ((int *)(entry->data))[opt_transpose(i, entry->nrows, entry->ncols)] = data_item->data.i;
                 }
             } else if (entry->data_t == data_f) {
                 entry->data = (double *) malloc(n_items*sizeof(double));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
                     if (data_item->data_t == data_f) {
-                        ((double *)(entry->data))[i] = data_item->data.f;
+                        ((double *)(entry->data))[opt_transpose(i, entry->nrows, entry->ncols)] = data_item->data.f;
                     } else {
-                        ((double *)(entry->data))[i] = data_item->data.i;
+                        ((double *)(entry->data))[opt_transpose(i, entry->nrows, entry->ncols)] = data_item->data.i;
                     }
                 }
             } else if (entry->data_t == data_b) {
                 entry->data = (int *) malloc(n_items*sizeof(int));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    ((int *)(entry->data))[i] = data_item->data.b;
+                    ((int *)(entry->data))[opt_transpose(i, entry->nrows, entry->ncols)] = data_item->data.b;
                 }
             } else if (entry->data_t == data_s) {
                 // allocate array of char pointers, but actual string content
                 // will be just copied pointers
                 entry->data = (char **) malloc(n_items*sizeof(char *));
                 for (int i=0; i < n_items; i++, data_item = data_item->next) {
-                    ((char **)(entry->data))[i] = data_item->data.s;
+                    ((char **)(entry->data))[opt_transpose(i, entry->nrows, entry->ncols)] = data_item->data.s;
                 }
+            }
+            if (entry->nrows < 0 || entry->ncols < 0) {
+                // < 0 indicates a transpose is needed
+                int t = abs(entry->nrows);
+                entry->nrows = abs(entry->ncols);
+                entry->ncols = t;
             }
         }
 

@@ -1,4 +1,5 @@
 import pytest
+import os
 
 from pathlib import Path
 import numpy as np
@@ -7,8 +8,11 @@ from extxyz.extxyz import read
 
 verbose = 0
 
-kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
-                    { 'use_regex' : False, 'use_cextxyz' : True  } ]
+if 'USE_CEXTXYZ' in os.environ:
+    kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
+else:
+    kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
+                        { 'use_regex' : False, 'use_cextxyz' : True  } ]
 
 
 
@@ -19,6 +23,7 @@ class Helpers:
         for read_kwargs in kwargs_variants:
             ats_variants.append(read(filename, verbose=verbose, **read_kwargs))
         return ats_variants
+
 
     @staticmethod
     def do_test_kv_pair(path, key, val, kv_str):
@@ -74,6 +79,7 @@ class Helpers:
                                 Helpers.do_test_kv_pair(path, 'array', v_array,
                                     'array=' + do + global_pre_sp + v_str + global_post_sp + dc)
 
+
     @staticmethod
     def do_test_one_d_array(path, strings, ns=None, is_string=False):
         if ns is None:
@@ -88,6 +94,7 @@ class Helpers:
                 selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
                 selected  = [strings[i] for i in selected_inds]
                 Helpers.do_one_d_variants(path, is_string, ntot, [s[0] for s in selected], [s[1] for s in selected])
+
 
     @staticmethod
     def do_two_d_variants(path, nrow, ncol, v_array, v_str_array):
