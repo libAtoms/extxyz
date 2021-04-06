@@ -530,7 +530,6 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     char *line;
     int line_len;
     int line_len_init = 1024;
-    int locally_allocated_props=0;
 
     // from here on every return should free line first;
     line_len  = line_len_init;
@@ -584,11 +583,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         // only try if first entry has key, otherwise must have parsed nothing
         for (DictEntry *entry = *info; entry; entry = entry->next) {
             if (! strcmp(entry->key, "Properties")) {
-                props = ((char **)(entry->data))[0];
+                // copy into props, so strtok doesn't modify copy in info dict
+                char *p = ((char **)(entry->data))[0];
+                props = (char *) malloc((strlen(p)+1)*sizeof(char));
+                strcpy(props, p);
                 break;
             }
         }
     } else {
+        // nothing parsable, just store line in "comment" dict entry
         init_DictEntry(*info, "comment", strlen("comment"));
         (*info)->data = (char **) malloc(sizeof(char *));
         ((char **)(*info)->data)[0] = (char *) malloc((strlen(line)+1) * sizeof(char));
@@ -610,11 +613,11 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         (*info)->data_t = data_s;
     }
     if (! props) {
+        // either nothing parsed, or something parsed but no Properties
         // should we assume default xyz instead, and if so species or Z, or just species?
         char *p = "species:S:1:pos:R:3";
         props = (char *) malloc((strlen(p)+1)*sizeof(char));
         strcpy(props, p);
-        locally_allocated_props = 1;
         // fprintf(stderr, "ERROR: failed to find Properties keyword");
         // free(line);
         // return 0;
@@ -647,7 +650,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
             fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
-            if (locally_allocated_props) { free(props); }
+            free(props);
             free(line); free(re_str);
             return 0;
         }
@@ -659,7 +662,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
             fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
-            if (locally_allocated_props) { free(props); }
+            free(props);
             free(line); free(re_str);
             return 0;
         }
@@ -695,7 +698,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
-                if (locally_allocated_props) { free(props); }
+                free(props);
                 free(line); free(re_str);
                 return 0;
         }
@@ -713,9 +716,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         tot_col_num += col_num;
     }
 
-    if (locally_allocated_props) {
-        free(props);
-    }
+    free(props);
 
     // trim off last \s+
     re_str[strlen(re_str)-3] = 0;
