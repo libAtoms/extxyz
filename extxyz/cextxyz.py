@@ -155,7 +155,6 @@ def read_frame_dicts(fp, verbose=False):
             extxyz.print_dict(arrays)
 
         py_info = c_to_py_dict(info, deepcopy=True)
-        print('cextxyz.py property string', py_info['Properties'])
         py_arrays = c_to_py_dict(arrays, deepcopy=True)
 
     finally:
