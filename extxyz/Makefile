@@ -29,7 +29,7 @@ parse_C: parse_C.c extxyz.c extxyz_kv_grammar.c extxyz_kv_grammar.h
 	gcc -g -I/opt/local/include -I${HOME}/libcleri/include extxyz_kv_grammar.c extxyz.c parse_C.c ${LIBCLERI_PATH}/libcleri.a ${PCRE2_LIBS} -o $@
 
 _extxyz.so: libcleri extxyz.c extxyz_kv_grammar.c extxyz_kv_grammar.h
-	gcc -shared -g -I/opt/local/include -I${HOME}/libcleri/include extxyz_kv_grammar.c extxyz.c ${LIBCLERI_PATH}/libcleri.a ${PCRE2_LIBS} -o $@
+	gcc -fPIC -shared -g -I/opt/local/include -I${HOME}/libcleri/include extxyz_kv_grammar.c extxyz.c ${LIBCLERI_PATH}/libcleri.a ${PCRE2_LIBS} -o $@
 
 clean:
 	rm -rf extxyz_kv_grammar.c extxyz_kv_grammar.h atoms_lines_tokenize_NB parser_NB parse_headers _extxyz.so _extxyz.so.DSYM
