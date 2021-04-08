@@ -5,7 +5,7 @@
  * should be used with the libcleri module.
  *
  * Source class: ExtxyzKVGrammar
- * Created at: 2021-02-18 15:00:29
+ * Created at: 2021-04-08 10:13:59
  */
 #ifndef CLERI_EXPORT_EXTXYZ_KV_GRAMMAR_H_
 #define CLERI_EXPORT_EXTXYZ_KV_GRAMMAR_H_
@@ -53,3 +53,9 @@ enum cleri_grammar_ids {
 
 #endif /* CLERI_EXPORT_EXTXYZ_KV_GRAMMAR_H_ */
 
+
+#define WHITESPACE_RE "\\s+"
+#define SIMPLESTRING_RE "\\S+"
+#define INTEGER_RE "[+-]?(?:0|[1-9][0-9]*)\\b"
+#define FLOAT_RE "[+-]?(?:(?:(?:0|[1-9][0-9]*)\\.|\\.)[0-9]*(?:[dDeE][+-]?[0-9]+)?|(?:0|[1-9][0-9]*)(?:[dDeE][+-]?[0-9]+)?|(?:0|[1-9][0-9]*))(?:\\b|(?=\\W)|$)"
+#define BOOL_RE "\\b(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])\\b"
