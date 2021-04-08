@@ -38,13 +38,16 @@ class NoSuffixBuilder(setuptools__build_ext):
         return filename.replace(suffix, "") + ext
 
 
-pcre2_prefix = subprocess.run(['pcre2-config', '--prefix'], capture_output=True).stdout.decode('utf-8').strip()
+pcre2_cflags = subprocess.run(['pcre2-config', '--cflags'], capture_output=True).stdout.decode('utf-8').strip().split()
+pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
+# should we also capture other flags to pass to extra_compile_flags?
+
 pcre2_libs = subprocess.run(['pcre2-config', '--libs8'], capture_output=True).stdout.decode('utf-8').strip().split()
 pcre2_library_dirs = [l.replace('-L', '', 1) for l in pcre2_libs if l.startswith('-L')]
 pcre2_libraries = [l.replace('-l', '', 1) for l in pcre2_libs if l.startswith('-l')]
 
 _extxyz_ext = Extension('extxyz._extxyz', sources=['extxyz/extxyz_kv_grammar.c', 'extxyz/extxyz.c'],
-                        include_dirs=['libcleri/inc', 'extxyz', pcre2_prefix+'/include'], 
+                        include_dirs=['libcleri/inc', 'extxyz'] + pcre2_include_dirs,
                         library_dirs=pcre2_library_dirs, libraries=pcre2_libraries,
                         extra_compile_args=['-fPIC'], extra_objects=['libcleri/Release/libcleri.a'])
 
