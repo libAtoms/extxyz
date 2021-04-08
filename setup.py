@@ -1,3 +1,4 @@
+import sysconfig
 import os
 import subprocess
 from setuptools import setup, Extension
@@ -5,6 +6,7 @@ from setuptools import setup, Extension
 from setuptools.command.install import install as setuptools__install
 from setuptools.command.develop import develop as setuptools__develop
 from setuptools.command.egg_info import egg_info as setuptools__egg_info
+from setuptools.command.build_ext import build_ext as setuptools__build_ext
 
 
 class install(setuptools__install):
@@ -27,6 +29,14 @@ class egg_info(setuptools__egg_info):
         subprocess.call(['make', '-C', 'extxyz', 'LIBCLERI_PATH=${PWD}/libcleri/Release', 'libcleri'])
         setuptools__egg_info.run(self)
 
+# https://stackoverflow.com/questions/60284403/change-output-filename-in-setup-py-distutils-extension
+class NoSuffixBuilder(setuptools__build_ext):
+    def get_ext_filename(self, ext_name):
+        filename = super().get_ext_filename(ext_name)
+        suffix = sysconfig.get_config_var('EXT_SUFFIX')
+        ext = os.path.splitext(filename)[1]
+        return filename.replace(suffix, "") + ext
+
 
 pcre2_prefix = subprocess.run(['pcre2-config', '--prefix'], capture_output=True).stdout.decode('utf-8').strip()
 pcre2_libs = subprocess.run(['pcre2-config', '--libs8'], capture_output=True).stdout.decode('utf-8').strip().split()
@@ -44,7 +54,7 @@ setup(
     version='0.0.1b',
     author='various',
     packages=['extxyz'],
-    cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info},
+    cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info, 'build_ext': NoSuffixBuilder},
     include_package_data=True,
     ext_modules=[_extxyz_ext],
 )
