@@ -1,14 +1,31 @@
 import subprocess
 from setuptools import setup
-from distutils.command.install import install as DistutilsInstall
+# as per https://stackoverflow.com/questions/19569557/pip-not-picking-up-a-custom-install-cmdclass
+from setuptools.command.install import install as setuptools__install
+from setuptools.command.develop import develop as setuptools__develop
+from setuptools.command.egg_info import egg_info as setuptools__egg_info
 
 
-
-class MyInstall(DistutilsInstall):
+class install(setuptools__install):
     def run(self):
         subprocess.call(['make', '-C', 'extxyz', 'clean'])
         subprocess.call(['make', '-C', 'extxyz', 'LIBCLERI_PATH=${PWD}/libcleri/Release'])
-        DistutilsInstall.run(self)
+        setuptools__install.run(self)
+
+
+class develop(setuptools__develop):
+    def run(self):
+        subprocess.call(['make', '-C', 'extxyz', 'clean'])
+        subprocess.call(['make', '-C', 'extxyz', 'LIBCLERI_PATH=${PWD}/libcleri/Release'])
+        setuptools__develop.run(self)
+
+
+class egg_info(setuptools__egg_info):
+    def run(self):
+        subprocess.call(['make', '-C', 'extxyz', 'clean'])
+        subprocess.call(['make', '-C', 'extxyz', 'LIBCLERI_PATH=${PWD}/libcleri/Release'])
+        setuptools__egg_info.run(self)
+
 
 setup(
     name='extxyz',
@@ -16,6 +33,6 @@ setup(
     author='various',
     packages=['extxyz'],
     package_data={'extxyz': ['_extxyz.so']},
-    cmdclass={'install': MyInstall},
+    cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info},
 )
 
