@@ -4,12 +4,8 @@ PCRE2_LIBS=$(shell pcre2-config --libs8 )
 default: extxyz_kv_grammar.c extxyz_kv_grammar.h _extxyz.so
 
 libcleri:
-	cp ${LIBCLERI_PATH}/makefile ${LIBCLERI_PATH}/makefile.extxyz
-	cat <<EOF
-libcleri.a: $(OBJS) $(USER_OBJS)
-	ar rcs libcleri.a $(OBJS) $(USER_OBJS)
-	EOF >> ${LIBCLERI_PATH}/makefile.extxyz
-	make -C ${LIBCLERI_PATH} libcleri.a
+	cat ${LIBCLERI_PATH}/makefile libcleri_makefile_addition > ${LIBCLERI_PATH}/makefile.extxyz
+	make -C ${LIBCLERI_PATH} -f makefile.extxyz libcleri.a
 
 extxyz_kv_grammar.c extxyz_kv_grammar.h: extxyz_kv_grammar.py
 	python3 extxyz_kv_grammar.py

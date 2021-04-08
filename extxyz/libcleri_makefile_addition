@@ -1,0 +1,2 @@
+libcleri.a: $(OBJS) $(USER_OBJS)
+	ar rcs libcleri.a $(OBJS) $(USER_OBJS)

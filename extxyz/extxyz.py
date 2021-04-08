@@ -555,8 +555,7 @@ def read_frame_dicts(file, verbose=0, use_regex=True):
         print("info")
         pprint(info)
         
-    properties = info.get('Properties', 'species:S:1:pos:R:3')
-    print('extxyz.py property string', properties)
+    properties = info.get('properties', 'species:S:1:pos:R:3')
     properties = Properties(property_string=properties)
 
     if use_regex:

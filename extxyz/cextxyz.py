@@ -149,7 +149,6 @@ def read_frame_dicts(fp, verbose=False):
             eof = True
             raise EOFError()
 
-        verbose = True
         if verbose:
             extxyz.print_dict(info)
             extxyz.print_dict(arrays)
