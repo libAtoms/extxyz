@@ -635,7 +635,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
     return atoms
 
 
-def iread(file, use_cextxyz=False, **kwargs):
+def iread(file, use_cextxyz=True, **kwargs):
     own_fh = False
     if isinstance(file, str) or isinstance(file, PosixPath):
         if use_cextxyz:
