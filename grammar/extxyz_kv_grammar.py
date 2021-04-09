@@ -96,8 +96,7 @@ def to_C_str(s):
 
 def write_grammar(dest_dir): 
     src, hdr = ExtxyzKVGrammar().export_c(target='extxyz_kv_grammar', c_indent=' ' * 4)
-    with (open(f'{dest_dir}/extxyz_kv_grammar.c', 'w') as fsrc, 
-          open(f'{dest_dir}/extxyz_kv_grammar.h', 'w') as fhdr):
+    with open(f'{dest_dir}/extxyz_kv_grammar.c', 'w') as fsrc, open(f'{dest_dir}/extxyz_kv_grammar.h', 'w') as fhdr:
         fsrc.write(src)
         fhdr.write(hdr)
 
