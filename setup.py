@@ -15,6 +15,7 @@ def build_grammar():
     py_grammar_file = pathlib.Path('./grammar/extxyz_kv_grammar.py')
     c_grammar_file = pathlib.Path('./c/extxyz_kv_grammar.c')
 
+    print('cwd', os.getcwd()')
     if not c_grammar_file.exists() or (py_grammar_file.stat().st_mtime > c_grammar_file.stat().st_mtime):
         sys.path.insert(0, './python/extxyz')
         import extxyz_kv_grammar
