@@ -91,8 +91,18 @@ class ExtxyzKVGrammar(Grammar):
 
     START = Repeat(all_kv_pair)
 
+def to_C_str(s):
+    return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
 if __name__ == '__main__':
     src, hdr = ExtxyzKVGrammar().export_c( target='extxyz_kv_grammar', c_indent=' ' * 4)
     with open('extxyz_kv_grammar.c', 'w') as fsrc, open('extxyz_kv_grammar.h', 'w') as fhdr:
         fsrc.write(src)
         fhdr.write(hdr)
+
+        fhdr.write('\n')
+        fhdr.write('#define WHITESPACE_RE ' + to_C_str(whitespace_re) + '\n')
+        fhdr.write('#define SIMPLESTRING_RE ' + to_C_str(simplestring_re) + '\n')
+        fhdr.write('#define INTEGER_RE ' + to_C_str(integer_re) + '\n')
+        fhdr.write('#define FLOAT_RE ' + to_C_str(float_re) + '\n')
+        fhdr.write('#define BOOL_RE ' + to_C_str(bool_re) + '\n')

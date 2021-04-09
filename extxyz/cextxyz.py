@@ -43,8 +43,9 @@ Dict_entry_struct._fields_ = [("key", ctypes.c_char_p),
 
 Dict_entry_ptr = ctypes.POINTER(Dict_entry_struct)
 
-extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                        '_extxyz.so')
+# _extxyz.so is actually created as a python extension, but custom builder is
+# used to make the name just _extxyz.so, rather than _extxyz.cpython-<vers>-<os>.so
+extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)), '_extxyz.so')
 extxyz = ctypes.CDLL(extxyz_so)
 
 extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr

@@ -9,8 +9,6 @@
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
 
-#define MAX_RE_LEN 10240
-
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     if (key) {
         if (key_len <= 0) {
@@ -700,22 +698,22 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             case 'I':
                 cur_array->data_t = data_i;
                 cur_array->data = malloc(((*nat)*col_num)*sizeof(int));
-                this_re = "[+-]?[0-9]+";
+                this_re = INTEGER_RE; // "[+-]?[0-9]+";
                 break;
             case 'R':
                 cur_array->data_t = data_f;
                 cur_array->data = malloc(((*nat)*col_num)*sizeof(double));
-                this_re = "[+-]?(?:[0-9]+[.]?[0-9]*|\\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?";
+                this_re = FLOAT_RE; // "[+-]?(?:[0-9]+[.]?[0-9]*|\\.[0-9]+)(?:[dDeE][+-]?[0-9]+)?";
                 break;
             case 'L':
                 cur_array->data_t = data_b;
                 cur_array->data = malloc(((*nat)*col_num)*sizeof(int));
-                this_re="(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)";
+                this_re = BOOL_RE; // "(?:[TF]|[tT]rue|[fF]alse|TRUE|FALSE)";
                 break;
             case 'S':
                 cur_array->data_t = data_s;
                 cur_array->data = malloc(((*nat)*col_num)*sizeof(char *));
-                this_re="\\S+";
+                this_re = SIMPLESTRING_RE; // "\\S+";
                 break;
             default:
                 fprintf(stderr, "Unknown property type '%c' for property key '%s' (# %d)\n", col_type, cur_array->key, prop_i);
@@ -731,7 +729,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             strcat_realloc(&re_str, &re_str_len, "(");
             strcat_realloc(&re_str, &re_str_len, this_re);
             strcat_realloc(&re_str, &re_str_len, ")");
-            strcat_realloc(&re_str, &re_str_len, "\\s+");
+            strcat_realloc(&re_str, &re_str_len, WHITESPACE_RE); // "\\s+");
         }
 
         // ready to next triplet
