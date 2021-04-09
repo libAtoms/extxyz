@@ -16,16 +16,16 @@ class FILE_ptr(ctypes.c_void_p):
 class cleri_grammar_t_ptr(ctypes.c_void_p):
     pass
 
-data_i = 1
-data_f = 2
-data_b = 3
-data_s = 4
+DATA_I = 1
+DATA_F = 2
+DATA_B = 3
+DATA_S = 4
 
 type_map = {
-    data_i: ctypes.POINTER(ctypes.c_int),
-    data_f: ctypes.POINTER(ctypes.c_double),
-    data_b: ctypes.POINTER(ctypes.c_int),
-    data_s: ctypes.POINTER(ctypes.c_char_p)
+    DATA_I: ctypes.POINTER(ctypes.c_int),
+    DATA_F: ctypes.POINTER(ctypes.c_double),
+    DATA_B: ctypes.POINTER(ctypes.c_int),
+    DATA_S: ctypes.POINTER(ctypes.c_char_p)
 }
 
 class Dict_entry_struct(ctypes.Structure):
@@ -72,22 +72,22 @@ def c_to_py_dict(c_dict, deepcopy=False):
             # scalar
             value = data_ptr.contents.value
             # convert to Python primitive types
-            if node.data_t == data_s:
+            if node.data_t == DATA_S:
                 value = value.decode('utf-8')
-            elif node.data_t == data_b:
+            elif node.data_t == DATA_B:
                 value = bool(value)
         else:
             # array, either 1D or 2D
             if node.nrows == 0:
                 # vector (1D array)
-                if node.data_t == data_s:
+                if node.data_t == DATA_S:
                     value = np.array([data_ptr[i].decode('utf-8')
                                     for i in range(node.ncols)])
                 else:
                     value = np.ctypeslib.as_array(data_ptr, [node.ncols])
             else:
                 # matrix (2D array)
-                if node.data_t == data_s:
+                if node.data_t == DATA_S:
                     value = np.array([data_ptr[i].decode('utf-8')
                                     for i in range(node.nrows*node.ncols)])
                     value = value.reshape(node.nrows, node.ncols)
@@ -95,7 +95,7 @@ def c_to_py_dict(c_dict, deepcopy=False):
                     value = np.ctypeslib.as_array(data_ptr,
                                                 [node.nrows, node.ncols])
             # convert fake bool integer to python bool
-            if node.data_t == data_b:
+            if node.data_t == DATA_B:
                 value = value.astype(bool)
 
         if deepcopy:
