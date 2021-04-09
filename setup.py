@@ -18,6 +18,8 @@ def build_grammar():
     print('cwd', os.getcwd())
     if not c_grammar_file.exists() or (py_grammar_file.stat().st_mtime > c_grammar_file.stat().st_mtime):
         sys.path.insert(0, './python/extxyz')
+        print('sys.path', sys.path)
+        os.system('ls ./python/extxyz')
         import extxyz_kv_grammar
         del sys.path[0]
         extxyz_kv_grammar.write_grammar('./c')
