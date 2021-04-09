@@ -1,2 +1,6 @@
 __pycache__
 tests_*.xyz
+build/
+dist/
+extxyz.egg-info/
+.DS_Store
