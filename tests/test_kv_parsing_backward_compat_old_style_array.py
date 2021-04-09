@@ -22,7 +22,7 @@ def test_new_non_symm_Lattice(tmp_path, helpers):
 
     for at in helpers.read_all_variants(tmp_path / Path('test_file.extxyz')):
         # print("new format got cell", at.cell)
-        assert np.all(at.cell == [[1,2,3], [4,5,6], [7,8,9]])
+        assert np.all(at.cell.T == [[1,2,3], [4,5,6], [7,8,9]])
 
 
 def test_old_nine_elem_non_symm_Lattice(tmp_path, helpers):
