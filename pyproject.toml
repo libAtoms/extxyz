@@ -1,0 +1,4 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = ["setuptools", "wheel", "pyleri>=1.3.3"]
+build-backend = "setuptools.build_meta"
