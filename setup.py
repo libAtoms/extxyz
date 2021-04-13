@@ -13,13 +13,13 @@ from setuptools.command.build_ext import build_ext as setuptools__build_ext
 def build_grammar():
     # check if we need to run the grammar definition to regenerate .c and .h
     py_grammar_file = pathlib.Path('./grammar/extxyz_kv_grammar.py')
-    c_grammar_file = pathlib.Path('./c/extxyz_kv_grammar.c')
+    c_grammar_file = pathlib.Path('./libext/extxyz_kv_grammar.c')
 
     if not c_grammar_file.exists() or (py_grammar_file.stat().st_mtime > c_grammar_file.stat().st_mtime):
         sys.path.insert(0, './python/extxyz')
         import extxyz_kv_grammar
         del sys.path[0]
-        extxyz_kv_grammar.write_grammar('./c')
+        extxyz_kv_grammar.write_grammar('./libextxyz')
     
 def build_libcleri():
     with open('libcleri/Release/makefile', 'r') as f_in, open('libcleri/Release/makefile.extxyz', 'w') as f_out:
@@ -65,7 +65,7 @@ pcre2_libs = subprocess.run(['pcre2-config', '--libs8'], capture_output=True).st
 pcre2_library_dirs = [l.replace('-L', '', 1) for l in pcre2_libs if l.startswith('-L')]
 pcre2_libraries = [l.replace('-l', '', 1) for l in pcre2_libs if l.startswith('-l')]
 
-_extxyz_ext = Extension('extxyz._extxyz', sources=['c/extxyz_kv_grammar.c', 'c/extxyz.c'],
+_extxyz_ext = Extension('extxyz._extxyz', sources=['libextxyz/extxyz_kv_grammar.c', 'libextxyz/extxyz.c'],
                         include_dirs=['libcleri/inc', 'extxyz'] + pcre2_include_dirs,
                         library_dirs=pcre2_library_dirs, libraries=pcre2_libraries,
                         extra_compile_args=['-fPIC'], extra_objects=['libcleri/Release/libcleri.a'])
