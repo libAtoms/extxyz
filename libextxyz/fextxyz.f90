@@ -30,17 +30,17 @@ module extxyz
         function fclose(fp) bind(c)
             use iso_c_binding
             integer(kind=C_INT) :: fclose
-            type(C_PTR) :: fp
+            type(C_PTR), value :: fp
         end function fclose
 
         subroutine free_dict(dict) bind(c)
             use iso_c_binding
-            type(C_PTR) :: dict
+            type(C_PTR), value :: dict
         end subroutine
 
         subroutine print_dict(dict) bind(c)
             use iso_c_binding
-            type(C_PTR) :: dict
+            type(C_PTR), value :: dict
         end subroutine
 
         function compile_extxyz_kv_grammar() bind(c)
@@ -51,7 +51,8 @@ module extxyz
         function extxyz_read_ll(kv_grammar, fp, nat, info, arrays) bind(c)
             use iso_c_binding
             integer(kind=C_INT) :: extxyz_read_ll
-            type(C_PTR) :: kv_grammar, fp, info, arrays
+            type(C_PTR), value :: kv_grammar, fp
+            type(C_PTR) :: info, arrays
             integer(kind=C_INT) :: nat
         end function extxyz_read_ll
 
@@ -96,7 +97,8 @@ subroutine read_extxyz_filename(filename, verbose)
 
     write (*,*) "calling extxyz_read_ll()..."
     err = extxyz_read_ll(kv_grammar, fp, nat, c_info, c_arrays)
-    if (err /= 0) then
+    if (err /= 1) then
+        write (*, *) "returned", err
         return
     end if
     write(*,*) "call to extxyz_read_ll() done"
