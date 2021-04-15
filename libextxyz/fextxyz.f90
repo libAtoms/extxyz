@@ -66,54 +66,75 @@ module extxyz
 
 contains
 
+subroutine C_string_ptr_to_F_string(C_string, F_string)
+    use iso_c_binding
+    type(C_PTR), intent(in) :: C_string
+    character(len=*), intent(out) :: F_string
+    character(len=1, kind=C_CHAR), dimension(:), pointer :: p_chars
+    integer :: i
+    if (.not. c_associated(C_string)) then
+        F_string = ' '
+    else
+        call c_f_pointer(C_string, p_chars, [huge(0)])
+        do i = 1, len(F_string)
+            if (p_chars(i) == C_NULL_CHAR) exit
+            F_string(i:i) = p_chars(i)
+        end do
+        if (i <= len(F_string)) F_string(i:) = ' '
+    end if
+end subroutine
+
 subroutine read_extxyz_filename(filename, verbose)
     character(len=*), intent(in) :: filename
     logical, optional, intent(in) :: verbose
 
-    type(DictEntry), pointer :: info, arrays
+    type(DictEntry), pointer :: info, arrays, node
     type(C_PTR) :: fp, c_info, c_arrays
     logical :: do_verbose = .false.
     integer(C_INT) :: err, nat
+    character(len=100) :: key
 
     if (present(verbose)) then
         do_verbose = verbose
     end if
 
-    write (*,*) "initialising grammar..."
     if (.not. initialised) then
         kv_grammar = compile_extxyz_kv_grammar()
         initialised = .true.
     end if
-    write (*,*) "initialising grammar done"
 
-    allocate(info)
-    allocate(arrays)
     c_info = c_loc(info)
     c_arrays = c_loc(arrays)
 
-    write (*,*) "opening file..."
     fp = fopen(trim(filename)//C_NULL_CHAR, "r"//C_NULL_CHAR)
-    write (*,*) "opening file done"
 
-    write (*,*) "calling extxyz_read_ll()..."
     err = extxyz_read_ll(kv_grammar, fp, nat, c_info, c_arrays)
     if (err /= 1) then
-        write (*, *) "returned", err
         return
     end if
-    write(*,*) "call to extxyz_read_ll() done"
 
-    write(*,*) "closing file..."
     err = fclose(fp)
     if (err /= 0) then
         return
     end if
-    write(*,*) "closing file done"
 
     if (do_verbose) then
         call print_dict(c_info)
         call print_dict(c_arrays)
     end if
+
+    ! node => info
+    call C_string_ptr_to_F_string(info%key, key)
+    write(*,*) 'info%key', key
+    write(*,*) 'info%data_t', info%data_t
+    write(*,*) 'info%nrows', info%nrows
+    write(*,*) 'info%ncols', info%ncols
+    write(*,*) 'entering loop'
+    do while (c_associated(node%next))
+        write(*,*) 'accessing key'
+        call C_string_ptr_to_F_string(node%key, key)
+        write(*,*) key
+    end do
 
     call free_dict(c_info)
     call free_dict(c_arrays)
