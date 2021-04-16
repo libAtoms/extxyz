@@ -88,7 +88,7 @@ subroutine read_extxyz_filename(filename, verbose)
     character(len=*), intent(in) :: filename
     logical, optional, intent(in) :: verbose
 
-    type(DictEntry), pointer :: info, arrays, node
+    type(DictEntry), pointer :: info => null(), arrays => null(), node => null()
     type(C_PTR) :: fp, c_info, c_arrays
     logical :: do_verbose = .false.
     integer(C_INT) :: err, nat
@@ -113,27 +113,33 @@ subroutine read_extxyz_filename(filename, verbose)
         return
     end if
 
+    write(*,*) 'nat', nat
+
     err = fclose(fp)
     if (err /= 0) then
         return
     end if
 
+    call c_f_pointer(c_info, arrays)
+
     if (do_verbose) then
-        call print_dict(c_info)
-        call print_dict(c_arrays)
+        call print_dict(c_loc(info))
+        call print_dict(c_loc(arrays))
     end if
 
-    ! node => info
-    call C_string_ptr_to_F_string(info%key, key)
-    write(*,*) 'info%key', key
-    write(*,*) 'info%data_t', info%data_t
-    write(*,*) 'info%nrows', info%nrows
-    write(*,*) 'info%ncols', info%ncols
-    write(*,*) 'entering loop'
+    call c_f_pointer(c_info, info)
+    node => info
     do while (c_associated(node%next))
-        write(*,*) 'accessing key'
         call C_string_ptr_to_F_string(node%key, key)
-        write(*,*) key
+        write(*,*) 'accessing info key ', key
+        call c_f_pointer(node%next, node)
+    end do
+
+    call c_f_pointer(c_info, arrays)
+    do while (c_associated(node%next))
+        call C_string_ptr_to_F_string(node%key, key)
+        write(*,*) 'accessing arrays key ', key
+        call c_f_pointer(node%next, node)
     end do
 
     call free_dict(c_info)
