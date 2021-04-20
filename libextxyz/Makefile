@@ -1,8 +1,12 @@
 LIBCLERI_PATH=../libcleri/Release
 
 CFLAGS += $(shell pcre2-config --cflags)
-LDFLAGS += $(shell pcre2-config --libs8)
+LDFLAGS += $(shell pcre2-config --libs8) 
 
+QUIP_LDFLAGS = -L${QUIP_ROOT}/build/${QUIP_ARCH} -latoms -framework Accelerate -lgomp
+QUIP_F90FLAGS = -I${QUIP_ROOT}/build/${QUIP_ARCH}
+
+CC ?= gcc
 F90 ?= gfortran
 prefix ?= /usr/local
 libdir ?= $(prefix)/lib
@@ -43,10 +47,10 @@ install: libextxyz.${dlext}
 	${CC} ${CFLAGS} -g -c $< -o $@
 
 %.o: %.f90
-	${F90} ${F90FLAGS} -g -c $< -o $@
+	${F90} ${F90FLAGS} ${QUIP_F90FLAGS} -g -c $< -o $@
 
 fextxyz: main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
-	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS}
+	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS} ${QUIP_LDFLAGS}
 
 clean:
 	rm -rf libextxyz.${dlext} *.o
