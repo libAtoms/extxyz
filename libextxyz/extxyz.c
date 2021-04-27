@@ -31,7 +31,7 @@ void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
 }
 
 double atof_eEdD(char *str) {
-    for (int i=0; i < strlen(str); i++) {
+    for (unsigned long i=0; i < strlen(str); i++) {
         if (str[i] == 'd' || str[i] == 'D') {
             str[i] = 'e';
             break;
@@ -510,12 +510,31 @@ void print_dict(DictEntry *dict) {
     for (DictEntry *entry = dict; entry; entry = entry->next) {
         printf("key '%s' type %d shape %d %d\n", entry->key, entry->data_t,
                entry->nrows, entry->ncols);
+        /*
+        printf("data: ");
+        int iii = 0;
+        for (int i1=0; i1 < (entry->nrows < 1 ? 1 : entry->nrows); i1++) {
+        for (int i2=0; i2 < (entry->ncols < 1 ? 1 : entry->ncols); i2++) {
+            switch (entry->data_t) {
+                case data_i: printf("%d ", ((int *)entry->data)[iii++]);
+                    break;
+                case data_f: printf("%f ", ((float *)entry->data)[iii++]);
+                    break;
+                case data_b: printf("%c ", ((int *)entry->data)[iii++] ? 'T' : 'F');
+                    break;
+                case data_s: printf("%s ", ((char **)entry->data)[iii++]);
+                    break;
+            }
+        }
+        }
+        printf("\n");
+        */
     }
 }
 
 
 #define STR_INCR 1024
-void strcat_realloc(char **str, int *len, char *add_str) {
+void strcat_realloc(char **str, unsigned long *len, char *add_str) {
     if (strlen(*str) + strlen(add_str) + 1 > *len) {
         *len += STR_INCR;
         *str = (char *) realloc(*str, *len);
@@ -527,7 +546,7 @@ void strcat_realloc(char **str, int *len, char *add_str) {
     strcat(*str, add_str);
 }
 
-char *read_line(char **line, int *line_len, FILE *fp) {
+char *read_line(char **line, unsigned long *line_len, FILE *fp) {
     char *stat = fgets(*line, *line_len, fp);
     if (!stat) {
         return 0;
@@ -550,8 +569,8 @@ char *read_line(char **line, int *line_len, FILE *fp) {
 
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays) {
     char *line;
-    int line_len;
-    int line_len_init = 1024;
+    unsigned long line_len;
+    unsigned long line_len_init = 1024;
 
     // from here on every return should free line first;
     line_len  = line_len_init;
@@ -621,7 +640,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         if (strlen(line) >= strlen("\n")) {
             char *eol = "\n";
             int match=1;
-            for (int i=0; i < strlen(eol); i++) {
+            for (unsigned long i=0; i < strlen(eol); i++) {
                 if (line[strlen(line)-i] != eol[strlen(eol)-i]) {
                     match=0;
                     break;
@@ -646,7 +665,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
 
     // from here on every return should also free re_str first;
-    int re_str_len = 20;
+    unsigned long re_str_len = 20;
     char *re_str = (char *) malloc (re_str_len * sizeof(char));
     re_str[0] = 0;
     strcat_realloc(&re_str, &re_str_len, "^\\s*");
@@ -847,4 +866,349 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     pcre2_match_data_free(match_data); pcre2_code_free(re);
     free(line); free(re_str);
     return 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// WRITING CODE
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+char *quoted(char *data) {
+    // count escaped and special chars
+    int have_special=0;
+    int n_escape=0;
+    for (int c_i=0; data[c_i]; c_i++) {
+        char c = data[c_i];
+        // escape double quote and backslash
+        n_escape += ((c == '"' || c == '\\' || c == '\n') ? 1 : 0);
+        // count any special chars
+        have_special |= (c == ' ' || c == '=' || c == '"' || c == ',' || c == '[' ||
+                         c == ']' || c == '{' || c == '}' || c == '\\' || c == '\n');
+    }
+
+    // copy, quoting/escaping as needed
+    int len = 1 + (have_special ? 2 : 0) + strlen(data) + n_escape;
+    char *str = (char *)malloc(len * sizeof(char));
+    int c_o=0;
+    if (have_special) {
+        str[c_o++] = '"';
+    }
+    for (int c_i=0; data[c_i]; c_i++, c_o++) {
+        char c = data[c_i];
+        if (c == '\n') {
+            str[c_o] = '\\';
+            str[c_o+1] = 'n';
+            c_o++;
+        } else if (c == '\\' || c == '"') {
+            str[c_o] = '\\';
+            str[c_o+1] = c;
+            c_o++;
+        } else {
+            str[c_o] = c;
+        }
+    }
+    if (have_special) {
+        str[c_o++] = '"';
+    }
+    str[c_o] = 0;
+
+    return str;
+}
+
+#define IFB_STR_LEN 128
+int concat_elem(char **str, unsigned long *str_len, enum data_type data_t, void *data, int offset) {
+    char field_str[IFB_STR_LEN], *field_str_ptr;
+    field_str_ptr = field_str;
+    switch (data_t) {
+        case data_i: 
+            sprintf(field_str, "%d", ((int *)data)[offset]);
+            break;
+        case data_f: 
+            sprintf(field_str, "%f", ((double *)data)[offset]);
+            break;
+        case data_b: 
+            sprintf(field_str, "%c", ((int *)data)[offset] ? 'T' : 'F');
+            break;
+        case data_s: 
+            field_str_ptr = quoted(((char **)data)[offset]);
+            break;
+        default:
+            return 1;
+    }
+
+    strcat_realloc(str, str_len, field_str_ptr);
+    if (data_t == data_s) {
+        free(field_str_ptr);
+    }
+
+    return 0;
+}
+
+int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_style_3_3) {
+    if (entry->nrows == 0) {
+        // scalar or vector
+        if (entry->ncols == 0) {
+            //scalar
+            int err_stat = concat_elem(str, str_len, entry->data_t, entry->data, 0);
+            return err_stat;
+        } else {
+            //vector
+            strcat_realloc(str, str_len, "[ ");
+            for (int i_col=0; i_col < entry->ncols; i_col++) {
+                int err_stat = concat_elem(str, str_len, entry->data_t, entry->data, i_col);
+                if (err_stat) {
+                    return err_stat;
+                }
+                if (i_col < entry->ncols-1) {
+                    strcat_realloc(str, str_len, " , ");
+                }
+            }
+            strcat_realloc(str, str_len, " ]");
+        }
+    } else {
+        // matrix
+        if (old_style_3_3) {
+            // only certain shapes and types are valid as old style matrices
+            if ((entry->nrows != 3 || entry->ncols != 3)) {
+                return 2;
+            }
+            if (entry->data_t != data_i && entry->data_t != data_f && entry->data_t != data_b) {
+                return 3;
+            }
+        }
+        if (old_style_3_3) {
+            strcat_realloc(str, str_len, "\"");
+        } else {
+            strcat_realloc(str, str_len, "[ ");
+        }
+        for (int i_row=0; i_row < entry->nrows; i_row++) {
+            if (!old_style_3_3) {
+                strcat_realloc(str, str_len, "[ ");
+            }
+            for (int i_col=0; i_col < entry->ncols; i_col++) {
+                int err_stat;
+                if (old_style_3_3) {
+                    // transpose iff old style 3x3
+                    err_stat = concat_elem(str, str_len, entry->data_t, entry->data, (i_col*entry->nrows)+i_row);
+                } else{
+                    err_stat = concat_elem(str, str_len, entry->data_t, entry->data, (i_row*entry->ncols)+i_col);
+                }
+                if (err_stat) {
+                    return err_stat;
+                }
+                if (i_col < entry->ncols-1) {
+                    if (old_style_3_3) {
+                        strcat_realloc(str, str_len, " ");
+                    } else {
+                        strcat_realloc(str, str_len, " , ");
+                    }
+                }
+            }
+            if (i_row < entry->nrows-1) {
+                if (old_style_3_3) {
+                    strcat_realloc(str, str_len, " ");
+                } else {
+                    strcat_realloc(str, str_len, " ], ");
+                }
+            } else {
+                strcat_realloc(str, str_len, " ] ");
+            }
+        }
+        if (old_style_3_3) {
+            strcat_realloc(str, str_len, "\"");
+        } else {
+            strcat_realloc(str, str_len, " ]");
+        }
+    }
+    return 0;
+}
+
+int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
+    fprintf(fp, "%d\n", nat);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Info
+    /////////////////////////////////////////////////////////////////////////////////
+    unsigned long entry_str_len=100;
+    char *entry_str = (char *)malloc(entry_str_len * sizeof(char));
+
+    // Lattice first, to be readable
+    for (DictEntry *entry=info; entry; entry = entry->next) {
+        entry_str[0] = 0;
+        // key
+        char *quoted_key = quoted(entry->key);
+        strcat_realloc(&entry_str, &entry_str_len, quoted_key);
+        free(quoted_key);
+
+        // =
+        strcat_realloc(&entry_str, &entry_str_len, "=");
+
+        // value
+        // Lattice is always written as old style 3x3
+        int old_style_3_3 = !strcmp(entry->key, "Lattice");
+        int err_stat = concat_entry(&entry_str, &entry_str_len, entry, old_style_3_3);
+        if (err_stat) { free(entry_str); return err_stat; }
+
+        fprintf(fp, "%s", entry_str);
+        if (entry->next) {
+            fprintf(fp, " ");
+        }
+    }
+    free (entry_str);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // order entries and create Properties
+    /////////////////////////////////////////////////////////////////////////////////
+
+/*
+    // count entries
+    int n_entries = 0;
+    for (DictEntry *entry=arrays; entry; entry = entry->next) {
+        n_entries++;
+    }
+    DictEntry **ordered_entries = (DictEntry **) malloc(n_entries * sizeof(DictEntry *));
+
+    // find special fields like species, Z, and pos
+    int n_special=0;
+    for (DictEntry *entry=arrays; entry; entry = entry->next) {
+        if (!strcmp(entry->key, "species")) {
+            if (entry->data_t != data_s || entry->nrows != 0) {
+                free (ordered_entries);
+                return 4;
+            }
+            ordered_entries[n_special++] = entry;
+            break;
+        }
+    }
+    if (n_special == 0) {
+        // no species found, look for Z
+        for (DictEntry *entry=arrays; entry; entry = entry->next) {
+            if (!strcmp(entry->key, "Z")) {
+                if (entry->data_t != data_i || entry->nrows != 0) {
+                    free (ordered_entries);
+                    return 4;
+                }
+                ordered_entries[n_special++] = entry;
+                break;
+            }
+        }
+    }
+    for (DictEntry *entry=arrays; entry; entry = entry->next) {
+        if (!strcmp(entry->key, "pos")) {
+            if (entry->data_t != data_f || entry->ncols != 3) {
+                free (ordered_entries);
+                return 4;
+            }
+            ordered_entries[n_special++] = entry;
+            break;
+        }
+    }
+
+    // reorder with species (or Z if no species) first, then pos, then everything else
+    int cur_entry_i = n_special;
+    for (DictEntry *entry=arrays; entry; entry = entry->next) {
+        // skip already included special
+        int is_special=0;
+        for (int special_i=0; special_i < n_special; special_i++) {
+            if (entry == ordered_entries[special_i]) {
+                // skip alread moved entries
+                is_special = 1;
+                break;
+            }
+        }
+        if (is_special) {
+            // already accounted for
+            continue;
+        }
+        ordered_entries[cur_entry_i++] = entry;
+    }
+*/
+
+    // create Properties string
+    unsigned long properties_str_len=100;
+    char *properties_str = (char *)malloc(properties_str_len * sizeof(char));
+    properties_str[0] = 0;
+    for (DictEntry *entry=arrays; entry; entry = entry->next) {
+        strcat_realloc(&properties_str, &properties_str_len, entry->key);
+        strcat_realloc(&properties_str, &properties_str_len, ":");
+        switch (entry->data_t) {
+            case data_i: strcat_realloc(&properties_str, &properties_str_len, "I");
+                break;
+            case data_f: strcat_realloc(&properties_str, &properties_str_len, "R");
+                break;
+            case data_b: strcat_realloc(&properties_str, &properties_str_len, "L");
+                break;
+            case data_s: strcat_realloc(&properties_str, &properties_str_len, "S");
+                break;
+            default:
+                free (properties_str);
+                return 5;
+        }
+        strcat_realloc(&properties_str, &properties_str_len, ":");
+        char col_num_str[IFB_STR_LEN];
+        sprintf(col_num_str, "%d", (entry->nrows == 0 ? 1 : entry->ncols));
+        strcat_realloc(&properties_str, &properties_str_len, col_num_str);
+        if (entry->next) {
+            strcat_realloc(&properties_str, &properties_str_len, ":");
+        }
+    }
+
+    // quote in case there are special characters in keys
+    char *quoted_properties_str = quoted(properties_str);
+    fprintf(fp, " Properties=%s\n", quoted_properties_str);
+    free(quoted_properties_str);
+    free(properties_str);
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // per-atom data
+    /////////////////////////////////////////////////////////////////////////////////
+    for (int i_at=0; i_at < nat; i_at++) {
+        // printf("do i_at %d\n", i_at);
+        for (DictEntry *entry = arrays; entry; entry = entry->next) {
+            // printf("do entry %s\n", entry->key);
+            int ncols = (entry->nrows == 0) ? 1 : entry->ncols;
+            switch(entry->data_t) {
+                case data_i:
+                    for (int i_col=0; i_col < ncols; i_col++) {
+                        fprintf(fp, "%d", ((int *)(entry->data))[i_at*ncols+i_col]);
+                        if (i_col < ncols-1) {
+                            fprintf(fp, " ");
+                        }
+                    }
+                    break;
+                case data_f:
+                    for (int i_col=0; i_col < ncols; i_col++) {
+                        fprintf(fp, "%f", ((double *)(entry->data))[i_at*ncols+i_col]);
+                        if (i_col < ncols-1) {
+                            fprintf(fp, " ");
+                        }
+                    }
+                    break;
+                case data_b:
+                    for (int i_col=0; i_col < ncols; i_col++) {
+                        fprintf(fp, "%c", ((int *)(entry->data))[i_at*ncols+i_col] ? 'T' : 'F');
+                        if (i_col < ncols-1) {
+                            fprintf(fp, " ");
+                        }
+                    }
+                    break;
+                case data_s:
+                    for (int i_col=0; i_col < ncols; i_col++) {
+                        // assuming simple string, no need for quotes
+                        fprintf(fp, "%s", ((char **)(entry->data))[i_at*ncols+i_col]);
+                        if (i_col < ncols-1) {
+                            fprintf(fp, " ");
+                        }
+                    }
+                    break;
+                default:
+                    return 6;
+            }
+            if (entry->next) {
+                fprintf(fp, "   ");
+            }
+        }
+        fprintf(fp, "\n");
+    }
+
+    return 0;
 }

@@ -68,3 +68,4 @@ typedef struct dict_entry_struct {
 void print_dict(DictEntry *dict);
 void free_dict(DictEntry *dict);
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays);
+int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays);
