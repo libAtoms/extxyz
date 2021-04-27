@@ -950,17 +950,17 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
             return err_stat;
         } else {
             //vector
-            strcat_realloc(str, str_len, "[ ");
+            strcat_realloc(str, str_len, "[");
             for (int i_col=0; i_col < entry->ncols; i_col++) {
                 int err_stat = concat_elem(str, str_len, entry->data_t, entry->data, i_col);
                 if (err_stat) {
                     return err_stat;
                 }
                 if (i_col < entry->ncols-1) {
-                    strcat_realloc(str, str_len, " , ");
+                    strcat_realloc(str, str_len, ", ");
                 }
             }
-            strcat_realloc(str, str_len, " ]");
+            strcat_realloc(str, str_len, "]");
         }
     } else {
         // matrix
@@ -977,12 +977,12 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
         if (old_style_3_3) {
             strcat_realloc(str, str_len, "\"");
         } else {
-            strcat_realloc(str, str_len, "[ ");
+            strcat_realloc(str, str_len, "[");
         }
         for (int i_row=0; i_row < entry->nrows; i_row++) {
             // start of row
             if (!old_style_3_3) {
-                strcat_realloc(str, str_len, "[ ");
+                strcat_realloc(str, str_len, "[");
             }
             // do data
             for (int i_col=0; i_col < entry->ncols; i_col++) {
@@ -1000,7 +1000,7 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
                     if (old_style_3_3) {
                         strcat_realloc(str, str_len, " ");
                     } else {
-                        strcat_realloc(str, str_len, " , ");
+                        strcat_realloc(str, str_len, ", ");
                     }
                 }
             }
@@ -1009,10 +1009,10 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
                 if (old_style_3_3) {
                     strcat_realloc(str, str_len, " ");
                 } else {
-                    strcat_realloc(str, str_len, " ], ");
+                    strcat_realloc(str, str_len, "], ");
                 }
             } else if (!old_style_3_3) {
-                strcat_realloc(str, str_len, " ] ");
+                strcat_realloc(str, str_len, "]");
             }
         }
         // after all rows
