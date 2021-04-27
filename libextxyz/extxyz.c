@@ -876,13 +876,12 @@ char *quoted(char *data) {
     // count escaped and special chars
     int have_special=0;
     int n_escape=0;
-    for (int c_i=0; data[c_i]; c_i++) {
-        char c = data[c_i];
+    for (char *c=data; *c; c++) {
         // escape double quote and backslash
-        n_escape += ((c == '"' || c == '\\' || c == '\n') ? 1 : 0);
+        n_escape += ((*c == '"' || *c == '\\' || *c == '\n') ? 1 : 0);
         // count any special chars
-        have_special |= (c == ' ' || c == '=' || c == '"' || c == ',' || c == '[' ||
-                         c == ']' || c == '{' || c == '}' || c == '\\' || c == '\n');
+        have_special |= (*c == ' ' || *c == '=' || *c == '"' || *c == ',' || *c == '[' ||
+                         *c == ']' || *c == '{' || *c == '}' || *c == '\\' || *c == '\n');
     }
 
     // copy, quoting/escaping as needed
@@ -892,18 +891,17 @@ char *quoted(char *data) {
     if (have_special) {
         str[c_o++] = '"';
     }
-    for (int c_i=0; data[c_i]; c_i++, c_o++) {
-        char c = data[c_i];
-        if (c == '\n') {
+    for (char *c=data; *c; c++, c_o++) {
+        if (*c == '\n') {
             str[c_o] = '\\';
             str[c_o+1] = 'n';
             c_o++;
-        } else if (c == '\\' || c == '"') {
+        } else if (*c == '\\' || *c == '"') {
             str[c_o] = '\\';
-            str[c_o+1] = c;
+            str[c_o+1] = *c;
             c_o++;
         } else {
-            str[c_o] = c;
+            str[c_o] = *c;
         }
     }
     if (have_special) {
