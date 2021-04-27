@@ -1030,13 +1030,11 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
 int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     fprintf(fp, "%d\n", nat);
 
-    /////////////////////////////////////////////////////////////////////////////////
-    // Info
-    /////////////////////////////////////////////////////////////////////////////////
+    // Write info
+
     unsigned long entry_str_len=100;
     char *entry_str = (char *)malloc(entry_str_len * sizeof(char));
 
-    // Lattice first, to be readable
     for (DictEntry *entry=info; entry; entry = entry->next) {
         entry_str[0] = 0;
         // key
@@ -1048,7 +1046,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
         strcat_realloc(&entry_str, &entry_str_len, "=");
 
         // value
-        // Lattice is always written as old style 3x3
+        // (only) Lattice is always written as old style 3x3
         int old_style_3_3 = !strcmp(entry->key, "Lattice");
         int err_stat = concat_entry(&entry_str, &entry_str_len, entry, old_style_3_3);
         if (err_stat) { free(entry_str); return err_stat; }
@@ -1060,75 +1058,8 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     }
     free (entry_str);
 
-    /////////////////////////////////////////////////////////////////////////////////
-    // order entries and create Properties
-    /////////////////////////////////////////////////////////////////////////////////
+    // create and write Properties
 
-/*
-    // count entries
-    int n_entries = 0;
-    for (DictEntry *entry=arrays; entry; entry = entry->next) {
-        n_entries++;
-    }
-    DictEntry **ordered_entries = (DictEntry **) malloc(n_entries * sizeof(DictEntry *));
-
-    // find special fields like species, Z, and pos
-    int n_special=0;
-    for (DictEntry *entry=arrays; entry; entry = entry->next) {
-        if (!strcmp(entry->key, "species")) {
-            if (entry->data_t != data_s || entry->nrows != 0) {
-                free (ordered_entries);
-                return 4;
-            }
-            ordered_entries[n_special++] = entry;
-            break;
-        }
-    }
-    if (n_special == 0) {
-        // no species found, look for Z
-        for (DictEntry *entry=arrays; entry; entry = entry->next) {
-            if (!strcmp(entry->key, "Z")) {
-                if (entry->data_t != data_i || entry->nrows != 0) {
-                    free (ordered_entries);
-                    return 4;
-                }
-                ordered_entries[n_special++] = entry;
-                break;
-            }
-        }
-    }
-    for (DictEntry *entry=arrays; entry; entry = entry->next) {
-        if (!strcmp(entry->key, "pos")) {
-            if (entry->data_t != data_f || entry->ncols != 3) {
-                free (ordered_entries);
-                return 4;
-            }
-            ordered_entries[n_special++] = entry;
-            break;
-        }
-    }
-
-    // reorder with species (or Z if no species) first, then pos, then everything else
-    int cur_entry_i = n_special;
-    for (DictEntry *entry=arrays; entry; entry = entry->next) {
-        // skip already included special
-        int is_special=0;
-        for (int special_i=0; special_i < n_special; special_i++) {
-            if (entry == ordered_entries[special_i]) {
-                // skip alread moved entries
-                is_special = 1;
-                break;
-            }
-        }
-        if (is_special) {
-            // already accounted for
-            continue;
-        }
-        ordered_entries[cur_entry_i++] = entry;
-    }
-*/
-
-    // create Properties string
     unsigned long properties_str_len=100;
     char *properties_str = (char *)malloc(properties_str_len * sizeof(char));
     properties_str[0] = 0;
@@ -1163,13 +1094,10 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     free(quoted_properties_str);
     free(properties_str);
 
-    /////////////////////////////////////////////////////////////////////////////////
-    // per-atom data
-    /////////////////////////////////////////////////////////////////////////////////
+    // write per-atom data
+
     for (int i_at=0; i_at < nat; i_at++) {
-        // printf("do i_at %d\n", i_at);
         for (DictEntry *entry = arrays; entry; entry = entry->next) {
-            // printf("do entry %s\n", entry->key);
             int ncols = (entry->nrows == 0) ? 1 : entry->ncols;
             switch(entry->data_t) {
                 case data_i:
