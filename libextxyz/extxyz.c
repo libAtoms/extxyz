@@ -1036,6 +1036,11 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     char *entry_str = (char *)malloc(entry_str_len * sizeof(char));
 
     for (DictEntry *entry=info; entry; entry = entry->next) {
+        // should ths be necessary?
+        if (! strcmp(entry->key, "Properties")) {
+            continue;
+        }
+
         entry_str[0] = 0;
         // key
         char *quoted_key = quoted(entry->key);

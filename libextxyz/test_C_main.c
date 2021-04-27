@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdio.h>
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
@@ -14,13 +15,17 @@ int main(int argc, char *argv[]) {
     DictEntry *info, *arrays;
 
     int success = extxyz_read_ll(kv_grammar, fp, &nat, &info, &arrays);
-    printf("parsed success %d\n", success);
-    printf("nat %d\n", nat);
-    printf("info\n");
-    print_dict(info);
-    printf("arrays\n");
-    print_dict(arrays);
+    if (! strcmp(argv[2], "T")) {
+        printf("parsed success %d\n", success);
+        printf("nat %d\n", nat);
+        printf("info\n");
+        print_dict(info);
+        printf("arrays\n");
+        print_dict(arrays);
+    }   
 
     int err_stat = extxyz_write_ll(stdout, nat, info, arrays);
-    printf("written err_stat %d\n", err_stat);
+    if (! strcmp(argv[2], "T")) {
+        printf("written err_stat %d\n", err_stat);
+    }
 }
