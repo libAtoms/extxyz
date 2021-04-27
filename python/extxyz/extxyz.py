@@ -23,7 +23,7 @@ from pyleri.node import Node
 from pyleri import Choice, Regex, Keyword, Token
 from .extxyz_kv_grammar import (ExtxyzKVGrammar,
                                 float_re, integer_re, bool_re, simplestring_re,
-                                whitespace_re)
+                                whitespace_re, integer_fmt, float_fmt, string_fmt, bool_fmt)
 from . import cextxyz
 from .utils import create_single_point_calculator, update_atoms_from_calc
 
@@ -333,10 +333,10 @@ class Properties:
     }
     
     default_format_dict = {
-        'R': '%16.8f',
-        'I': '%8d',
-        'S': '%s',
-        'L': '%.1s'
+        'R': float_fmt,
+        'I': integer_fmt,
+        'S': string_fmt,
+        'L': bool_fmt
     }
 
     def __init__(self, property_string=None, properties=None, format_dict=None, data=None):

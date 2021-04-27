@@ -28,6 +28,12 @@ false_re = r'\b(?:[fF]alse|FALSE|F)\b'
 bool_re = r'\b(?:[tT]rue|[fF]alse|TRUE|FALSE|[TF])\b'
 whitespace_re = r'\s+'
 
+# default output format strings
+float_fmt = '%16.8f'
+integer_fmt = '%8d'
+string_fmt = '%s'
+bool_fmt = '%.1s'
+
 class ExtxyzKVGrammar(Grammar):
     r_barestring = Regex(barestring_re)
     r_dq_quotedstring = Regex(dq_quotedstring_re)
@@ -106,3 +112,8 @@ def write_grammar(dest_dir):
         fhdr.write('#define INTEGER_RE ' + to_C_str(integer_re) + '\n')
         fhdr.write('#define FLOAT_RE ' + to_C_str(float_re) + '\n')
         fhdr.write('#define BOOL_RE ' + to_C_str(bool_re) + '\n')
+        fhdr.write('\n')
+        fhdr.write('#define INTEGER_FMT ' + to_C_str(integer_fmt) + '\n')
+        fhdr.write('#define FLOAT_FMT ' + to_C_str(float_fmt) + '\n')
+        fhdr.write('#define STRING_FMT ' + to_C_str(string_fmt) + '\n')
+        fhdr.write('#define BOOL_FMT ' + to_C_str(bool_fmt) + '\n')
