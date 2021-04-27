@@ -917,22 +917,28 @@ int concat_elem(char **str, unsigned long *str_len, enum data_type data_t, void 
     char field_str[IFB_STR_LEN], *field_str_ptr;
     field_str_ptr = field_str;
     switch (data_t) {
-        case data_i: 
-            sprintf(field_str, "%d", ((int *)data)[offset]);
+        case data_i:
+            sprintf(field_str, INTEGER_FMT, ((int *)data)[offset]);
             break;
-        case data_f: 
-            sprintf(field_str, "%f", ((double *)data)[offset]);
+        case data_f:
+            sprintf(field_str, FLOAT_FMT, ((double *)data)[offset]);
             break;
-        case data_b: 
-            sprintf(field_str, "%c", ((int *)data)[offset] ? 'T' : 'F');
+        case data_b:
+            sprintf(field_str, STRING_FMT, ((int *)data)[offset] ? "T" : "F");
             break;
-        case data_s: 
+        case data_s:
             field_str_ptr = quoted(((char **)data)[offset]);
             break;
         default:
             return 1;
     }
 
+    if (data_t != data_s) {
+        // strip leading whitespace
+        for(; *field_str_ptr && (field_str_ptr[0] == ' ' ||
+                                 field_str_ptr[0] == '\t' ||
+                                 field_str_ptr[0] == '\n'); field_str_ptr++);
+    }
     strcat_realloc(str, str_len, field_str_ptr);
     if (data_t == data_s) {
         free(field_str_ptr);
@@ -1105,7 +1111,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
             switch(entry->data_t) {
                 case data_i:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, "%d", ((int *)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, INTEGER_FMT, ((int *)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1113,7 +1119,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                     break;
                 case data_f:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, "%f", ((double *)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, FLOAT_FMT, ((double *)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1121,7 +1127,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                     break;
                 case data_b:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, "%c", ((int *)(entry->data))[i_at*ncols+i_col] ? 'T' : 'F');
+                        fprintf(fp, BOOL_FMT, ((int *)(entry->data))[i_at*ncols+i_col] ? "T" : "F");
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1130,7 +1136,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                 case data_s:
                     for (int i_col=0; i_col < ncols; i_col++) {
                         // assuming simple string, no need for quotes
-                        fprintf(fp, "%s", ((char **)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, STRING_FMT, ((char **)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
