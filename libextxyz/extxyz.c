@@ -975,15 +975,18 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
                 return 3;
             }
         }
+        // before all rows
         if (old_style_3_3) {
             strcat_realloc(str, str_len, "\"");
         } else {
             strcat_realloc(str, str_len, "[ ");
         }
         for (int i_row=0; i_row < entry->nrows; i_row++) {
+            // start of row
             if (!old_style_3_3) {
                 strcat_realloc(str, str_len, "[ ");
             }
+            // do data
             for (int i_col=0; i_col < entry->ncols; i_col++) {
                 int err_stat;
                 if (old_style_3_3) {
@@ -1003,20 +1006,22 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
                     }
                 }
             }
+            // after a row
             if (i_row < entry->nrows-1) {
                 if (old_style_3_3) {
                     strcat_realloc(str, str_len, " ");
                 } else {
                     strcat_realloc(str, str_len, " ], ");
                 }
-            } else {
+            } else if (!old_style_3_3) {
                 strcat_realloc(str, str_len, " ] ");
             }
         }
+        // after all rows
         if (old_style_3_3) {
             strcat_realloc(str, str_len, "\"");
         } else {
-            strcat_realloc(str, str_len, " ]");
+            strcat_realloc(str, str_len, "]");
         }
     }
     return 0;
