@@ -81,5 +81,6 @@ setup(
     cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info, 'build_ext': NoSuffixBuilder},
     include_package_data=True,
     ext_modules=[_extxyz_ext],
+    entry_points={'console_scripts': ['extxyz=extxyz.cli:main']}
 )
 

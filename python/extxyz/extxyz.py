@@ -1,9 +1,6 @@
 import sys
 import json
 import re
-import os
-import argparse
-import cProfile
 
 from pathlib import PosixPath
 
@@ -20,7 +17,6 @@ from ase.atoms import Atoms
 from ase.symbols import symbols2numbers
 
 from pyleri.node import Node
-from pyleri import Choice, Regex, Keyword, Token
 from .extxyz_kv_grammar import (ExtxyzKVGrammar,
                                 float_re, integer_re, bool_re, simplestring_re,
                                 whitespace_re, integer_fmt, float_fmt, string_fmt, bool_fmt)
@@ -577,7 +573,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
     try:
         if use_cextxyz:
             natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose)        
-            properties = info.get('Properties', 'species:S:1:pos:R:3')
+            properties = info.pop('Properties', 'species:S:1:pos:R:3')
             properties = Properties(properties)
             data = np.zeros(natoms, properties.dtype_vector)
             for name, value in arrays.items():
@@ -718,8 +714,6 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
 
     file.write(f'{len(atoms)}\n')
     info_dict = info.copy()
-    info_dict['Lattice'] = atoms.cell.array.T
-    info_dict['pbc'] = atoms.get_pbc() # FIXME should this always be included? Reader doesn't parse it
     info_dict['Properties'] = properties.property_string
     comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
 
@@ -727,25 +721,47 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
     np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
 
 
-def write(file, atoms, **kwargs):
+def write(file, atoms, use_cextxyz=False, append=False, **kwargs):
     own_fh = False
-    if isinstance(file, str):
-        if file == '-':
-            file = sys.stdout
-        else:
-            file = open(file, 'w')
-            own_fh = True
+    if use_cextxyz:
+        mode = 'w'
+        if append: mode = 'a'
+        file = cextxyz.cfopen(str(file), mode)
+        own_fh = True
+    else:        
+        if isinstance(file, str):
+            if file == '-':
+                file = sys.stdout
+            else:
+                file = open(file, 'w')
+                own_fh = True
     try:
         configs = atoms
         if not isinstance(configs, list):
             configs = [atoms]
         for atoms in configs:
-            write_extxyz_frame(file, atoms, **kwargs)
+            info = atoms.info.copy()
+            info['Lattice'] = atoms.cell.array.T
+            info['pbc'] = atoms.get_pbc()
+            
+            if use_cextxyz:
+                print('using C writer')
+                cextxyz.write_frame_dicts(file, 
+                                          len(atoms), 
+                                          info, 
+                                          atoms.arrays, 
+                                          **kwargs)
+            else:
+                write_extxyz_frame(file, atoms, info, **kwargs)
     finally:
-        if own_fh: file.close()
+        if own_fh: 
+            if use_cextxyz:
+                cextxyz.cfclose(file)
+            else:            
+                file.close()
 
 
-class ExtxyzTrajectoryWriter:
+class ExtXYZTrajectoryWriter:
     def __init__(self, filename, mode='w', atoms=None, **kwargs):
         """
         Convenience wrapper for writing trajectories in extended XYZ format
@@ -782,76 +798,4 @@ class ExtxyzTrajectoryWriter:
         all_kwargs = self.kwargs.copy()
         all_kwargs.update(kwargs)
         write(self.file, atoms, **all_kwargs)
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('file')
-    parser.add_argument('-v', '--verbose', action='count',  default=0)
-    parser.add_argument('-r', '--regex', action='store_true')
-    parser.add_argument('-c', '--create-calc', action='store_true')
-    parser.add_argument('-p', '--calc-prefix', action='store', default='')
-    parser.add_argument('-w', '--write', action='store_true')
-    parser.add_argument('-R', '--round-trip', action='store_true')
-    parser.add_argument('-P', '--profile', action='store_true')
-    parser.add_argument('-C', '--cextxyz', action='store_true')
-    args = parser.parse_args()
-    if args.round_trip:
-        args.write = True # -R implies -w too
-
-    print(f'Reading from {args.file}')
-    if args.profile:
-        cProfile.run("""configs = read(args.file,
-            verbose=args.verbose,
-            use_regex=args.regex,
-            create_calc=args.create_calc,
-            calc_prefix=args.calc_prefix,
-            use_cextxyz=args.cextxyz)""", "readstats")
-    t0 = time.time()
-    configs = read(args.file,
-                   verbose=args.verbose,
-                   use_regex=args.regex,
-                   create_calc=args.create_calc,
-                   calc_prefix=args.calc_prefix,
-                   use_cextxyz=args.cextxyz)
-    tr = time.time() - t0
-    if args.verbose:
-        print("main output of read()")
-        if isinstance(configs, Atoms):
-            configs = [configs]
-        for atoms in configs:
-            pprint(atoms.info)
-            pprint(atoms.arrays)
-
-    print('TIMER read', tr)
-
-    if args.write:
-        t0 = time.time()
-        out_file = os.path.splitext(args.file)[0] + '.out.xyz'
-
-        if args.profile:
-            cProfile.run("""write(out_file, configs,
-                verbose=args.verbose,
-                write_calc=args.create_calc,
-                calc_prefix=args.calc_prefix)""", "writestats")
-        else:
-            write(out_file, configs,
-                verbose=args.verbose,
-                write_calc=args.create_calc,
-                calc_prefix=args.calc_prefix)
-
-        tw = time.time() - t0
-        print('TIMER write', tw)
-
-    if args.round_trip:
-        print(f'Re-reading from {out_file}')
-        new_configs = read(out_file,
-                           verbose=args.verbose,
-                           use_regex=args.regex,
-                           create_calc=args.create_calc,
-                           calc_prefix=args.calc_prefix,
-                           use_cextxyz=args.cextxyz)
-
-        assert configs == new_configs
-        print('All configs match!')
 
