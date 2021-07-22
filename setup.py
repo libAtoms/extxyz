@@ -27,7 +27,7 @@ def build_pcre2():
     pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
 
     if not os.path.exists(pcre2_config):
-        subprocess.call(["curl",  f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz -o pcre2.tar.gz"])
+        subprocess.call(["curl",  f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
         subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
         subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
         subprocess.call("make", cwd=f"pcre2-{pcre2_version}")

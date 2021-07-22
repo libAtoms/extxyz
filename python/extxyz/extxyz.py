@@ -4,6 +4,7 @@ import re
 
 from pathlib import PosixPath
 
+from itertools import islice, count
 from pprint import pprint
 from io import StringIO
 
@@ -227,7 +228,7 @@ class OneDimArrays(NodeTransformer):
             result.value = result.value.reshape((3, 3), order='F')
         elif result.value.shape == (1, ):
             # old array with one column is just a scalar
-            result.value = result.value[0]
+            result.value = result.value.item()
         return result
 
 
@@ -418,9 +419,11 @@ class Properties:
             self._data[name] = value
         return self
     
-    def get_arrays(self, atoms, ase_names=True):
+    def get_arrays(self, atoms, names=None, ase_names=True):
         arrays = {}
-        for name in self:
+        if names is None:
+            names = self
+        for name in names:
             converter = None
             if ase_names:
                 out_name, converter = Properties.extxyz_to_ase.get(name, (name, None))
@@ -567,7 +570,7 @@ def read_frame_dicts(file, verbose=0, use_regex=True):
         print("info")
         pprint(info)
         
-    properties = info.get('properties', 'species:S:1:pos:R:3')
+    properties = info.pop('properties', 'species:S:1:pos:R:3')
     properties = Properties(property_string=properties)
 
     if use_regex:
@@ -590,7 +593,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
         if use_cextxyz:
             natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose)        
             properties = info.pop('Properties', 'species:S:1:pos:R:3')
-            properties = Properties(properties)
+            properties = Properties(property_string=properties)
             data = np.zeros(natoms, properties.dtype_vector)
             for name, value in arrays.items():
                 data[name] = value            
@@ -636,7 +639,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
                   pbc=pbc)
 
     # work with a copy of arrays so we can remove results if necessary
-    arrays = properties.get_arrays(atoms)
+    arrays = properties.get_arrays(atoms, names)
     
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
@@ -647,7 +650,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
     return atoms
 
 
-def iread(file, use_cextxyz=True, **kwargs):
+def iread(file, index=None, use_cextxyz=True, **kwargs):
     own_fh = False
     if isinstance(file, str) or isinstance(file, PosixPath):
         if use_cextxyz:
@@ -659,11 +662,25 @@ def iread(file, use_cextxyz=True, **kwargs):
             else:
                 file = open(file, 'r')
                 own_fh = True
+
+    if index is None or index == ':':
+        index = slice(None, None, None)
+
+    if not isinstance(index, (slice, str)):
+        index = slice(index, (index + 1) or None)
+
+    if (index.start is not None and index.start < 0) or (index.stop is not None and index.stop < 0):
+        raise ValueError("Negative indices not (yet) supported in extxyz.iread()")
+
+    current_frame = 0
+    frames = islice(count(0), index.start, index.stop, index.step)
     try:
-        while file:
-            atoms = read_frame(file, 
-                               use_cextxyz=use_cextxyz, 
-                               **kwargs)
+        for frame in frames:
+            while current_frame <= frame:
+                atoms = read_frame(file, use_cextxyz=use_cextxyz, **kwargs)
+                current_frame += 1
+                if atoms is None:
+                    break
             if atoms is None:
                 break
             yield atoms
@@ -683,12 +700,27 @@ def read(file, **kwargs):
         return configs
 
 
-def escape(string):
-    if '"' in string or ' ' in string:
-        string = string.replace('"', r'\"')
-        string = f'"{string}"'
-    return string
+# def escape(string):
+#     if '"' in string or ' ' in string or '\\' in string:
+#         string = string.replace('"', r'\"')
+#         string = string.replace('\\', '\\\\')
+#         string = f'"{string}"'
+#     return string
 
+def escape(string):
+    have_special = (' ' in string or '=' in string or '"' in string or ',' in string or '[' in string or
+                    ']' in string or '{' in string or '}' in string or '\\' in string or '\n' in string)
+    out_string = ''
+    for c in string:
+        if c == '\n':
+            out_string += '\\n';
+        elif c == '\\' or c == '"':
+            out_string += '\\' + c
+        else:
+            out_string += c
+    if have_special:
+        out_string = f'"{out_string}"'
+    return out_string
 
 _tf = lambda x: '@@T@@' if x else '@@F@@'
 _tf_vec = np.vectorize(_tf)
@@ -699,6 +731,10 @@ class ExtXYZEncoder(json.JSONEncoder):
             if obj.dtype.kind == 'b':
                 obj = _tf_vec(obj)
             return obj.tolist()
+        # elif isinstance(obj, np.int32) or isinstance(obj, np.int64):
+        #     return int(obj)
+        # elif isinstance(obj, np.float32) or isinstance(obj, np.float64):
+        #     return float(obj)
         elif isinstance(obj, bool):
             return _tf(obj)
         return super().default(obj)
@@ -712,12 +748,12 @@ def extxyz_value_to_string(value):
         return string.replace('@@"', '').replace('"@@', '')
 
 
-def write(file, atoms, use_cextxyz=False, append=False, columns=None, 
+def write(file, atoms, use_cextxyz=True, append=False, columns=None, 
           write_calc=False, calc_prefix='', verbose=0, format_dict=None):
     own_fh = False
+    mode = 'w'
+    if append: mode = 'a'
     if use_cextxyz:
-        mode = 'w'
-        if append: mode = 'a'
         file = cextxyz.cfopen(str(file), mode)
         own_fh = True
     else:        
@@ -725,7 +761,7 @@ def write(file, atoms, use_cextxyz=False, append=False, columns=None,
             if file == '-':
                 file = sys.stdout
             else:
-                file = open(file, 'w')
+                file = open(file, mode)
                 own_fh = True
     try:
         configs = atoms
@@ -756,10 +792,8 @@ def write(file, atoms, use_cextxyz=False, append=False, columns=None,
                                           verbose)
             else:
                 file.write(f'{len(atoms)}\n')
-                info_dict = info.copy()
-                info_dict['Properties'] = properties.property_string
-                comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
-
+                info['Properties'] = properties.property_string
+                comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info.items()])
                 file.write(comment + '\n')
                 np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
 

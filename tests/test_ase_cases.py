@@ -3,25 +3,36 @@
 # (which is also included in oi.py test case)
 # maintained by James Kermode <james.kermode@gmail.com>
 
+import os
 from pathlib import Path
 import numpy as np
 import pytest
 
-from extxyz.extxyz import read
+from extxyz.extxyz import read, write
 
- 
-from ase.io.extxyz import key_val_str_to_dict, key_val_dict_to_str
+def approx_equal(at1, at2, tol=1e-8):
+    if not isinstance(at1, Atoms) or not isinstance(at1, Atoms):
+        return False
+    a = at1.arrays
+    b = at2.arrays
+    return (len(at1) == len(at2) and
+            np.abs(a['positions'] - b['positions']).max() < tol and
+            (a['numbers'] == b['numbers']).all() and
+            np.abs(at1.cell - at2.cell).max() < tol and
+            (at1.pbc == at2.pbc).all())
+
+# from ase.io.extxyz import key_val_str_to_dict, key_val_dict_to_str
 
 # import ase.io
 # from ase.io import extxyz
-# from ase.atoms import Atoms
+from ase.atoms import Atoms
 from ase.build import bulk
 # from ase.io.extxyz import escape
 # from ase.calculators.calculator import compare_atoms
-# from ase.calculators.emt import EMT
+from ase.calculators.emt import EMT
 # from ase.constraints import FixAtoms, FixCartesian
-# from ase.stress import full_3x3_to_voigt_6_stress
-# from ase.build import molecule
+from ase.constraints import full_3x3_to_voigt_6_stress
+from ase.build import molecule
 
 # array data of shape (N, 1) squeezed down to shape (N, ) -- bug fixed
 # in commit r4541
@@ -126,22 +137,23 @@ def test_read_slash(tmp_path, helpers):
         assert a.info['key4'] == r'a@b'
 
 
-# writing not supported, don't know why this is called "test_read_struct"
-##def test_read_struct():
-##    struct = Atoms(
-##        'H4', pbc=[True, True, True],
-##        cell=[[4.00759, 0.0, 0.0],
-##              [-2.003795, 3.47067475, 0.0],
-##              [3.06349683e-16, 5.30613216e-16, 5.00307]],
-##        positions=[[-2.003795e-05, 2.31379473, 0.875437189],
-##                   [2.00381504, 1.15688001, 4.12763281],
-##                   [2.00381504, 1.15688001, 3.37697219],
-##                   [-2.003795e-05, 2.31379473, 1.62609781]],
-##    )
-##    struct.info = {'dataset': 'deltatest', 'kpoints': np.array([28, 28, 20]),
-##                   'identifier': 'deltatest_H_1.00',
-##                   'unique_id': '4cf83e2f89c795fb7eaf9662e77542c1'}
-##    ase.io.write('tmp.xyz', struct)
+def test_write_struct(tmp_path, helpers):
+    struct = Atoms(
+        'H4', pbc=[True, True, True],
+        cell=[[4.00759, 0.0, 0.0],
+                [-2.003795, 3.47067475, 0.0],
+                [3.06349683e-16, 5.30613216e-16, 5.00307]],
+        positions=[[-2.003795e-05, 2.31379473, 0.875437189],
+                    [2.00381504, 1.15688001, 4.12763281],
+                    [2.00381504, 1.15688001, 3.37697219],
+                    [-2.003795e-05, 2.31379473, 1.62609781]],
+    )
+    struct.info = {'dataset': 'deltatest', 'kpoints': np.array([28, 28, 20]),
+                    'identifier': 'deltatest_H_1.00',
+                    'unique_id': '4cf83e2f89c795fb7eaf9662e77542c1'}
+    for fn in helpers.write_all_variants(tmp_path / 'tmp.xyz', struct):
+        assert approx_equal(read(fn), struct)
+
 
 
 # Complex properties line. Keys and values that break with a regex parser.
@@ -242,12 +254,12 @@ def test_complex_key_val(tmp_path, helpers):
         #NB 'f_dict': {"a": 1} 
     }
 
-    parsed_dict = key_val_str_to_dict(complex_xyz_string)
-    np.testing.assert_equal(parsed_dict, expected_dict)
+    # parsed_dict = key_val_str_to_dict(complex_xyz_string)
+    # np.testing.assert_equal(parsed_dict, expected_dict)
 
-    key_val_str = key_val_dict_to_str(expected_dict)
-    parsed_dict = key_val_str_to_dict(key_val_str)
-    np.testing.assert_equal(parsed_dict, expected_dict)
+    # key_val_str = key_val_dict_to_str(expected_dict)
+    # parsed_dict = key_val_str_to_dict(key_val_str)
+    # np.testing.assert_equal(parsed_dict, expected_dict)
 
     # Round trip through a file with complex line.
     # Create file with the complex line and re-read it afterwards.
@@ -262,19 +274,20 @@ def test_complex_key_val(tmp_path, helpers):
                 np.testing.assert_equal(complex_atoms.info[key], value)
 
 
-# writing not supported
-##def test_write_multiple(at, images):
-##    # write multiple atoms objects to one xyz
-##    for atoms in images:
-##        atoms.write('append.xyz', append=True)
-##        atoms.write('comp_append.xyz.gz', append=True)
-##        atoms.write('not_append.xyz', append=False)
-##    readFrames = ase.io.read('append.xyz', index=slice(0, None))
-##    assert readFrames == images
-##    readFrames = ase.io.read('comp_append.xyz.gz', index=slice(0, None))
-##    assert readFrames == images
-##    singleFrame = ase.io.read('not_append.xyz', index=slice(0, None))
-##    assert singleFrame[-1] == images[-1]
+def test_write_multiple(at, images):
+    # write multiple atoms objects to one xyz
+    if os.path.exists('append.xyz'): os.unlink('append.xyz')
+    if os.path.exists('comp_append.xyz'): os.unlink('comp_append.xyz')
+    for atoms in images:
+        write('append.xyz', atoms, append=True)
+        # write('comp_append.xyz.gz', atoms, append=True)
+        write('not_append.xyz', atoms, append=False)
+    readFrames = read('append.xyz', index=slice(0, None))
+    assert readFrames == images
+    # readFrames = read('comp_append.xyz', index=slice(0, None))
+    # assert readFrames == images
+    singleFrame = read('not_append.xyz', index=slice(0, None))
+    assert singleFrame == images[-1]
 
 
 # read xyz with blank comment line
@@ -298,44 +311,27 @@ def test_blank_comment(tmp_path, helpers):
 
 # no writing and calculator reading yet
 ##@pytest.mark.filterwarnings('ignore:write_xyz')
-##def test_stress():
-##    # build a water dimer, which has 6 atoms
-##    water1 = molecule('H2O')
-##    water2 = molecule('H2O')
-##    water2.positions[:, 0] += 5.0
-##    atoms = water1 + water2
-##    atoms.cell = [10, 10, 10]
-##    atoms.pbc = True
-##
-##    # array with clashing name
-##    atoms.new_array('stress', np.arange(6, dtype=float))
-##    atoms.calc = EMT()
-##    a_stress = atoms.get_stress()
-##    atoms.write('tmp.xyz')
-##    b = ase.io.read('tmp.xyz')
-##    assert abs(b.get_stress() - a_stress).max() < 1e-6
-##    assert abs(b.arrays['stress'] - np.arange(6, dtype=float)).max() < 1e-6
-##    b_stress = b.info['stress']
-##    assert abs(full_3x3_to_voigt_6_stress(b_stress) - a_stress).max() < 1e-6
+def test_stress(tmp_path, helpers):
+    # build a water dimer, which has 6 atoms
+    water1 = molecule('H2O')
+    water2 = molecule('H2O')
+    water2.positions[:, 0] += 5.0
+    atoms = water1 + water2
+    atoms.cell = [10, 10, 10]
+    atoms.pbc = True
+
+    # array with clashing name
+    atoms.new_array('stress', np.arange(6, dtype=float))
+    atoms.calc = EMT()
+    a_stress = atoms.get_stress()
+    for fn in helpers.write_all_variants(tmp_path / 'tmp.xyz', atoms, write_calc=True):
+        for b in helpers.read_all_variants(fn, create_calc=True):
+            assert abs(b.get_stress() - a_stress).max() < 1e-6
+            assert abs(b.arrays['stress'] - np.arange(6, dtype=float)).max() < 1e-6
+            assert 'stress' not in b.info
 
 
-# mostly testing writing, not implemented yet
-##def test_json_scalars():
-##    a = bulk('Si')
-##    a.info['val_1'] = 42.0
-##    a.info['val_2'] = 42.0  # was np.float but that's the same.  Can remove
-##    a.info['val_3'] = np.int64(42)
-##    a.write('tmp.xyz')
-##    with open('tmp.xyz', 'r') as fd:
-##        comment_line = fd.readlines()[1]
-##    assert "val_1=42.0" in comment_line and "val_2=42.0" in comment_line and "val_3=42" in comment_line
-##    b = ase.io.read('tmp.xyz')
-##    assert abs(b.info['val_1'] - 42.0) < 1e-6
-##    assert abs(b.info['val_2'] - 42.0) < 1e-6
-##    assert abs(b.info['val_3'] - 42) == 0
-
-
-# not constraint I/O support yet
+# no constraint I/O support yet
 ##@pytest.mark.parametrize('constraint', [FixAtoms(indices=(0, 2)),
 ##                                        FixCartesian(1, mask=(1, 0, 1)),
 ##                                        [FixCartesian(0), FixCartesian(2)]])

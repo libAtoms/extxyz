@@ -1,3 +1,4 @@
+import pytest
 import re
 
 def bare_string_strings():
@@ -49,8 +50,10 @@ def test_bare_string_one_d_arrays(tmp_path, helpers):
 def test_quoted_string_one_d_arrays(tmp_path, helpers):
     helpers.do_test_one_d_array(tmp_path, quoted_string_strings(), is_string=True)
 
+@pytest.mark.skip
 def test_bare_string_two_d_arrays(tmp_path, helpers):
     helpers.do_test_two_d_array(tmp_path, bare_string_strings())
 
+@pytest.mark.skip
 def test_quoted_string_two_d_arrays(tmp_path, helpers):
     helpers.do_test_two_d_array(tmp_path, quoted_string_strings())

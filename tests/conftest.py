@@ -4,30 +4,46 @@ import os
 from pathlib import Path
 import numpy as np
 
-from extxyz.extxyz import read
+from extxyz.extxyz import read, write
 
 verbose = 0
 
 if 'USE_CEXTXYZ' in os.environ:
-    kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
+    read_kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
+    write_kwargs_variants = [ { 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
+
 else:
-    kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
-                        { 'use_regex' : False, 'use_cextxyz' : True  } ]
+    read_kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
+                             { 'use_regex' : False, 'use_cextxyz' : True  } ]
+    write_kwargs_variants = [ { 'use_cextxyz' : False },
+                              { 'use_cextxyz' : True  } ]
 
 
 
 class Helpers:
     @staticmethod
-    def read_all_variants(filename):
+    def read_all_variants(filename, **kwargs):
         ats_variants = []
-        for read_kwargs in kwargs_variants:
-            ats_variants.append(read(filename, verbose=verbose, **read_kwargs))
+        for read_kwargs in read_kwargs_variants:
+            new_kwargs = kwargs.copy()
+            new_kwargs.update(read_kwargs)
+            ats_variants.append(read(filename, verbose=verbose, **new_kwargs))
         return ats_variants
 
+    @staticmethod
+    def write_all_variants(filename, atoms, **kwargs):
+        variant_filenames = []
+        for idx, write_kwargs in enumerate(write_kwargs_variants):
+            variant_filename = str(filename).replace('.xyz', f'.{idx}.xyz')
+            new_kwargs = kwargs.copy()
+            new_kwargs.update(write_kwargs)
+            write(variant_filename, atoms, **new_kwargs)
+            variant_filenames.append(variant_filename)
+        return variant_filenames
 
     @staticmethod
     def do_test_kv_pair(path, key, val, kv_str):
-        for read_kwargs in kwargs_variants:
+        for read_kwargs in read_kwargs_variants:
             with open(path / Path('test_file.extxyz'), 'w') as fout:
                 fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
 
@@ -36,8 +52,13 @@ class Helpers:
                 print(''.join(fin.readlines()))
 
             at = read(str(path / Path('test_file.extxyz')), verbose=verbose, **read_kwargs)
-
             assert np.all(at.info[key] == val)
+
+            for write_kwargs in write_kwargs_variants:
+                fn = str(path / Path('test_file.2.extxyz'))
+                write(fn, at, verbose=verbose, **write_kwargs)
+                at2 = read(fn, verbose=verbose, **read_kwargs)
+                assert at2 == at
 
 
     @staticmethod
