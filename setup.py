@@ -20,8 +20,31 @@ def build_grammar():
         import extxyz_kv_grammar
         del sys.path[0]
         extxyz_kv_grammar.write_grammar('./libextxyz')
+
+def build_pcre2():
+    pcre2_version = '10.37'
+    build_dir = f"pcre2-{pcre2_version}/build"
+    pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
+
+    if not os.path.exists(pcre2_config):
+        subprocess.call(["curl",  f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz -o pcre2.tar.gz"])
+        subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
+        subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
+        subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
+        subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
+
+    pcre2_cflags = subprocess.run([f'{pcre2_config}', '--cflags'], capture_output=True).stdout.decode('utf-8').strip().split()
+    pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
+    # should we also capture other flags to pass to extra_compile_flags?
+
+    pcre2_libs = subprocess.run([f'{pcre2_config}', '--libs8'], capture_output=True).stdout.decode('utf-8').strip().split()
+    pcre2_library_dirs = [l.replace('-L', '', 1) for l in pcre2_libs if l.startswith('-L')]
+    pcre2_libraries = [l.replace('-l', '', 1) for l in pcre2_libs if l.startswith('-l')]
+
+    return pcre2_cflags, pcre2_include_dirs, pcre2_library_dirs, pcre2_libraries
+
     
-def build_libcleri():
+def build_libcleri(pcre2_cflags):
     with open('libcleri/Release/makefile', 'r') as f_in, open('libcleri/Release/makefile.extxyz', 'w') as f_out:
         contents = f_in.read()
         contents += """
@@ -30,23 +53,25 @@ libcleri.a: $(OBJS) $(USER_OBJS)
 \tar rcs libcleri.a $(OBJS) $(USER_OBJS)
 """
         f_out.write(contents)
-    subprocess.call(['make', '-C', 'libcleri/Release', '-f', 'makefile.extxyz', 'libcleri.a'])
+    env = os.environ.copy()
+    env['CFLAGS'] = ' '.join(pcre2_cflags)
+    subprocess.call(['make', '-C', 'libcleri/Release', '-f', 'makefile.extxyz', 'libcleri.a'], env=env)
 
 class install(setuptools__install):
     def run(self):
-        build_libcleri()
+        build_libcleri(pcre2_cflags)
         setuptools__install.run(self)
 
 
 class develop(setuptools__develop):
     def run(self):
-        build_libcleri()
+        build_libcleri(pcre2_cflags)
         setuptools__develop.run(self)
 
 
 class egg_info(setuptools__egg_info):
     def run(self):
-        build_libcleri()
+        build_libcleri(pcre2_cflags)
         setuptools__egg_info.run(self)
 
 # https://stackoverflow.com/questions/60284403/change-output-filename-in-setup-py-distutils-extension
@@ -57,13 +82,7 @@ class NoSuffixBuilder(setuptools__build_ext):
         ext = os.path.splitext(filename)[1]
         return filename.replace(suffix, "") + ext
 
-pcre2_cflags = subprocess.run(['pcre2-config', '--cflags'], capture_output=True).stdout.decode('utf-8').strip().split()
-pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
-# should we also capture other flags to pass to extra_compile_flags?
-
-pcre2_libs = subprocess.run(['pcre2-config', '--libs8'], capture_output=True).stdout.decode('utf-8').strip().split()
-pcre2_library_dirs = [l.replace('-L', '', 1) for l in pcre2_libs if l.startswith('-L')]
-pcre2_libraries = [l.replace('-l', '', 1) for l in pcre2_libs if l.startswith('-l')]
+pcre2_cflags, pcre2_include_dirs, pcre2_library_dirs, pcre2_libraries = build_pcre2()        
 
 _extxyz_ext = Extension('extxyz._extxyz', sources=['libextxyz/extxyz_kv_grammar.c', 'libextxyz/extxyz.c'],
                         include_dirs=['libcleri/inc', 'extxyz'] + pcre2_include_dirs,
@@ -80,6 +99,7 @@ setup(
     package_dir={'': 'python'},
     cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info, 'build_ext': NoSuffixBuilder},
     include_package_data=True,
+    install_requires=['numpy>=1.13', 'pyleri>=1.3.3'],
     ext_modules=[_extxyz_ext],
     entry_points={'console_scripts': ['extxyz=extxyz.cli:main']}
 )
