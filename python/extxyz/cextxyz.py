@@ -55,9 +55,11 @@ extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(Dict_entry_ptr),
                               ctypes.POINTER(Dict_entry_ptr)]
 
-extxyz.print_dict.args = [ctypes.POINTER(Dict_entry_ptr)]
+extxyz.extxyz_write_ll.args = [ctypes.c_void_p, ctypes.c_int, Dict_entry_ptr, Dict_entry_ptr]
 
-extxyz.free_dict.args = [ctypes.POINTER(Dict_entry_ptr)]
+extxyz.print_dict.args = [Dict_entry_ptr]
+
+extxyz.free_dict.args = [Dict_entry_ptr]
 
 def c_to_py_dict(c_dict, deepcopy=False):
     """
@@ -105,6 +107,91 @@ def c_to_py_dict(c_dict, deepcopy=False):
         result[node.key.decode('utf-8')] = value
         node_ptr = node.next
     return result
+
+
+def py_to_c_dict(py_dict, keys=None):
+    """Convert Python dictionary to C DictEntry linked list
+
+    Args:
+        py_dict (dict): Input dictionary
+        
+    Returns:
+        c_dict (Dict_entry_ptr): Output linked list
+    """
+    c_dict = ctypes.cast(ctypes.create_string_buffer(ctypes.sizeof(Dict_entry_struct)), 
+                         Dict_entry_ptr)
+    node_ptr = c_dict
+    
+    if keys is None:
+        keys = py_dict.keys()
+    
+    for idx, key in enumerate(keys):
+        value = py_dict[key]
+        node = node_ptr.contents
+        node.key = ctypes.c_char_p(key.encode('utf-8'))
+        
+        if isinstance(value, list) or isinstance(value, tuple) or isinstance(value, np.ndarray):
+            value = np.asarray(value, order='C') # ensure C-contigous order
+            
+            if len(value.shape) == 0:
+                node.nrows = 0
+                node.ncols = 0
+            elif len(value.shape) == 1:
+                node.nrows = 0
+                node.ncols = value.shape[0]
+            elif len(value.shape) == 2:
+                node.nrows = value.shape[0]
+                node.ncols = value.shape[1]
+            
+            if value.dtype.kind == 'b':
+                node.data_t = DATA_B
+                value = value.astype(np.int16)                 
+            elif value.dtype.kind == 'i':
+                node.data_t = DATA_I
+                value = value.astype(np.int32)
+            elif value.dtype.kind == 'f':
+                node.data_t = DATA_F
+                value = value.astype(np.float64)
+            elif value.dtype.kind == 's' or value.dtype.kind == 'U':
+                node.data_t = DATA_S
+                assert len(value.shape) == 1 # only 1D arrays of strings are supported
+            else:
+                raise TypeError(f"unsupported array dtype {value.dtype}")
+            
+            if node.data_t in [DATA_B, DATA_I, DATA_F]:
+                nbytes = int(value.dtype.itemsize * np.prod(value.shape))
+                buffer = ctypes.create_string_buffer(nbytes)
+                ctypes.memmove(buffer, value.ctypes.data, nbytes)
+                node.data = ctypes.cast(buffer, ctypes.c_void_p)
+            else:
+                array_dtype = ctypes.c_char_p * len(value)
+                node.data = ctypes.cast(array_dtype(*[str.encode('utf-8') for str in value]), 
+                                        ctypes.c_void_p)
+            
+        elif isinstance(value, str):
+            node.data_t = DATA_S
+            # NB: data is a char**, not a char*
+            node.data = ctypes.cast(ctypes.pointer(ctypes.c_char_p(value.encode('utf-8'))), ctypes.c_void_p)
+        elif isinstance(value, bool):
+            node.data_t = DATA_B
+            node.data = ctypes.cast(ctypes.pointer(ctypes.c_int(value)), ctypes.c_void_p)
+        elif isinstance(value, int):
+            node.data_t = DATA_I
+            node.data = ctypes.cast(ctypes.pointer(ctypes.c_int(value)), ctypes.c_void_p)
+        elif isinstance(value, float):
+            node.data_t = DATA_F
+            node.data = ctypes.cast(ctypes.pointer(ctypes.c_double(value)), ctypes.c_void_p)
+        else:
+            raise TypeError(f"unsupported type {type(value)}")
+        
+        if idx != len(py_dict)-1:
+            # allocate another DictEntry struct unless we're on the last one already
+            node.next = ctypes.cast(ctypes.create_string_buffer(ctypes.sizeof(Dict_entry_struct)), 
+                                    Dict_entry_ptr)
+            node_ptr = node.next
+    
+    return c_dict
+        
 
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
@@ -163,3 +250,30 @@ def read_frame_dicts(fp, verbose=False):
             extxyz.free_dict(arrays)
 
     return nat.value, py_info, py_arrays
+
+
+def write_frame_dicts(fp, nat, info, arrays, columns=None, **kwargs):
+    """Write a single frame using extxyz_write_ll C function
+
+    Args:
+        fp (FILE_ptr): open file to which to write
+        nat (int): Number of atoms
+        info (dict): Python dictionary of per-config data
+        arrays (dict): Python dictionary of per-atom data
+    """
+    nat = ctypes.c_int(nat)
+    c_info = py_to_c_dict(info)
+    print(c_to_py_dict(c_info))
+    
+    if columns is None:
+        columns = arrays.keys()
+    
+    c_arrays = py_to_c_dict(arrays, columns)
+    print(c_to_py_dict(c_arrays))    
+    try:
+        if extxyz.extxyz_write_ll(fp, nat, c_info, c_arrays) != 0:
+            raise IOError("error writing to extended XYZ file")
+    finally:
+       extxyz.print_dict(c_info)
+       extxyz.free_dict(c_info)
+       extxyz.free_dict(c_arrays)

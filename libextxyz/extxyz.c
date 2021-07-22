@@ -1040,7 +1040,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     char *entry_str = (char *)malloc(entry_str_len * sizeof(char));
 
     for (DictEntry *entry=info; entry; entry = entry->next) {
-        // should ths be necessary?
+        // should this be necessary?
         if (! strcmp(entry->key, "Properties")) {
             continue;
         }
@@ -1057,6 +1057,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
         // value
         // (only) Lattice is always written as old style 3x3
         int old_style_3_3 = !strcmp(entry->key, "Lattice");
+        fprintf(stderr, "entry_str %s\n", entry_str);
         int err_stat = concat_entry(&entry_str, &entry_str_len, entry, old_style_3_3);
         if (err_stat) { free(entry_str); return err_stat; }
 

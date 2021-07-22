@@ -288,6 +288,38 @@ def momenta_to_velo(atoms, momenta):
     return momenta / masses[:, None] * units.fs
 
 
+def ensure_species_pos(atoms, arrays, columns=None):
+    """
+    Ensure species and position occur in first two columns
+    """
+    def shuffle_columns(column, idx):
+        if column in columns:
+            old_idx = columns.index(column)
+            columns[idx], columns[old_idx] = columns[idx], columns[old_idx]
+        else:
+            raise ValueError(f'invalid XYZ structure: does not contain "{column}"')
+
+    if arrays is None:
+        arrays = atoms.arrays
+    skip_keys = ['symbols', 'positions', 'numbers']
+    if columns is None:
+        columns = (['symbols', 'positions'] +
+                [key for key in arrays.keys() if key not in skip_keys])
+    else:
+        columns = columns[:] # make a copy so we can reorder
+
+    shuffle_columns('symbols', 0)
+    shuffle_columns('positions', 1)
+
+    new_arrays = {}
+    for column in columns:        
+        if column == 'symbols':
+            new_arrays[column] = np.array(atoms.get_chemical_symbols())
+        else:
+            new_arrays[column] = arrays[column]
+
+    return new_arrays, columns
+
 class Properties:
     per_atom_dtype = {'R': float,
                       'I': int,
@@ -358,33 +390,13 @@ class Properties:
             yield name
             
     @classmethod
-    def from_atoms(cls, atoms, arrays=None, columns=None, verbose=0,
+    def from_atoms(cls, atoms, arrays, columns=None, verbose=0,
                    format_dict=None):
-        
-        def shuffle_columns(column, idx):
-            if column in columns:
-                old_idx = columns.index(column)
-                columns[idx], columns[old_idx] = columns[idx], columns[old_idx]
-            else:
-                raise ValueError(f'invalid XYZ file: does not contain "{column}"')
-
-        skip_keys = ['symbols', 'positions', 'numbers']
-        if columns is None:
-            columns = (['symbols', 'positions'] +
-                    [key for key in arrays.keys() if key not in skip_keys])
-        else:
-            columns = columns[:] # make a copy so we can reorder
-
-        shuffle_columns('symbols', 0)
-        shuffle_columns('positions', 1)
-
+        arrays, columns = ensure_species_pos(atoms, arrays, columns)
         values = []
         properties = []
         for column in columns:
-            if column == 'symbols':
-                value = np.array(atoms.get_chemical_symbols())
-            else:
-                value = arrays[column]
+            value = arrays[column]
             try:
                 property_type = Properties.format_map[value.dtype.kind]
             except KeyError:
@@ -721,7 +733,7 @@ def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
     np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
 
 
-def write(file, atoms, use_cextxyz=False, append=False, **kwargs):
+def write(file, atoms, use_cextxyz=False, append=False, columns=None, **kwargs):
     own_fh = False
     if use_cextxyz:
         mode = 'w'
@@ -743,13 +755,16 @@ def write(file, atoms, use_cextxyz=False, append=False, **kwargs):
             info = atoms.info.copy()
             info['Lattice'] = atoms.cell.array.T
             info['pbc'] = atoms.get_pbc()
+            arrays = atoms.arrays.copy()
             
             if use_cextxyz:
                 print('using C writer')
+                arrays, columns = ensure_species_pos(atoms, arrays, columns)                
                 cextxyz.write_frame_dicts(file, 
                                           len(atoms), 
                                           info, 
-                                          atoms.arrays, 
+                                          arrays,
+                                          columns=columns,
                                           **kwargs)
             else:
                 write_extxyz_frame(file, atoms, info, **kwargs)
