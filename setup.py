@@ -33,11 +33,11 @@ def build_pcre2():
         subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
         subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
 
-    pcre2_cflags = subprocess.run([f'{pcre2_config}', '--cflags'], capture_output=True).stdout.decode('utf-8').strip().split()
+    pcre2_cflags = subprocess.check_output([f'{pcre2_config}', '--cflags'], encoding='utf-8').strip().split()
     pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
     # should we also capture other flags to pass to extra_compile_flags?
 
-    pcre2_libs = subprocess.run([f'{pcre2_config}', '--libs8'], capture_output=True).stdout.decode('utf-8').strip().split()
+    pcre2_libs = subprocess.check_output([f'{pcre2_config}', '--libs8'], encoding='utf-8').strip().split()
     pcre2_library_dirs = [l.replace('-L', '', 1) for l in pcre2_libs if l.startswith('-L')]
     pcre2_libraries = [l.replace('-l', '', 1) for l in pcre2_libs if l.startswith('-l')]
 
