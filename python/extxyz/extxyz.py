@@ -418,14 +418,18 @@ class Properties:
             self._data[name] = value
         return self
     
-    def get_arrays(self, atoms):
+    def get_arrays(self, atoms, ase_names=True):
         arrays = {}
         for name in self:
-            ase_name, converter = Properties.extxyz_to_ase.get(name, (name, None))
+            converter = None
+            if ase_names:
+                out_name, converter = Properties.extxyz_to_ase.get(name, (name, None))
+            else:
+                out_name = name
             value = self.data[name]
             if converter is not None:
                 value = converter(atoms, value)
-            arrays[ase_name] = value
+            arrays[out_name] = value
         return arrays
 
     def get_dtype(self, scalar=True):
@@ -708,32 +712,8 @@ def extxyz_value_to_string(value):
         return string.replace('@@"', '').replace('"@@', '')
 
 
-def write_extxyz_frame(file, atoms, info=None, arrays=None, columns=None,
-                       write_calc=False, calc_prefix='', verbose=0,
-                       format_dict=None):
-    if write_calc:
-        tmp_atoms = atoms.copy()
-        update_atoms_from_calc(tmp_atoms, atoms.calc, calc_prefix)
-        atoms = tmp_atoms
-    if info is None:
-        info = atoms.info
-    if arrays is None:
-        arrays = atoms.arrays
-
-    properties = Properties.from_atoms(atoms, arrays,
-                                       columns, verbose=verbose,
-                                       format_dict=format_dict)
-
-    file.write(f'{len(atoms)}\n')
-    info_dict = info.copy()
-    info_dict['Properties'] = properties.property_string
-    comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
-
-    file.write(comment + '\n')
-    np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
-
-
-def write(file, atoms, use_cextxyz=False, append=False, columns=None, **kwargs):
+def write(file, atoms, use_cextxyz=False, append=False, columns=None, 
+          write_calc=False, calc_prefix='', verbose=0, format_dict=None):
     own_fh = False
     if use_cextxyz:
         mode = 'w'
@@ -752,22 +732,37 @@ def write(file, atoms, use_cextxyz=False, append=False, columns=None, **kwargs):
         if not isinstance(configs, list):
             configs = [atoms]
         for atoms in configs:
+            if write_calc:
+                tmp_atoms = atoms.copy()
+                update_atoms_from_calc(tmp_atoms, atoms.calc, calc_prefix)
+                atoms = tmp_atoms
             info = atoms.info.copy()
+            arrays = atoms.arrays.copy()
+
             info['Lattice'] = atoms.cell.array.T
             info['pbc'] = atoms.get_pbc()
-            arrays = atoms.arrays.copy()
+            properties = Properties.from_atoms(atoms, arrays,
+                                               columns, verbose=verbose,
+                                               format_dict=format_dict)
             
             if use_cextxyz:
-                print('using C writer')
-                arrays, columns = ensure_species_pos(atoms, arrays, columns)                
+                if format_dict is not None:
+                    raise ValueError('C extxyz writer does not (yet) support custom format strings')
                 cextxyz.write_frame_dicts(file, 
                                           len(atoms), 
                                           info, 
-                                          arrays,
-                                          columns=columns,
-                                          **kwargs)
+                                          properties.get_arrays(atoms, ase_names=False),
+                                          columns,
+                                          verbose)
             else:
-                write_extxyz_frame(file, atoms, info, **kwargs)
+                file.write(f'{len(atoms)}\n')
+                info_dict = info.copy()
+                info_dict['Properties'] = properties.property_string
+                comment =  ' '.join([f'{escape(k)}={extxyz_value_to_string(v)}' for k, v in info_dict.items()])
+
+                file.write(comment + '\n')
+                np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
+
     finally:
         if own_fh: 
             if use_cextxyz:

@@ -6,10 +6,6 @@ import copy
 
 import numpy as np
 
-from ase.atoms import Atoms
-
-from .utils import create_single_point_calculator, update_atoms_from_calc
-
 class FILE_ptr(ctypes.c_void_p):
     pass
 
@@ -145,7 +141,7 @@ def py_to_c_dict(py_dict, keys=None):
             
             if value.dtype.kind == 'b':
                 node.data_t = DATA_B
-                value = value.astype(np.int16)                 
+                value = value.astype(np.int32)
             elif value.dtype.kind == 'i':
                 node.data_t = DATA_I
                 value = value.astype(np.int32)
@@ -252,7 +248,7 @@ def read_frame_dicts(fp, verbose=False):
     return nat.value, py_info, py_arrays
 
 
-def write_frame_dicts(fp, nat, info, arrays, columns=None, **kwargs):
+def write_frame_dicts(fp, nat, info, arrays, columns=None, verbose=False, format_dict=None):
     """Write a single frame using extxyz_write_ll C function
 
     Args:
@@ -269,11 +265,8 @@ def write_frame_dicts(fp, nat, info, arrays, columns=None, **kwargs):
         columns = arrays.keys()
     
     c_arrays = py_to_c_dict(arrays, columns)
-    print(c_to_py_dict(c_arrays))    
-    try:
-        if extxyz.extxyz_write_ll(fp, nat, c_info, c_arrays) != 0:
-            raise IOError("error writing to extended XYZ file")
-    finally:
-       extxyz.print_dict(c_info)
-       extxyz.free_dict(c_info)
-       extxyz.free_dict(c_arrays)
+    if verbose:
+        extxyz.print_dict(c_info)
+        extxyz.print_dict(c_arrays)
+    if extxyz.extxyz_write_ll(fp, nat, c_info, c_arrays) != 0:
+        raise IOError("error writing to extended XYZ file")
