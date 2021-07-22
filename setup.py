@@ -99,7 +99,7 @@ setup(
     package_dir={'': 'python'},
     cmdclass={'install': install, 'develop': develop, 'egg_info': egg_info, 'build_ext': NoSuffixBuilder},
     include_package_data=True,
-    install_requires=['numpy>=1.13', 'pyleri>=1.3.3'],
+    install_requires=['numpy>=1.13', 'pyleri>=1.3.3', 'ase>=3.17'],
     ext_modules=[_extxyz_ext],
     entry_points={'console_scripts': ['extxyz=extxyz.cli:main']}
 )
