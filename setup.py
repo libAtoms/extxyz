@@ -23,7 +23,7 @@ def build_grammar():
 
 def build_pcre2():
     pcre2_version = '10.37'
-    build_dir = f"pcre2-{pcre2_version}/build"
+    build_dir = os.path.abspath(f"./pcre2-{pcre2_version}/build")
     pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
 
     if not os.path.exists(pcre2_config):
