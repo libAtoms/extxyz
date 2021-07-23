@@ -1,0 +1,33 @@
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-10.15]
+      fail-fast: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Checkout submodules
+        run: git submodule update --init --recursive      
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v1.11.1.post1
+        env:
+           CIBW_SKIP: cp27-* cp35-*
+           CIBW_ARCHS_LINUX: "auto64"
+           CIBW_ARCHS_MACOS: "x86_64 arm64"           
+           CIBW_TEST_COMMAND: "pytest -v"
+           
+      # Uncomment to get SSH access for testing
+      - name: Setup tmate session
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: ./wheelhouse/*.whl
