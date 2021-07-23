@@ -21,7 +21,8 @@ jobs:
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: "x86_64 arm64"
            CIBW_BEFORE_ALL_LINUX: "yum install -y pcre2-devel"
-           CIBW_TEST_COMMAND: "pip install pytest && pytest -v"
+           CIBW_TEST_REQUIRES: pytest 
+           CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            CIBW_BUILD_VERBOSITY: 1
            
       # Uncomment to get SSH access for testing
