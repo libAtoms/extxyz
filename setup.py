@@ -1,4 +1,7 @@
 import sys
+import tempfile
+import atexit
+import shutil
 import sysconfig
 import pathlib
 import os
@@ -44,16 +47,23 @@ def build_pcre2():
     print(f'which(pcre2-config) = {pcre2_config}')
     if pcre2_config is None:
         pcre2_version = '10.37'
-        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2-version}')
-        build_dir = os.path.abspath(f"./pcre2-{pcre2_version}/build")
+        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2_version}')
+
+        tempdir = tempfile.mkdtemp()
+        atexit.register(lambda: shutil.rmtree(tempdir)) # cleanup tempdir when Python exits
+        build_dir = os.path.abspath(f"{tempdir}/pcre2-{pcre2_version}/build")
         pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
 
-        if not os.path.exists(pcre2_config):
+        orig_dir = os.getcwd()
+        os.chdir(tempdir)
+        try:
             subprocess.call(["curl", f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
             subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
             subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
             subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
             subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
+        finally:
+            os.chdir(orig_dir)
 
     pcre2_cflags = subprocess.check_output([f'{pcre2_config}', '--cflags'], encoding='utf-8').strip().split()
     pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
