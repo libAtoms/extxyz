@@ -62,4 +62,4 @@ jobs:
         QUIP_ROOT=${PWD}/QUIP make -C libextxyz fextxyz
     - name: Test with pytest
       run: |
-        USE_FORTRAN=T pytest -v
+        USE_FORTRAN=T pytest -v --ignore QUIP
