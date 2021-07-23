@@ -21,6 +21,7 @@ jobs:
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: "x86_64 arm64"           
            CIBW_TEST_COMMAND: "pip install pytest && pytest -v"
+           CIBW_BUILD_VERBOSITY: 1
            
       # Uncomment to get SSH access for testing
       - name: Setup tmate session
