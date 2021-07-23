@@ -25,11 +25,11 @@ jobs:
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            CIBW_BUILD_VERBOSITY: 1
            
-      # Uncomment to get SSH access for testing
-      - name: Setup tmate session
-        if: failure()
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
+      # # Uncomment to get SSH access for testing
+      # - name: Setup tmate session
+      #   if: failure()
+      #   uses: mxschmitt/action-tmate@v3
+      #   timeout-minutes: 15
 
       - uses: actions/upload-artifact@v2
         with:
