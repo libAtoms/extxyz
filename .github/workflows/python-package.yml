@@ -38,7 +38,7 @@ jobs:
           python-numpy
         mkdir -p QUIP/build/${QUIP_ARCH}
         cp QUIP/.github/workflows/Makefile.inc QUIP/build/${QUIP_ARCH}/Makefile.inc
-        make -C QUIP libAtoms
+        (cd QUIP && make libAtoms)
     # Uncomment to get SSH access for testing
     - name: Setup tmate session
       if: failure()
