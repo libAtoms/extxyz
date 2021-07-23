@@ -88,7 +88,7 @@ def c_to_py_dict(c_dict, deepcopy=False):
                 # matrix (2D array)
                 if node.data_t == DATA_S:
                     value = np.array([data_ptr[i].decode('utf-8')
-                                    for i in range(node.nrows*node.ncols)])
+                                      for i in range(node.nrows*node.ncols)])
                     value = value.reshape(node.nrows, node.ncols)
                 else:
                     value = np.ctypeslib.as_array(data_ptr,
@@ -153,7 +153,7 @@ def py_to_c_dict(py_dict, keys=None):
                 assert len(value.shape) == 1  # only 1D arrays of strings are supported
             else:
                 raise TypeError(f"unsupported array dtype {value.dtype}")
-            
+
             if node.data_t in [DATA_B, DATA_I, DATA_F]:
                 nbytes = int(value.dtype.itemsize * np.prod(value.shape))
                 buffer = ctypes.create_string_buffer(nbytes)
@@ -161,9 +161,9 @@ def py_to_c_dict(py_dict, keys=None):
                 node.data = ctypes.cast(buffer, ctypes.c_void_p)
             else:
                 array_dtype = ctypes.c_char_p * len(value)
-                node.data = ctypes.cast(array_dtype(*[str.encode('utf-8') for str in value]), 
+                node.data = ctypes.cast(array_dtype(*[str.encode('utf-8') for str in value]),
                                         ctypes.c_void_p)
-            
+
         elif isinstance(value, str):
             node.data_t = DATA_S
             # NB: data is a char**, not a char*
@@ -180,7 +180,7 @@ def py_to_c_dict(py_dict, keys=None):
         else:
             raise TypeError(f"unsupported type {type(value)}")
         
-        if idx != len(py_dict)-1:
+        if idx != len(py_dict) - 1:
             # allocate another DictEntry struct unless we're on the last one already
             node.next = ctypes.cast(ctypes.create_string_buffer(ctypes.sizeof(Dict_entry_struct)), 
                                     Dict_entry_ptr)
