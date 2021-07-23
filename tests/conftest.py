@@ -21,7 +21,7 @@ else:
                               { 'use_cextxyz' : True  } ]
 
 fextxyz_exe = str(Path(__file__).parents[1] / 'libextxyz/fextxyz')
-use_fortran_global = 'USE_FORTRAN' in os.environ and os.environ['USE_FORTRAN'].lower().startswith('t') and os.path.exists(fextxyz_exe)
+use_fortran_global = 'USE_FORTRAN' in os.environ and os.environ['USE_FORTRAN'].lower().startswith('t')
 
 class Helpers:
     @staticmethod

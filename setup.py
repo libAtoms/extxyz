@@ -41,8 +41,10 @@ def which(program):
 
 def build_pcre2():
     pcre2_config = which('pcre2-config')
+    print(f'which(pcre2-config) = {pcre2-config}')
     if pcre2_config is None:
         pcre2_version = '10.37'
+        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2-version}')
         build_dir = os.path.abspath(f"./pcre2-{pcre2_version}/build")
         pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
 
