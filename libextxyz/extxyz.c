@@ -496,6 +496,7 @@ void free_dict(DictEntry *dict) {
     DictEntry *next_entry = dict->next;
     for (DictEntry *entry = dict; entry; entry = next_entry) {
         if (entry->key) {
+            // fprintf(stderr, "freeing %s\n", entry->key);
             free(entry->key);
         }
         free_DataLinkedList(entry->first_data_ll, entry->data_t, 1);
@@ -1153,4 +1154,12 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     }
 
     return 0;
+}
+
+// Utility function to allocate memory from Fortran
+
+void* extxyz_malloc(size_t n_bytes) {
+    void *res = malloc(n_bytes);
+    // fprintf(stderr, "allocated %ld bytes at %x\n", n_bytes, res);
+    return res;
 }

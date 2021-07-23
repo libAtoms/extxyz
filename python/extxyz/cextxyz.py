@@ -127,7 +127,7 @@ def py_to_c_dict(py_dict, keys=None):
         node.key = ctypes.c_char_p(key.encode('utf-8'))
         
         if isinstance(value, list) or isinstance(value, tuple) or isinstance(value, np.ndarray):
-            value = np.asarray(value, order='C') # ensure C-contigous order
+            value = np.asarray(value, order='C')  # ensure C-contigous order
             
             if len(value.shape) == 0:
                 node.nrows = 0
@@ -150,7 +150,7 @@ def py_to_c_dict(py_dict, keys=None):
                 value = value.astype(np.float64)
             elif value.dtype.kind == 's' or value.dtype.kind == 'U':
                 node.data_t = DATA_S
-                assert len(value.shape) == 1 # only 1D arrays of strings are supported
+                assert len(value.shape) == 1  # only 1D arrays of strings are supported
             else:
                 raise TypeError(f"unsupported array dtype {value.dtype}")
             

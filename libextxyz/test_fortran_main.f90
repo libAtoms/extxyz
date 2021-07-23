@@ -7,18 +7,22 @@ program extxyz_main
 
     type(Atoms) :: at
     logical :: status
-    character(1000) :: infile, verbose
+    character(1000) :: infile, outfile, verbose
     logical do_verbose
 
     call system_initialise
 
     call get_command_argument(1, infile)
-    call get_command_argument(2, verbose)
+    call get_command_argument(2, outfile)
+    call get_command_argument(3, verbose)
 
     do_verbose = trim(verbose) == 'T'
 
     status = read_extxyz(infile, at, do_verbose)
     call print(at)
+
+    status = write_extxyz(outfile, at, .false., do_verbose)
+
     call system_finalise
 
 end program
