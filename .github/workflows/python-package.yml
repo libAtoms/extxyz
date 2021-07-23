@@ -26,7 +26,19 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
+    - name: Build QUIP/libAtoms
+      env: 
+        QUIP_ARCH: linux_x86_64_gfortran
+        HAVE_GAP: 0
+      run: |
+          sudo apt-get update -y
+          sudo apt-get install -y  gfortran libblas-dev liblapack-dev \
+            openmpi-bin libopenmpi-dev netcdf-bin libnetcdf-dev libhdf5-serial-dev \
+            python-numpy
+          mkdir -p QUIP/build/${QUIP_ARCH}
+          cp QUIP/.github/workflows/Makefile.inc QUIP/build/${QUIP_ARCH}/Makefile.inc
+          make -C QUIP libAtoms
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install flake8 pytest
@@ -37,6 +49,11 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+     - name: Build Fortran executable
+      env:
+        QUIP_ROOT: $PWD/QUIP
+      run:
+        make -C libextxyz fextxyz
     - name: Test with pytest
       run: |
-        pytest
+        USE_FORTRAN=T pytest -v
