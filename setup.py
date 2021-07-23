@@ -40,7 +40,7 @@ def which(program):
             if is_exe(exe_file):
                 return exe_file
 
-    return None        
+    return None
 
 def build_pcre2():
     pcre2_config = which('pcre2-config')
