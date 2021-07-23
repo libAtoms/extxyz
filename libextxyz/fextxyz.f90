@@ -239,7 +239,7 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
     character(len=MAX_KEY_LENGTH) :: key
     real(kind=C_DOUBLE), pointer :: real_0, real_1(:), real_2(:, :)
     integer(kind=C_INT), pointer :: int_0, int_1(:), int_2(:, :)
-    type(C_PTR) :: c_char
+    type(C_PTR) :: c_char_0
     type(C_PTR), pointer :: f_char_1(:)
     character(len=MAX_VALUE_LENGTH) :: char_0
     integer :: i, j, k, type, len_string, n_string
@@ -280,13 +280,21 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
             node%data = c_loc(int_0)
             int_0 => null()
         else if (type == T_CHAR) then
-            char_0 = string(f_dict%entries(i)%s)
+            len_string = f_dict%entries(i)%s%len
+            nbytes = int(c_sizeof(c_char_0), C_SIZE_T)
+            c_char_0 = extxyz_malloc(nbytes) ! char**
+            call c_f_pointer(c_char_0, f_char_1, (/ n_string /))
+            char_0 = repeat(' ', len_string)
+            do k = 1, len_string
+                char_0(k:k) = f_dict%entries(i)%s%s(k)
+            end do
             nbytes = int(len_trim(char_0) + 1, C_SIZE_T)
-            node%data = extxyz_malloc(nbytes)
-            call F_string_to_C_string_ptr(char_0, node%data)
+            f_char_1(1) = extxyz_malloc(nbytes) ! char*
+            call F_string_to_C_string_ptr(char_0, f_char_1(1))
             node%data_t = DATA_S
             node%nrows = 0
             node%ncols = 0
+            node%data = c_char_0
         else if (type == T_INTEGER_A) then
             allocate(int_1(size(f_dict%entries(i)%i_a)))
             int_1(:) = f_dict%entries(i)%i_a
@@ -314,9 +322,9 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
         else if (type == T_CHAR_A) then
             len_string = size(f_dict%entries(i)%s_a, 1)
             n_string = size(f_dict%entries(i)%s_a, 2)
-            nbytes = int(n_string * c_sizeof(c_char), C_SIZE_T)
-            c_char = extxyz_malloc(nbytes) ! char**
-            call c_f_pointer(c_char, f_char_1, (/ n_string /))
+            nbytes = int(n_string * c_sizeof(c_char_0), C_SIZE_T)
+            c_char_0 = extxyz_malloc(nbytes) ! char**
+            call c_f_pointer(c_char_0, f_char_1, (/ n_string /))
             do j = 1, n_string
                 char_0 = repeat(' ', len_string)
                 do k = 1, len_string
@@ -329,7 +337,7 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
             node%data_t = DATA_S
             node%nrows = 0
             node%ncols = n_string
-            node%data = c_char
+            node%data = c_char_0
         else if (type == T_INTEGER_A2) then
             allocate(int_2(size(f_dict%entries(i)%i_a2, 2), size(f_dict%entries(i)%i_a2, 1)))
             int_2(:, :) = transpose(f_dict%entries(i)%i_a2)
@@ -505,7 +513,7 @@ function write_extxyz_filename(filename, at, append, verbose) result(success)
     type(ExtxyzDictEntry), pointer :: info => null(), arrays => null()
     type(C_PTR) :: fp, c_info, c_arrays
     logical :: do_append = .false., do_verbose = .false.
-    integer(C_INT) :: err, nat
+    integer(C_INT) :: err
     character(1) :: mode
 
     success = .false.
