@@ -19,7 +19,8 @@ jobs:
         env:
            CIBW_SKIP: cp27-* cp35-*
            CIBW_ARCHS_LINUX: "auto64"
-           CIBW_ARCHS_MACOS: "x86_64 arm64"           
+           CIBW_ARCHS_MACOS: "x86_64 arm64"
+           CIBW_BEFORE_ALL_LINUX: "yum install -y pcre2-devel"
            CIBW_TEST_COMMAND: "pip install pytest && pytest -v"
            CIBW_BUILD_VERBOSITY: 1
            
