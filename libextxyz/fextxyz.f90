@@ -380,17 +380,29 @@ subroutine extract_lattice(info, lattice)
 
     if (type == T_REAL_A) then
         if (size_1 /= 9) then
-            write(*,*) '1-D lattice shape /= (/9/)'
+            write(*,*) '1-D real lattice shape /= (/9/)'
             return
         end if
         lattice = reshape(info%entries(idx)%r_a, (/ 3, 3 /))
+    else if (type == T_INTEGER_A) then
+        if (size_1 /= 9) then
+            write(*,*) '1-D integer lattice shape /= (/9/)'
+            return
+        end if
+        lattice = real(reshape(info%entries(idx)%i_a, (/ 3, 3 /)), C_DOUBLE)
     else if (type == T_REAL_A2) then
         if (any(size_2 /= (/3, 3/))) then
-            write(*,*) '2-D lattice shape /= (/3, 3/)'
+            write(*,*) '2-D real lattice shape /= (/3, 3/)'
             return
         end if
         lattice(:, :) = info%entries(idx)%r_a2
-    else
+    else if (type == T_INTEGER_A2) then
+        if (any(size_2 /= (/3, 3/))) then
+            write(*,*) '2-D integer lattice shape /= (/3, 3/)'
+            return
+        end if
+        lattice(:, :) = real(info%entries(idx)%i_a2, C_DOUBLE)
+    else        
         write(*,*) 'lattice has incorrect type', type
         return
     end if
