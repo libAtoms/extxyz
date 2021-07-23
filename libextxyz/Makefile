@@ -1,6 +1,6 @@
 LIBCLERI_PATH=../libcleri/Release
 
-PCRE2_CONIG ?= pcre2-config
+PCRE2_CONFIG ?= pcre2-config
 
 CFLAGS += $(shell ${PCRE2_CONFIG} --cflags) -I$(subst Release,inc,${LIBCLERI_PATH})
 LDFLAGS += $(shell ${PCRE2_CONFIG} --libs8) 
