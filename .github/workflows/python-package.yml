@@ -56,10 +56,8 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.git,QUIP
     - name: Build Fortran executable
-      env:
-        QUIP_ROOT: $PWD/QUIP
       run:
-        make -C libextxyz fextxyz
+        QUIP_ROOT=${PWD}/QUIP make -C libextxyz fextxyz
     - name: Test with pytest
       run: |
         USE_FORTRAN=T pytest -v
