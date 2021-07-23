@@ -1,7 +1,9 @@
 LIBCLERI_PATH=../libcleri/Release
 
-CFLAGS += $(shell ../pcre2-10.37/build/bin/pcre2-config --cflags) -I$(subst Release,inc,${LIBCLERI_PATH})
-LDFLAGS += $(shell ../pcre2-10.37/build/bin/pcre2-config --libs8) 
+PCRE2_CONIG ?= pcre2-config
+
+CFLAGS += $(shell ${PCRE2_CONFIG} --cflags) -I$(subst Release,inc,${LIBCLERI_PATH})
+LDFLAGS += $(shell ${PCRE2_CONFIG} --libs8) 
 
 QUIP_LDFLAGS = -L${QUIP_ROOT}/build/${QUIP_ARCH} -latoms -llapack -lblas -lgomp
 QUIP_F90FLAGS = -I${QUIP_ROOT}/build/${QUIP_ARCH}
