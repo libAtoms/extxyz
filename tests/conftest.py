@@ -1,9 +1,11 @@
-import pytest
+import subprocess
 import os
-
 from pathlib import Path
+
+import pytest
 import numpy as np
 
+from ase.atoms import Atoms
 from extxyz.extxyz import read, write
 
 verbose = 0
@@ -18,9 +20,22 @@ else:
     write_kwargs_variants = [ { 'use_cextxyz' : False },
                               { 'use_cextxyz' : True  } ]
 
-
+fextxyz_exe = str(Path(__file__).parents[1] / 'libextxyz/fextxyz')
+use_fortran_global = 'USE_FORTRAN' in os.environ and os.environ['USE_FORTRAN'].lower().startswith('t') and os.path.exists(fextxyz_exe)
 
 class Helpers:
+    @staticmethod
+    def approx_equal(at1, at2, tol=1e-8):
+        if not isinstance(at1, Atoms) or not isinstance(at1, Atoms):
+            return False
+        a = at1.arrays
+        b = at2.arrays
+        return (len(at1) == len(at2) and
+                np.abs(a['positions'] - b['positions']).max() < tol and
+                (a['numbers'] == b['numbers']).all() and
+                np.abs(at1.cell - at2.cell).max() < tol and
+                (at1.pbc == at2.pbc).all())    
+
     @staticmethod
     def read_all_variants(filename, **kwargs):
         ats_variants = []
@@ -42,7 +57,7 @@ class Helpers:
         return variant_filenames
 
     @staticmethod
-    def do_test_kv_pair(path, key, val, kv_str):
+    def do_test_kv_pair(path, key, val, kv_str, use_fortran=False):
         for read_kwargs in read_kwargs_variants:
             with open(path / Path('test_file.extxyz'), 'w') as fout:
                 fout.write(f'1\nProperties=species:S:1:pos:R:3 Lattice="1 0 0  0 1 0   0 0 1" {kv_str}\nSi 0.0 0.0 0.0\n')
@@ -60,9 +75,19 @@ class Helpers:
                 at2 = read(fn, verbose=verbose, **read_kwargs)
                 assert at2 == at
 
+        # round trip with Fortran if exectuable exists and 'USE_FORTRAN=T' in env
+        if use_fortran_global and use_fortran:
+            in_file = str(path / Path('test_file.extxyz'))
+            out_file = str(path / Path('test_file.out.extxyz'))
+            print('Executing: ' + ' '.join([fextxyz_exe, in_file, out_file]))
+            subprocess.call([fextxyz_exe, in_file, out_file])
+            at3 = read(out_file)
+            assert at3 == at
+
+
 
     @staticmethod
-    def do_test_scalar(path, strings, is_string=False):
+    def do_test_scalar(path, strings, is_string=False, use_fortran=True):
         for v, v_str in strings:
             # plain scalar
             Helpers.do_test_kv_pair(path, 'scalar', v, 'scalar='+v_str)
@@ -76,15 +101,16 @@ class Helpers:
                 for pre_sp in ['', ' ']:
                     for post_sp in ['', ' ']:
                         Helpers.do_test_kv_pair(path, 'old_oned_scalar', v,
-                            'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1])
+                            'old_oned_scalar=' + delims[0] + pre_sp + v_str + post_sp + delims[1],
+                            use_fortran=use_fortran)
 
 
     @staticmethod
-    def do_one_d_variants(path, is_string, n, v_array, v_str_array):
+    def do_one_d_variants(path, is_string, n, v_array, v_str_array, use_fortran=True):
         if is_string:
-            delimsep=[('[',']',',', 1), ('{','}',' ', 2)]
+            delimsep = [('[',']',',', 1), ('{','}',' ', 2)]
         else:
-            delimsep=[('[',']',',', 1), ('{','}',' ', 2), ('"', '"', ' ', 2)]
+            delimsep = [('[',']',',', 1), ('{','}',' ', 2), ('"', '"', ' ', 2)]
 
         for do, dc, ds, min_n in delimsep:
             if n >= min_n:
@@ -98,11 +124,12 @@ class Helpers:
                                 if n > 1:
                                     v_str += ds + pre_sp + v_str_array[-1]
                                 Helpers.do_test_kv_pair(path, 'array', v_array,
-                                    'array=' + do + global_pre_sp + v_str + global_post_sp + dc)
+                                                        'array=' + do + global_pre_sp + v_str + global_post_sp + dc, 
+                                                        use_fortran=use_fortran)
 
 
     @staticmethod
-    def do_test_one_d_array(path, strings, ns=None, is_string=False):
+    def do_test_one_d_array(path, strings, ns=None, is_string=False, use_fortran=True):
         if ns is None:
             ns = [1, 2, 3, 7, -10]
 
@@ -113,12 +140,13 @@ class Helpers:
             else:
                 ntot = np.abs(n)
                 selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
-                selected  = [strings[i] for i in selected_inds]
-                Helpers.do_one_d_variants(path, is_string, ntot, [s[0] for s in selected], [s[1] for s in selected])
+                selected = [strings[i] for i in selected_inds]
+                Helpers.do_one_d_variants(path, is_string, ntot, [s[0] for s in selected], [s[1] for s in selected],
+                                          use_fortran=use_fortran)
 
 
     @staticmethod
-    def do_two_d_variants(path, nrow, ncol, v_array, v_str_array):
+    def do_two_d_variants(path, nrow, ncol, v_array, v_str_array, use_fortran=True):
         for global_pre_sp in ['', ' ']:
             for global_post_sp in ['', ' ']:
                 for pre_sp in ['', ' ']:
@@ -142,23 +170,24 @@ class Helpers:
                         v_str += global_post_sp + ']'
 
                         Helpers.do_test_kv_pair(path, 'array', v_array,
-                            'array=' + v_str)
+                            'array=' + v_str, use_fortran=use_fortran)
 
 
     @staticmethod
-    def do_test_two_d_array(path, strings, ns=None):
+    def do_test_two_d_array(path, strings, ns=None, use_fortran=True):
         if ns is None:
             ns = [(1,1), (1,3), (3,1), (3,3), (-5,-5)]
 
             for nrow, ncol in ns:
                 if nrow > 0:
                     for v, v_str in strings:
-                        Helpers.do_two_d_variants(path, nrow, ncol, [v] * nrow*ncol, [v_str] * nrow*ncol)
+                        Helpers.do_two_d_variants(path, nrow, ncol, [v] * nrow*ncol, [v_str] * nrow*ncol, use_fortran=use_fortran)
                 else:
                     ntot = np.abs(nrow) * np.abs(ncol)
                     selected_inds = np.random.choice(list(range(len(strings))), ntot, replace=(ntot > len(strings)))
                     selected  = [strings[i] for i in selected_inds]
-                    Helpers.do_two_d_variants(path, np.abs(nrow), np.abs(ncol), [s[0] for s in selected], [s[1] for s in selected])
+                    Helpers.do_two_d_variants(path, np.abs(nrow), np.abs(ncol), [s[0] for s in selected], [s[1] for s in selected], 
+                                              use_fortran=use_fortran)
 
 
 @pytest.fixture

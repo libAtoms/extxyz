@@ -10,17 +10,6 @@ import pytest
 
 from extxyz.extxyz import read, write
 
-def approx_equal(at1, at2, tol=1e-8):
-    if not isinstance(at1, Atoms) or not isinstance(at1, Atoms):
-        return False
-    a = at1.arrays
-    b = at2.arrays
-    return (len(at1) == len(at2) and
-            np.abs(a['positions'] - b['positions']).max() < tol and
-            (a['numbers'] == b['numbers']).all() and
-            np.abs(at1.cell - at2.cell).max() < tol and
-            (at1.pbc == at2.pbc).all())
-
 # from ase.io.extxyz import key_val_str_to_dict, key_val_dict_to_str
 
 # import ase.io
@@ -152,7 +141,7 @@ def test_write_struct(tmp_path, helpers):
                     'identifier': 'deltatest_H_1.00',
                     'unique_id': '4cf83e2f89c795fb7eaf9662e77542c1'}
     for fn in helpers.write_all_variants(tmp_path / 'tmp.xyz', struct):
-        assert approx_equal(read(fn), struct)
+        assert helpers.approx_equal(read(fn), struct)
 
 
 
