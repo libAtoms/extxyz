@@ -21,17 +21,37 @@ def build_grammar():
         del sys.path[0]
         extxyz_kv_grammar.write_grammar('./libextxyz')
 
-def build_pcre2():
-    pcre2_version = '10.37'
-    build_dir = os.path.abspath(f"./pcre2-{pcre2_version}/build")
-    pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
+def which(program):
+    import os
 
-    if not os.path.exists(pcre2_config):
-        subprocess.call(["curl",  f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
-        subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
-        subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
-        subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
-        subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None        
+
+def build_pcre2():
+    pcre2_config = which('pcre2-config')
+    if pcre2_config is None:
+        pcre2_version = '10.37'
+        build_dir = os.path.abspath(f"./pcre2-{pcre2_version}/build")
+        pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
+
+        if not os.path.exists(pcre2_config):
+            subprocess.call(["curl", f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
+            subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
+            subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
+            subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
+            subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
 
     pcre2_cflags = subprocess.check_output([f'{pcre2_config}', '--cflags'], encoding='utf-8').strip().split()
     pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
