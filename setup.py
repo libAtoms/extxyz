@@ -41,7 +41,7 @@ def which(program):
 
 def build_pcre2():
     pcre2_config = which('pcre2-config')
-    print(f'which(pcre2-config) = {pcre2-config}')
+    print(f'which(pcre2-config) = {pcre2_config}')
     if pcre2_config is None:
         pcre2_version = '10.37'
         print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2-version}')
