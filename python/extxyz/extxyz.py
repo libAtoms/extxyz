@@ -662,6 +662,8 @@ def iread(file, index=None, use_cextxyz=True, **kwargs):
             else:
                 file = open(file, 'r')
                 own_fh = True
+    elif index is not None:
+        raise ValueError('`index` argument cannot be used with open files')
 
     if index is None or index == ':':
         index = slice(None, None, None)
@@ -688,7 +690,7 @@ def iread(file, index=None, use_cextxyz=True, **kwargs):
         if own_fh:
             if use_cextxyz:
                 cextxyz.cfclose(file)
-            else:            
+            else:
                 file.close()
 
 
@@ -699,13 +701,6 @@ def read(file, **kwargs):
     else:
         return configs
 
-
-# def escape(string):
-#     if '"' in string or ' ' in string or '\\' in string:
-#         string = string.replace('"', r'\"')
-#         string = string.replace('\\', '\\\\')
-#         string = f'"{string}"'
-#     return string
 
 def escape(string):
     have_special = (' ' in string or '=' in string or '"' in string or ',' in string or '[' in string or
@@ -722,7 +717,8 @@ def escape(string):
         out_string = f'"{out_string}"'
     return out_string
 
-_tf = lambda x: '@@T@@' if x else '@@F@@'
+def _tf(x):
+    return '@@T@@' if x else '@@F@@'
 _tf_vec = np.vectorize(_tf)
 
 class ExtXYZEncoder(json.JSONEncoder):
@@ -747,8 +743,10 @@ def extxyz_value_to_string(value):
         string = ExtXYZEncoder().encode(value)
         return string.replace('@@"', '').replace('"@@', '')
 
-
-def write(file, atoms, use_cextxyz=True, append=False, columns=None, 
+"""
+Write `atoms` to `file` in extended XYZ format.
+"""
+def write(file, atoms, use_cextxyz=True, append=False, columns=None,
           write_calc=False, calc_prefix='', verbose=0, format_dict=None):
     own_fh = False
     mode = 'w'
