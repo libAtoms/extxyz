@@ -31,7 +31,7 @@ libcleri:
 	cat ${LIBCLERI_PATH}/makefile > ${LIBCLERI_PATH}/makefile.extxyz
 	echo "" >> ${LIBCLERI_PATH}/makefile.extxyz
 	echo "libcleri.a: $(OBJS) $(USER_OBJS)" >> ${LIBCLERI_PATH}/makefile.extxyz
-	echo -e "\ttar rcs libcleri.a $(OBJS) $(USER_OBJS)" >> ${LIBCLERI_PATH}/makefile.extxyz
+	echo -e "\tar rcs libcleri.a $(OBJS) $(USER_OBJS)" >> ${LIBCLERI_PATH}/makefile.extxyz
 	${MAKE} -C ${LIBCLERI_PATH} -f makefile.extxyz libcleri.a
 
 extxyz_kv_grammar.c: ../grammar/extxyz_kv_grammar.py
