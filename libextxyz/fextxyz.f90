@@ -442,7 +442,7 @@ function read_extxyz_file(file, at, verbose) result(success)
     c_info = c_loc(info)
     c_arrays = c_loc(arrays)
 
-    err = extxyz_read_ll(kv_grammar, fp, nat, c_info, c_arrays)
+    err = extxyz_read_ll(kv_grammar, file, nat, c_info, c_arrays)
     success = (err == 1)
 
     if (do_verbose) then
@@ -501,9 +501,11 @@ function read_extxyz_filename(filename, at, verbose) result(success)
     type(Atoms), intent(out) :: at
     logical, optional, intent(in) :: verbose
     logical :: success
+    type(C_PTR) :: fp
+    integer :: err
 
     fp = fopen(trim(filename)//C_NULL_CHAR, "r"//C_NULL_CHAR)
-    success = read_extxyz_file(filename, at, verbose)
+    success = read_extxyz_file(fp, at, verbose)
     err = fclose(fp)
     success = success .and. (err == 0)
 
@@ -551,7 +553,7 @@ function write_extxyz_file(file, at, verbose) result(success)
         call print_dict(c_arrays)
     end if
 
-    err = extxyz_write_ll(fp, at%N, c_info, c_arrays)
+    err = extxyz_write_ll(file, at%N, c_info, c_arrays)
     success = (err /= 0)
 
     call free_dict(c_info)
@@ -567,13 +569,15 @@ function write_extxyz_filename(filename, at, append, verbose) result(success)
     logical :: success
     logical :: do_append = .false.
     character(1) :: mode
+    type(C_PTR) :: fp
+    integer err
 
     if (present(append)) do_append = append
     mode = "w"
     if (do_append) mode = "a"
 
     fp = fopen(trim(filename)//C_NULL_CHAR, mode//C_NULL_CHAR)
-    success = write_extxyz_file(file, at, append, verbose)
+    success = write_extxyz_file(fp, at, verbose)
     err = fclose(fp)
     success = success .and. (err == 0)
 
