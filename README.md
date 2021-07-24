@@ -1,5 +1,5 @@
 # Remaining issues
-1. make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.
+1. ~~make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.~~
 2. Since we're using python regexp/PCRE, we could make per-atom strings be more complex, e.g. bare or quoted strings from key-value pairs.  Should we?
 3. Decide what to do about unparseable comment lines.  Just assume an old fashioned xyz with an arbitrary line, or fail?  I don't think we really want every parsing breaking typo to result in plain xyz.
 4. Used to be able to quote with \{\}.  Do we want to support this?
