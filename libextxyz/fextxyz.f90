@@ -82,13 +82,15 @@ module extxyz
 
     interface read_extxyz
         module procedure read_extxyz_filename
+        module procedure read_extxyz_file
     end interface
 
     interface write_extxyz
         module procedure write_extxyz_filename
+        module procedure write_extxyz_file
     end interface
 
-    public :: read_extxyz, write_extxyz
+    public :: read_extxyz, write_extxyz, fopen, fclose
 
 contains
 
@@ -371,7 +373,6 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
 
 end function f_dict_to_c_dict
 
-
 subroutine extract_lattice(info, lattice)
     type(Dictionary), intent(in) :: info
     real(C_DOUBLE), intent(out) :: lattice(3, 3) ! FIXME change C_DOUBLE to DP when this moves to QUIP
@@ -416,14 +417,14 @@ subroutine extract_lattice(info, lattice)
     end if
 end subroutine
 
-function read_extxyz_filename(filename, at, verbose) result(success)
-    character(len=*), intent(in) :: filename
+function read_extxyz_file(file, at, verbose) result(success)
+    type(C_PTR), intent(in) :: file
     type(Atoms), intent(out) :: at
     logical, optional, intent(in) :: verbose
     logical :: success
 
     type(ExtxyzDictEntry), pointer :: info => null(), arrays => null()
-    type(C_PTR) :: fp, c_info, c_arrays
+    type(C_PTR) :: c_info, c_arrays
     logical :: do_verbose = .false., pbc(3)
     integer(C_INT) :: err, nat
     type(Dictionary) :: f_info, f_arrays
@@ -441,13 +442,8 @@ function read_extxyz_filename(filename, at, verbose) result(success)
     c_info = c_loc(info)
     c_arrays = c_loc(arrays)
 
-    fp = fopen(trim(filename)//C_NULL_CHAR, "r"//C_NULL_CHAR)
-
     err = extxyz_read_ll(kv_grammar, fp, nat, c_info, c_arrays)
-    if (err /= 1) return
-
-    err = fclose(fp)
-    if (err /= 0) return
+    success = (err == 1)
 
     if (do_verbose) then
         call print_dict(c_info)
@@ -498,30 +494,35 @@ function read_extxyz_filename(filename, at, verbose) result(success)
     call finalise(f_info)
     call finalise(f_arrays)
 
-    success = .true.
+end function read_extxyz_file
+
+function read_extxyz_filename(filename, at, verbose) result(success)
+    character(len=*), intent(in) :: filename
+    type(Atoms), intent(out) :: at
+    logical, optional, intent(in) :: verbose
+    logical :: success
+
+    fp = fopen(trim(filename)//C_NULL_CHAR, "r"//C_NULL_CHAR)
+    success = read_extxyz_file(filename, at, verbose)
+    err = fclose(fp)
+    success = success .and. (err == 0)
 
 end function read_extxyz_filename
 
-
-function write_extxyz_filename(filename, at, append, verbose) result(success)
-    character(len=*), intent(in) :: filename
+function write_extxyz_file(file, at, verbose) result(success)
+    type(C_PTR), intent(in) :: file
     type(Atoms), intent(in) :: at
-    logical, optional, intent(in) :: append, verbose
+    logical, optional, intent(in) :: verbose
     logical :: success
 
     type(Dictionary) :: params
     type(ExtxyzDictEntry), pointer :: info => null(), arrays => null()
     type(C_PTR) :: fp, c_info, c_arrays
-    logical :: do_append = .false., do_verbose = .false.
+    logical :: do_verbose = .false.
     integer(C_INT) :: err
-    character(1) :: mode
 
     success = .false.
-    if (present(append)) do_append = append
     if (present(verbose)) do_verbose = verbose
-
-    mode = "w"
-    if (do_append) mode = "a"
 
     ! make a copy of Atoms%params so we can add pbc and lattice to it
     call subset(at%params, at%params%keys(1:at%params%N), params)
@@ -550,20 +551,31 @@ function write_extxyz_filename(filename, at, append, verbose) result(success)
         call print_dict(c_arrays)
     end if
 
-    fp = fopen(trim(filename)//C_NULL_CHAR, mode//C_NULL_CHAR)
     err = extxyz_write_ll(fp, at%N, c_info, c_arrays)
-    if (err /= 0) return
-
-    err = fclose(fp)
-    if (err /= 0) return    
+    success = (err /= 0)
 
     call free_dict(c_info)
     call free_dict(c_arrays)
     call finalise(params)
-    success = .true.
 
-    write (*,*) 'at%params'
-    call print(at%params)
+end function write_extxyz_file
+
+function write_extxyz_filename(filename, at, append, verbose) result(success)
+    character(len=*), intent(in) :: filename
+    type(Atoms), intent(in) :: at
+    logical, optional, intent(in) :: append, verbose
+    logical :: success
+    logical :: do_append = .false.
+    character(1) :: mode
+
+    if (present(append)) do_append = append
+    mode = "w"
+    if (do_append) mode = "a"
+
+    fp = fopen(trim(filename)//C_NULL_CHAR, mode//C_NULL_CHAR)
+    success = write_extxyz_file(file, at, append, verbose)
+    err = fclose(fp)
+    success = success .and. (err == 0)
 
 end function write_extxyz_filename
 
