@@ -46,24 +46,7 @@ def build_pcre2():
     pcre2_config = which('pcre2-config')
     print(f'which(pcre2-config) = {pcre2_config}')
     if pcre2_config is None:
-        pcre2_version = '10.37'
-        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2_version}')
-
-        tempdir = tempfile.mkdtemp()
-        atexit.register(lambda: shutil.rmtree(tempdir)) # cleanup tempdir when Python exits
-        build_dir = os.path.abspath(f"{tempdir}/pcre2-{pcre2_version}/build")
-        pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
-
-        orig_dir = os.getcwd()
-        os.chdir(tempdir)
-        try:
-            subprocess.call(["curl", f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
-            subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
-            subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
-            subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
-            subprocess.call(["make", "install"], cwd=f"pcre2-{pcre2_version}")
-        finally:
-            os.chdir(orig_dir)
+        raise RuntimeError('pcre2-config not found on PATH')
 
     pcre2_cflags = subprocess.check_output([f'{pcre2_config}', '--cflags'], encoding='utf-8').strip().split()
     pcre2_include_dirs = [i.replace('-I', '', 1) for i in pcre2_cflags if i.startswith('-I')]
@@ -75,19 +58,11 @@ def build_pcre2():
 
     return pcre2_cflags, pcre2_include_dirs, pcre2_library_dirs, pcre2_libraries
 
-    
-def build_libcleri(pcre2_cflags):
-    with open('libcleri/Release/makefile', 'r') as f_in, open('libcleri/Release/makefile.extxyz', 'w') as f_out:
-        contents = f_in.read()
-        contents += """
 
-libcleri.a: $(OBJS) $(USER_OBJS)
-\tar rcs libcleri.a $(OBJS) $(USER_OBJS)
-"""
-        f_out.write(contents)
+def build_libcleri(pcre2_cflags):
     env = os.environ.copy()
     env['CFLAGS'] = ' '.join(pcre2_cflags)
-    subprocess.call(['make', '-C', 'libcleri/Release', '-f', 'makefile.extxyz', 'libcleri.a'], env=env)
+    subprocess.call(['make', '-C', 'libcleri/Release', '-f', 'makefile'], env=env)
 
 class install(setuptools__install):
     def run(self):
@@ -118,8 +93,8 @@ pcre2_cflags, pcre2_include_dirs, pcre2_library_dirs, pcre2_libraries = build_pc
 
 _extxyz_ext = Extension('extxyz._extxyz', sources=['libextxyz/extxyz_kv_grammar.c', 'libextxyz/extxyz.c'],
                         include_dirs=['libcleri/inc', 'extxyz'] + pcre2_include_dirs,
-                        library_dirs=pcre2_library_dirs, libraries=pcre2_libraries,
-                        extra_compile_args=['-fPIC'], extra_objects=['libcleri/Release/libcleri.a'])
+                        library_dirs=['libcleri/Release'] + pcre2_library_dirs, libraries=['cleri'] + pcre2_libraries,
+                        extra_compile_args=['-fPIC'])
 
 build_grammar()
 
@@ -135,4 +110,3 @@ setup(
     ext_modules=[_extxyz_ext],
     entry_points={'console_scripts': ['extxyz=extxyz.cli:main']}
 )
-
