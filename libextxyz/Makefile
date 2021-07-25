@@ -52,11 +52,11 @@ install: libextxyz.${dlext}
 
 test_fortran_main.o: fextxyz.o extxyz.o extxyz_kv_grammar.o
 
-fextxyz: libcleri test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
-	${F90} -g $^ -o $@ -L${LIBCLERI_PATH} -lcleri  ${LDFLAGS} ${QUIP_LDFLAGS}
+fextxyz: test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
+	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS} ${QUIP_LDFLAGS}
 
-cextxyz: libcleri test_C_main.o extxyz.o extxyz_kv_grammar.o
-	${F90} -g $^ -o $@ -L${LIBCLERI_PATH} -lcleri  ${LDFLAGS}
+cextxyz: test_C_main.o extxyz.o extxyz_kv_grammar.o
+	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS}
 
 clean:
-	-rm -rf libextxyz.${dlext} *.o cextxyz fextxyz
+	rm -rf libextxyz.${dlext} *.o
