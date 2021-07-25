@@ -31,7 +31,7 @@ libcleri:
 	${MAKE} -C ${LIBCLERI_PATH} -f makefile
 
 install_libcleri: libcleri
-	cp ${LIBCLERI_PATH}/libcleri.${dlext} ${libdir}
+	${MAKE} -C ${LIBCLERI_PATH} -f makefile install INSTALL_PATH=${prefix}
 
 extxyz_kv_grammar.c: ../grammar/extxyz_kv_grammar.py
 	pip3 install pyleri
