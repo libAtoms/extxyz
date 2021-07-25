@@ -37,7 +37,7 @@ extxyz_kv_grammar.c: ../grammar/extxyz_kv_grammar.py
 	pip3 install pyleri
 	python3 ../grammar/extxyz_kv_grammar.py
 
-libextxyz.${dlext}: install_libcleri extxyz.c extxyz_kv_grammar.c
+libextxyz.${dlext}: extxyz.c extxyz_kv_grammar.c
 	${CC} ${CFLAGS} -shared -fPIC -o $@ -g extxyz.c extxyz_kv_grammar.c -L${libdir} -lcleri ${LDFLAGS}
 
 install: libextxyz.${dlext}
