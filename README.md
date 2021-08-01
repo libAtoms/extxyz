@@ -88,7 +88,7 @@ string of one or more decimal digits, optionally preceded by sign
 
 sequence of one or more of the same primitive type
 *   new style: opens with \[, one or more of the same primitive type separated by commas and optional whitespace, ends with \]
-*   backward compatible: opens with " or \{, one or more of the same primitive types (strings only in \{\})
+*   backward compatible: opens with " or \{, one or more of the same primitive types (all types allowed in \{\}, all except string in "")
     separated by whitespace, ends with matching " or \}.  For backward compatibility, a single element backward 
     compatible array is interpreted as a scalar of the same type.
 *   primitive data type is determined by same priority as single primitive item, but must be satisfied
