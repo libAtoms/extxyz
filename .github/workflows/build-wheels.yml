@@ -1,4 +1,7 @@
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    tags:
+      - v*
 
 jobs:
   build_wheels:
@@ -38,7 +41,6 @@ jobs:
           
       - name: Release wheels
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: wheelhouse/*.whl
         env:
