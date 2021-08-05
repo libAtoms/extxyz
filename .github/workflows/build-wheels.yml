@@ -54,8 +54,8 @@ jobs:
       - name: Deploy to PyPI
         if: steps.check-tag.outputs.match == 'true'
         run: |
-          pip install twine
-          twine upload wheelhouse/*.whl
+          pip3 install twine
+          python3 -m twine upload wheelhouse/*.whl
         env:
           TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}          
