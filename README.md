@@ -21,7 +21,7 @@ sudo apt-get install libpcre2-dev # Ubuntu
 
 Binary wheels for Linux and MacOS which do not require PCRE2 or libcleri are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases).
 
-Stable releases will (shortly) be made to PyPI, so you will be able install with
+Stable releases are made to PyPI, so you can install with
 
 ```bash
 pip install extxyz
