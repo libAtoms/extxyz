@@ -259,7 +259,6 @@ def write_frame_dicts(fp, nat, info, arrays, columns=None, verbose=False, format
     """
     nat = ctypes.c_int(nat)
     c_info = py_to_c_dict(info)
-    print(c_to_py_dict(c_info))
     
     if columns is None:
         columns = arrays.keys()

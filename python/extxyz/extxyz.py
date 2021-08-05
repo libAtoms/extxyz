@@ -640,7 +640,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
 
     # work with a copy of arrays so we can remove results if necessary
     arrays = properties.get_arrays(atoms, names)
-    
+
     # optionally create a SinglePointCalculator from stored results
     if create_calc:
         atoms.calc = create_single_point_calculator(atoms, info, arrays, calc_prefix)
@@ -778,7 +778,7 @@ def write(file, atoms, use_cextxyz=True, append=False, columns=None,
             properties = Properties.from_atoms(atoms, arrays,
                                                columns, verbose=verbose,
                                                format_dict=format_dict)
-            
+
             if use_cextxyz:
                 if format_dict is not None:
                     raise ValueError('C extxyz writer does not (yet) support custom format strings')
@@ -796,7 +796,7 @@ def write(file, atoms, use_cextxyz=True, append=False, columns=None,
                 np.savetxt(file, properties.data_columns, fmt=properties.format_strings)
 
     finally:
-        if own_fh: 
+        if own_fh:
             if use_cextxyz:
                 cextxyz.cfclose(file)
             else:            
@@ -817,7 +817,7 @@ class ExtXYZTrajectoryWriter:
         >>> atoms = bulk('Cu') * (3, 3, 3)
         >>> atoms.calc = EMT()
         >>> atoms.rattle(0.1)
-        >>> traj = ExtxyzTrajectoryWriter('out.xyz')
+        >>> traj = ExtxyzTrajectoryWriter('out.xyz', atoms=atoms)
         >>> opt = LBFGS(atoms, trajectory=traj) # or opt.attach(traj)
         >>> opt.run(fmax=1e-3)
         """
