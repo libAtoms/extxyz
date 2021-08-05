@@ -40,7 +40,7 @@ The Makefile respects the usual environment variables `CC`, `CFLAGS`, `LDFLAGS`,
 
 ## Fortran bindings
 
-To build the `fextxyz` exectuable demonstrating the Fortran bindings, you first need to download and compile [QUIP](https://github.com/libAtoms/QUIP)) -- see the [CI](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml#L29) for an example of how to do that automatically. Then, set `QUIP_ROOT` and `QUIP_ARCH`
+To build the `fextxyz` exectuable demonstrating the Fortran bindings, you first need to download and compile [QUIP](https://github.com/libAtoms/QUIP) -- see the [CI](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml#L29) for an example of how to do that automatically. Then, set `QUIP_ROOT` and `QUIP_ARCH`
 
 ```bash
 export QUIP_ARCH=linux_x86_64_gfortran
