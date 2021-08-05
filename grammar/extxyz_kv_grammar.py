@@ -117,3 +117,7 @@ def write_grammar(dest_dir):
         fhdr.write('#define FLOAT_FMT ' + to_C_str(float_fmt) + '\n')
         fhdr.write('#define STRING_FMT ' + to_C_str(string_fmt) + '\n')
         fhdr.write('#define BOOL_FMT ' + to_C_str(bool_fmt) + '\n')
+
+if __name__ == '__main__':
+    import os
+    write_grammar(os.getcwd())

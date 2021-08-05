@@ -179,15 +179,15 @@ def py_to_c_dict(py_dict, keys=None):
             node.data = ctypes.cast(ctypes.pointer(ctypes.c_double(value)), ctypes.c_void_p)
         else:
             raise TypeError(f"unsupported type {type(value)}")
-        
+
         if idx != len(py_dict) - 1:
             # allocate another DictEntry struct unless we're on the last one already
             node.next = ctypes.cast(ctypes.create_string_buffer(ctypes.sizeof(Dict_entry_struct)), 
                                     Dict_entry_ptr)
             node_ptr = node.next
-    
+
     return c_dict
-        
+
 
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
@@ -263,7 +263,7 @@ def write_frame_dicts(fp, nat, info, arrays, columns=None, verbose=False, format
     
     if columns is None:
         columns = arrays.keys()
-    
+
     c_arrays = py_to_c_dict(arrays, columns)
     if verbose:
         extxyz.print_dict(c_info)
