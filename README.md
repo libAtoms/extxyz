@@ -75,7 +75,7 @@ frames = read("filename.xyz") # all frames in file
 atoms = read("filename.xyz", index=0) # first frame in file
 write("newfile.xyz", frames)
 
-traj = ExtXYZTrajectoryWriter("traj.xyz")
+traj = ExtXYZTrajectoryWriter("traj.xyz", atoms=atoms)
 atoms.calc = EMT()
 opt = BFGS(atoms, trajectory=traj)
 opt.run(fmax=1e-3)
