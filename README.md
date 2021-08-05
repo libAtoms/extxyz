@@ -68,6 +68,7 @@ atoms = bulk("Cu") * 3
 frames = [atoms.copy() for frame in range(3)]
 for frame in frames:
     frame.rattle()
+    
 write("filename.xyz", frames)
 
 frames = read("filename.xyz") # all frames in file
