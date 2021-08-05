@@ -81,6 +81,9 @@ opt = BFGS(atoms, trajectory=traj)
 opt.run(fmax=1e-3)
 ```
 
+There is also an `extxyz` command line tool for testing purposes, see `extxyz -h` for help. This can alternatively
+be invoked via `python -m extxyz`.
+
 ## Remaining issues
 
 1. ~~make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.~~
