@@ -1,12 +1,92 @@
-# Remaining issues
+# Extended XYZ specification and parsing tools
+
+This repository contains a specification of the extended XYZ (extxyz) file format, and tools for reading and writing to it from programs written in C, Fortran, Python and Julia.
+
+# Installation
+
+## Python
+
+The latest development version can be installed via
+
+```bash
+pip install git+https://github.com/libAtoms/extxyz
+```
+
+This requires Python 3.6+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands.
+
+```
+brew install pcre2 # Mac OS, with homebrew
+sudo apt-get install libpcre2-dev # Ubuntu
+```
+
+Binary wheels for Linux and MacOS which do not require PCRE2 or libcleri are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases).
+
+Stable releases will (shortly) be made to PyPI, so you will be able install with
+
+```bash
+pip install extxyz
+```
+
+## `libextxyz` C library
+
+The underlying parser is written in C. The C code is compiled automatically when you build the Python package, but you can also compile it as shared library `libextxyz.so` as follows
+
+```bash
+make -C libextxyz
+make -C libextxyz install
+```
+
+The Makefile respects the usual environment variables `CC`, `CFLAGS`, `LDFLAGS`, etc, plus `prefix` (default `/usr/local`).
+
+## Fortran bindings
+
+To build the `fextxyz` exectuable demonstrating the Fortran bindings, you first need to download and compile [QUIP](https://github.com/libAtoms/QUIP)) -- see the [CI](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml#L29) for an example of how to do that automatically. Then, set `QUIP_ROOT` and `QUIP_ARCH`
+
+```bash
+export QUIP_ARCH=linux_x86_64_gfortran
+export QUIP_ROOT=/path/to/QUIP
+make -C libextxyz fextxyz
+```
+
+The Fortran bindings will later be moved to QUIP, since they are tied to QUIP's Dictionary and Atoms types.
+
+## Julia bindings
+
+Julia bindings are distributed in a separate package, named [ExtXYZ.jl](https://github.com/libAtoms/ExtXYZ.jl). See its [documentation](https://libatoms.github.io/ExtXYZ.jl/dev) for further details.
+
+# Usage
+
+Usage of the Python package is very similar to the `ase.io.read()` and `ase.io.write()` functions, e.g:
+
+```python
+from extxyz import read, iread, write, ExtXYZTrajectory
+from ase.build import bulk
+from ase.optimizers import BFGS
+
+atoms = bulk("Si") * 3
+atoms.rattle()
+
+frames = [atoms.copy() for frame in range(3)]
+
+write("filename.xyz", frames)
+atoms = read("filename.xyz") # last frame in file
+frames = read("filename.xyz", index=":") # all frames in file
+
+write("newfile.xyz", frames)
+
+traj = ExtXYZTrajectory("traj.xyz")
+opt = BFGS(atoms, trajectory=traj)
+opt.run(fmax=1e-3)
+```
+
+## Remaining issues
+
 1. ~~make treatement of 9 elem old-1d consistent: now extxyz.py always reshapes (not just Lattice) to 3x3, but extxyz.c does not.~~
 2. Since we're using python regexp/PCRE, we could make per-atom strings be more complex, e.g. bare or quoted strings from key-value pairs.  Should we?
 3. Decide what to do about unparseable comment lines.  Just assume an old fashioned xyz with an arbitrary line, or fail?  I don't think we really want every parsing breaking typo to result in plain xyz.
 4. Used to be able to quote with \{\}.  Do we want to support this?
 
-# Extended XYZ specification and parsing tools
-
-## XYZ spec
+## Extended XYZ specifcation
 
 ### General formatting
 
