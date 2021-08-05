@@ -56,25 +56,26 @@ Julia bindings are distributed in a separate package, named [ExtXYZ.jl](https://
 
 # Usage
 
-Usage of the Python package is very similar to the `ase.io.read()` and `ase.io.write()` functions, e.g:
+Usage of the Python package is similar to the `ase.io.read()` and `ase.io.write()` functions, e.g:
 
 ```python
-from extxyz import read, iread, write, ExtXYZTrajectory
+from extxyz import read, iread, write, ExtXYZTrajectoryWriter
 from ase.build import bulk
-from ase.optimizers import BFGS
+from ase.optimize import BFGS
+from ase.calculators.emt import EMT
 
-atoms = bulk("Si") * 3
-atoms.rattle()
-
+atoms = bulk("Cu") * 3
 frames = [atoms.copy() for frame in range(3)]
-
+for frame in frames:
+    frame.rattle()
 write("filename.xyz", frames)
-atoms = read("filename.xyz") # last frame in file
-frames = read("filename.xyz", index=":") # all frames in file
 
+frames = read("filename.xyz") # all frames in file
+atoms = read("filename.xyz", index=0) # first frame in file
 write("newfile.xyz", frames)
 
-traj = ExtXYZTrajectory("traj.xyz")
+traj = ExtXYZTrajectoryWriter("traj.xyz")
+atoms.calc = EMT()
 opt = BFGS(atoms, trajectory=traj)
 opt.run(fmax=1e-3)
 ```
