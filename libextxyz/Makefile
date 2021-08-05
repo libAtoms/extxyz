@@ -44,6 +44,7 @@ libextxyz.${dlext}: libcleri extxyz.c extxyz_kv_grammar.c
 install: libextxyz.${dlext}
 	mkdir -p ${libdir}
 	cp libextxyz.${dlext} ${libdir}
+	cp extxyz.h ${prefix}/lib
 
 %.o: %.c
 	${CC} ${CFLAGS} -g -c $< -o $@
