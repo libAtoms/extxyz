@@ -39,3 +39,10 @@ def test_old_nine_elem_non_symm_Lattice(tmp_path, helpers):
     for at in helpers.read_all_variants(tmp_path / Path('test_file.extxyz')):
         # print("old format got cell", at.cell)
         assert np.all(at.cell == [[1,2,3], [4,5,6], [7,8,9]])
+
+
+def test_failing_runon_floats(tmp_path, helpers):
+    # not valid arrays of floats, should parse as strings
+    helpers.do_test_kv_pair(tmp_path, 'lat', '1.0 2.0 3.0   4.0 5.0 6.0   7.0 8.09.0', 'lat="1.0 2.0 3.0   4.0 5.0 6.0   7.0 8.09.0"')
+
+    helpers.do_test_kv_pair(tmp_path, 'lat', '1.0 2.0 3.0   4.0 5.0 6.0   7.0 8.0e39.0', 'lat="1.0 2.0 3.0   4.0 5.0 6.0   7.0 8.0e39.0"')
