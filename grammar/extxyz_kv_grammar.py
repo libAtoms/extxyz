@@ -20,7 +20,7 @@ exp = r'(?:[dDeE]'+opt_sign+r'[0-9]+)?'
 # rather tricky to match ending in various circumstances
 # first option is to end with a digit, which cannot be followed by a ., and then must be followed by a word break
 # second option is to end with a ., but that cannot be followed by another valid float character i.e. digit, exponent, or sign
-num_end = r'(?:(?<=\d)(?!\.)\b|(?=\.)(?![0-9dDeE+\-]))'
+num_end = r'(?:(?<=\d)(?!\.)\b|(?<=\.)(?![0-9dDeE+\-]))'
 float_re = opt_sign + r'(?:' + float_dec + exp + r'|' + bare_int + exp + r'|' + bare_int + r')' + num_end
 # int can't have \b at the beginning, causes parser to not include sign as part of regexp match
 # \b at end ensures that parser does not consider only initial digit of number as a complete match
