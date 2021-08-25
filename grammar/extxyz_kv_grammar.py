@@ -18,8 +18,8 @@ opt_sign = r'[+-]?'
 float_dec = r'(?:'+bare_int+r'\.|\.)[0-9]*'
 exp = r'(?:[dDeE]'+opt_sign+r'[0-9]+)?'
 # rather tricky to match ending in various circumstances
-# first option is to end with a digit, which cannot be followed by a ., and then must be followed by a word break
-# second option is to end with a ., but that cannot be followed by another valid float character i.e. digit, exponent, or sign
+# first option is to end with a digit that cannot be followed by a ., and then must be followed by a word break
+# second option is to end with a . that cannot be followed by a word character (alphanumeric or underscore)
 num_end = r'(?:(?<=\d)(?!\.)\b|(?<=\.)(?!\w))'
 float_re = opt_sign + r'(?:' + float_dec + exp + r'|' + bare_int + exp + r'|' + bare_int + r')' + num_end
 # int can't have \b at the beginning, causes parser to not include sign as part of regexp match
