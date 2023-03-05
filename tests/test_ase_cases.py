@@ -319,6 +319,27 @@ def test_stress(tmp_path, helpers):
             assert abs(b.arrays['stress'] - np.arange(6, dtype=float)).max() < 1e-6
             assert 'stress' not in b.info
 
+def test_long_header_line(tmp_path):
+    test_float = [1.23825828523822]
+    test_float_s = ""
+    while len(test_float_s) < 3000:
+        test_float = test_float + test_float
+        test_float_s = ' '.join([str(f) for f in test_float])
+    test_float = np.asarray(test_float)
+    with open(tmp_path / "long_header.xyz", "w") as fout:
+        fout.write('1\n')
+        fout.write('Lattice="2.0 0.0 0.0   0.0 2.0 0.0   0.0 0.0 2.0" pbc="T T T" Properties=species:S:1:pos:R:3 test_float_a="' +
+                    test_float_s + '"\n')
+        fout.write('H 0.0 0.0 0.0\n')
+
+    lengths = []
+    with open(tmp_path / "long_header.xyz") as fin:
+        for l in fin:
+            print(l, end='')
+            lengths.append(len(l))
+    print("lengths", lengths)
+    at = read(tmp_path / "long_header.xyz")
+    assert at.info["test_float_a"] == pytest.approx(test_float)
 
 # no constraint I/O support yet
 ##@pytest.mark.parametrize('constraint', [FixAtoms(indices=(0, 2)),

@@ -560,7 +560,7 @@ char *read_line(char **line, unsigned long *line_len, FILE *fp) {
             exit(1);
         }
 
-        stat = fgets(*line + *line_len - STR_INCR - 1, STR_INCR, fp);
+        stat = fgets(*line + *line_len - STR_INCR - 1, STR_INCR + 1, fp);
         if (!stat) {
             return 0;
         }
