@@ -46,8 +46,9 @@ def build_pcre2():
     pcre2_config = which('pcre2-config')
     print(f'which(pcre2-config) = {pcre2_config}')
     if pcre2_config is None:
-        pcre2_version = '10.37'
-        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2_version}')
+        pcre2_version = '10.42'
+        download_url = f"https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{pcre2_version}/pcre2-{pcre2_version}.tar.gz"
+        print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2_version} from {download_url}')
 
         tempdir = tempfile.mkdtemp()
         atexit.register(lambda: shutil.rmtree(tempdir)) # cleanup tempdir when Python exits
@@ -57,7 +58,7 @@ def build_pcre2():
         orig_dir = os.getcwd()
         os.chdir(tempdir)
         try:
-            subprocess.call(["curl", f"https://ftp.pcre.org/pub/pcre/pcre2-{pcre2_version}.tar.gz", "-o", "pcre2.tar.gz"])
+            subprocess.call(["curl", "-L", download_url, "-o", "pcre2.tar.gz"])
             subprocess.call(["tar", "xvzf", "pcre2.tar.gz"])
             subprocess.call(["./configure", f"--prefix={build_dir}"], cwd=f"pcre2-{pcre2_version}")
             subprocess.call("make", cwd=f"pcre2-{pcre2_version}")
