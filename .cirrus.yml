@@ -11,7 +11,7 @@ build_and_store_wheels: &BUILD_AND_STORE_WHEELS
     TWINE_USERNAME: __token__
     TWINE_PASSWORD: ENCRYPTED[e0e8298d5f80b1badbcf84fbead7557701c9365b82eae0326df13e82659a8003f52c09a6b23142479a5c36ab8c1f2b4e]
     CIBW_TEST_REQUIRES: pytest
-    CIBW_TEST_COMMAND: "cd {project}/tests; pytest ."
+    CIBW_TEST_COMMAND: "pytest -v {package}/tests"
   wheels_artifacts:
     path: "wheelhouse/*"
 
