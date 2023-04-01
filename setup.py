@@ -51,7 +51,7 @@ def build_pcre2():
         print(f'pcre2-config not found so downloading and installing PCRE2-{pcre2_version} from {download_url}')
 
         tempdir = tempfile.mkdtemp()
-        atexit.register(lambda: shutil.rmtree(tempdir)) # cleanup tempdir when Python exits
+        # atexit.register(lambda: shutil.rmtree(tempdir)) # cleanup tempdir when Python exits
         build_dir = os.path.abspath(f"{tempdir}/pcre2-{pcre2_version}/build")
         pcre2_config = os.path.join(build_dir, 'bin', 'pcre2-config')
 
