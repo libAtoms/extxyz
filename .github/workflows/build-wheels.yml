@@ -1,5 +1,6 @@
 on:
   push:
+    branches: [ master ]
     tags:
       - v*
 
@@ -18,13 +19,12 @@ jobs:
       - name: Checkout submodules
         run: git submodule update --init --recursive      
       - name: Build wheels
-        uses: pypa/cibuildwheel@v1.11.1.post1
+        uses: pypa/cibuildwheel@v2.12.1
         env:
-           CIBW_SKIP: cp27-* cp35-* pp*
-           CIBW_TEST_SKIP: "*-macosx_arm64"
+           CIBW_SKIP: cp27-* cp35-* pp* *musl* "*-macosx_arm64"
            CIBW_ARCHS_LINUX: "auto64"
-           CIBW_ARCHS_MACOS: "x86_64 arm64"
-           CIBW_BEFORE_ALL_LINUX: "yum install -y pcre2-devel"
+           CIBW_ARCHS_MACOS: "x86_64"
+           CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
            CIBW_TEST_REQUIRES: pytest 
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
@@ -41,6 +41,7 @@ jobs:
           
       - name: Release wheels
         uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           files: wheelhouse/*.whl
         env:
