@@ -32,7 +32,7 @@ cirrus_wheels_linux_aarch64_task:
     - env:
         CIBW_BUILD: cp310-* cp311-*
   build_script: |
-    apt install -y python3-venv python-is-python3
+    apt install -y python3-venv python-is-python3 libpcre2-dev
     which python
     echo $CIRRUS_CHANGE_MESSAGE
     # needed for submodules
@@ -68,6 +68,7 @@ cirrus_wheels_macos_arm64_task:
   install_pre_requirements_script:
     - brew install python@3.10
     - ln -s python3 /opt/homebrew/opt/python@3.10/bin/python
+    - brew install pcre2
 
   build_script:
     - which python
