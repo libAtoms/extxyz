@@ -68,7 +68,7 @@ module extxyz
             type(C_PTR), value :: kv_grammar, fp
             integer(kind=C_INT) :: nat
             type(C_PTR) :: info, arrays
-            character(kind=C_CHAR) :: comment(*)
+            type(C_PTR), value :: comment
         end function extxyz_read_ll
 
         function extxyz_write_ll(fp, nat, info, arrays) bind(c)
