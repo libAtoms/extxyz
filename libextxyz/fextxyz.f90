@@ -62,12 +62,13 @@ module extxyz
             type(C_PTR) :: buffer
         end
 
-        function extxyz_read_ll(kv_grammar, fp, nat, info, arrays) bind(c)
+        function extxyz_read_ll(kv_grammar, fp, nat, info, arrays, comment) bind(c)
             use iso_c_binding
             integer(kind=C_INT) :: extxyz_read_ll
             type(C_PTR), value :: kv_grammar, fp
             integer(kind=C_INT) :: nat
             type(C_PTR) :: info, arrays
+            character(kind=C_CHAR) :: comment(*)
         end function extxyz_read_ll
 
         function extxyz_write_ll(fp, nat, info, arrays) bind(c)
@@ -442,7 +443,7 @@ function read_extxyz_file(file, at, verbose) result(success)
     c_info = c_loc(info)
     c_arrays = c_loc(arrays)
 
-    err = extxyz_read_ll(kv_grammar, file, nat, c_info, c_arrays)
+    err = extxyz_read_ll(kv_grammar, file, nat, c_info, c_arrays, C_NULL_PTR)
     success = (err == 1)
 
     if (do_verbose) then
