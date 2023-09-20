@@ -229,6 +229,8 @@ def read_frame_dicts(fp, verbose=False, comment=None):
     try:
         if comment is not None:
             comment = comment.encode('utf-8')
+        else:
+            comment = ctypes.POINTER(ctypes.c_char)()
         if not extxyz.extxyz_read_ll(_kv_grammar,
                                      fp,
                                      ctypes.byref(nat),

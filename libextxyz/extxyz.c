@@ -569,7 +569,7 @@ char *read_line(char **line, unsigned long *line_len, FILE *fp) {
 }
 
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment) {
-    char *line, *temp_line;
+    char *line;
     unsigned long line_len;
     unsigned long line_len_init = 1024;
 
@@ -604,13 +604,11 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         return 0;
     }
     // actually parse - optionally replace line read from file with `comment` argument
+    cleri_parse_t * tree;
     if (comment != NULL) {
-      temp_line = line;
-      line = comment;
-    }
-    cleri_parse_t * tree = cleri_parse(kv_grammar, line);
-    if (comment != NULL) {
-        line = temp_line;
+        tree = cleri_parse(kv_grammar, comment);
+    } else {
+        tree = cleri_parse(kv_grammar, line);
     }
     if (! tree->is_valid) {
         fprintf(stderr, "Failed to parse string at pos %zd\n", tree->pos);
