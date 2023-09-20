@@ -584,14 +584,16 @@ def read_frame_dicts(file, verbose=0, use_regex=True):
 
 
 def read_frame(file, verbose=0, use_cextxyz=True,
-               use_regex=True, create_calc=False, calc_prefix=''):
+               use_regex=True, create_calc=False, calc_prefix='', 
+               comment=None):
     """
     Read a single frame in extxyz format from `file`.
     """
 
     try:
         if use_cextxyz:
-            natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose)        
+            natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose, 
+                                                            comment=comment)        
             properties = info.pop('Properties', 'species:S:1:pos:R:3')
             properties = Properties(property_string=properties)
             data = np.zeros(natoms, properties.dtype_vector)
@@ -599,7 +601,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
                 data[name] = value            
         else:
             natoms, info, data, properties = read_frame_dicts(file, verbose=verbose, 
-                                                                use_regex=use_regex)
+                                                              use_regex=use_regex)
     except EOFError:
         return None
     

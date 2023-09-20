@@ -19,6 +19,7 @@ def main():
     parser.add_argument('-R', '--round-trip', action='store_true')
     parser.add_argument('-P', '--profile', action='store_true')
     parser.add_argument('-C', '--cextxyz', action='store_true')
+    parser.add_argument('--comment', action='store', default=None)
     args = parser.parse_args()
     if args.round_trip:
         args.write = True # -R implies -w too
@@ -37,7 +38,8 @@ def main():
                     use_regex=args.regex,
                     create_calc=args.create_calc,
                     calc_prefix=args.calc_prefix,
-                    use_cextxyz=args.cextxyz)
+                    use_cextxyz=args.cextxyz,
+                    comment=args.comment)
     tr = time.time() - t0
     if args.verbose:
         print("main output of read()")

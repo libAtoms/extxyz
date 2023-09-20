@@ -49,7 +49,8 @@ extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr
 extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(ctypes.c_int),
                               ctypes.POINTER(Dict_entry_ptr),
-                              ctypes.POINTER(Dict_entry_ptr)]
+                              ctypes.POINTER(Dict_entry_ptr),
+                              ctypes.c_void_p]
 
 extxyz.extxyz_write_ll.args = [ctypes.c_void_p, ctypes.c_int, Dict_entry_ptr, Dict_entry_ptr]
 
@@ -209,12 +210,13 @@ def cfclose(fp):
     fclose(fp)
 
 
-def read_frame_dicts(fp, verbose=False):
+def read_frame_dicts(fp, verbose=False, comment=None):
     """Read a single frame using extxyz_read_ll() C function
 
     Args:
         fp (FILE_ptr): open file pointer, as returned by `cfopen()`
         verbose (bool, optional): Dump C dictionaries to stdout. Defaults to False.
+        comment (str, optional): Overrride comment line with specified string.
 
     Returns:
         nat, info, arrays: int, dict, dict
@@ -225,11 +227,14 @@ def read_frame_dicts(fp, verbose=False):
     eof = False
 
     try:
+        if comment is not None:
+            comment = comment.encode('utf-8')
         if not extxyz.extxyz_read_ll(_kv_grammar,
-                                    fp,
-                                    ctypes.byref(nat),
-                                    ctypes.byref(info),
-                                    ctypes.byref(arrays)):
+                                     fp,
+                                     ctypes.byref(nat),
+                                     ctypes.byref(info),
+                                     ctypes.byref(arrays),
+                                     comment):
             eof = True
             raise EOFError()
 

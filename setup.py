@@ -126,7 +126,7 @@ build_grammar()
 
 setup(
     name='extxyz',
-    version='0.1.3',
+    version='0.1.4',
     author='various',
     packages=['extxyz'],
     package_dir={'': 'python'},
