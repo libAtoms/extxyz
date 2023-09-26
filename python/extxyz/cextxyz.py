@@ -12,6 +12,9 @@ class FILE_ptr(ctypes.c_void_p):
 class cleri_grammar_t_ptr(ctypes.c_void_p):
     pass
 
+class ExtXYZError(Exception):
+    pass
+
 DATA_I = 1
 DATA_F = 2
 DATA_B = 3
@@ -209,6 +212,20 @@ def cfclose(fp):
     fclose.args = [FILE_ptr]
     fclose(fp)
 
+    
+def cftell(fp):
+    ftell = libc.ftell
+    ftell.argtypes = [FILE_ptr]
+    ftell.restype = ctypes.c_long
+    return ftell(fp)
+
+
+def cfseek(fp, offset, whence):
+    fseek = libc.fseek
+    fseek.argtypes = [FILE_ptr, ctypes.c_long, ctypes.c_int]
+    fseek.restype = ctypes.c_int
+    return fseek(fp, offset, whence)
+
 
 def read_frame_dicts(fp, verbose=False, comment=None):
     """Read a single frame using extxyz_read_ll() C function
@@ -224,23 +241,31 @@ def read_frame_dicts(fp, verbose=False, comment=None):
     nat = ctypes.c_int()
     info = Dict_entry_ptr()
     arrays = Dict_entry_ptr()
-    eof = False
+    failure = False
 
     try:
         if comment is not None:
             comment = comment.encode('utf-8')
         else:
             comment = ctypes.POINTER(ctypes.c_char)()
+            
+        error_message = ctypes.create_string_buffer(1024)            
         if not extxyz.extxyz_read_ll(_kv_grammar,
                                      fp,
                                      ctypes.byref(nat),
                                      ctypes.byref(info),
                                      ctypes.byref(arrays),
-                                     comment):
-            eof = True
-            raise EOFError()
+                                     comment,
+                                     error_message):
+            failure = True
+            if (error_message.value == b'' or 
+                error_message.value.decode().startswith("Failed to parse int natoms from ' ")):
+                raise EOFError
+            else:
+                raise ExtXYZError(error_message.value.decode().strip().replace('\n', ''))
 
         if verbose:
+            print('error_message:', error_message.value.decode())
             extxyz.print_dict(info)
             extxyz.print_dict(arrays)
 
@@ -248,7 +273,7 @@ def read_frame_dicts(fp, verbose=False, comment=None):
         py_arrays = c_to_py_dict(arrays, deepcopy=True)
 
     finally:
-        if not eof:
+        if not failure:
             extxyz.free_dict(info)
             extxyz.free_dict(arrays)
 

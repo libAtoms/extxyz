@@ -340,6 +340,17 @@ def test_long_header_line(tmp_path):
     print("lengths", lengths)
     at = read(tmp_path / "long_header.xyz")
     assert at.info["test_float_a"] == pytest.approx(test_float)
+    
+    
+def test_lammps_file(tmp_path):
+    with open(tmp_path / "lammps.xyz", "w") as fout:
+        fout.write("""1
+Atoms. Timestep: 1000000
+Ar    1.4102613692638457    0.9647607662828660    1.3209769521273491
+""")
+    at = read(tmp_path / "lammps.xyz")
+    assert len(at) == 1
+    assert at.positions[0] == pytest.approx([1.4102613692638457, 0.9647607662828660, 1.3209769521273491])
 
 # no constraint I/O support yet
 ##@pytest.mark.parametrize('constraint', [FixAtoms(indices=(0, 2)),

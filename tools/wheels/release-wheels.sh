@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+echo CIRRUS_TAG=$CIRRUS_TAG
+echo CIRRUS_REPO_FULL_NAME=$CIRRUS_REPO_FULL_NAME
+echo CIRRUS_RELEASE=$CIRRUS_RELEASE
+
 if [[ ! "$CIRRUS_TAG" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
   echo "Not a release. No need to deploy!"
   exit 0

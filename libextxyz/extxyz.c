@@ -70,7 +70,7 @@ void unquote(char *str) {
     str[output_len] = 0;
 }
 
-int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d) {
+int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_kv_pair, int *in_old_one_d, char *error_message) {
     //DEBUG printf("enter parse_tree in_kv_pair %d\n", *in_kv_pair); //DEBUG
     //DEBUG if (node->cl_obj) { //DEBUG
         //DEBUG printf("node type %d gid %d", node->cl_obj->tp, node->cl_obj->gid); //DEBUG
@@ -161,7 +161,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                 } else {
                     // ignore blank regex, they show up sometimes e.g. after end of sequence
                     if (strlen(str) > 0) {
-                        fprintf(stderr, "Failed to parse some regex as data key '%s' str '%s'\n", 
+                        sprintf(error_message, "Failed to parse some regex as data key '%s' str '%s'\n", 
                                 (*cur_entry)->key, str);
                         // free before incomplete return
                         free(str);
@@ -181,7 +181,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
                     // allocate string for printing
                     char * str = (char *) malloc((node->len+1)*sizeof(char));
                     strncpy(str, node->str, node->len);
-                    fprintf(stderr, "Failed to parse some keyword as data, key '%s' str '%s'\n", (*cur_entry)->key, str);
+                    sprintf(error_message, "Failed to parse some keyword as data, key '%s' str '%s'\n", (*cur_entry)->key, str);
                     free(str);
                     return 1;
                 /*
@@ -237,7 +237,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
     //DEBUG printf("looping over children\n"); //DEBUG
     for (cleri_children_t *child = node->children; child; child = child->next) {
         //DEBUG printf("child\n"); //DEBUG
-        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d);
+        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d, error_message);
         if (err) {
             return err;
         }
@@ -254,7 +254,7 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
             // leaving a row in a nested list
             if ((*cur_entry)->ncols > 0 && (*cur_entry)->ncols != (*cur_entry)->n_in_row) {
                 // not first row, check for consistency
-                fprintf(stderr, "key %s nested list row %d number of entries in row %d inconsistent with prev %d\n", 
+                sprintf(error_message, "key %s nested list row %d number of entries in row %d inconsistent with prev %d\n", 
                         (*cur_entry)->key, (*cur_entry)->nrows+1, (*cur_entry)->n_in_row, (*cur_entry)->ncols);
                 return 1;
             }
@@ -355,7 +355,7 @@ void free_DataLinkedList(DataLinkedList *list, enum data_type data_t, int free_s
 }
 
 
-int DataLinkedList_to_data(DictEntry *dict) {
+int DataLinkedList_to_data(DictEntry *dict, char *error_message) {
     int stat=0;
 
     for (DictEntry *entry = dict; entry; entry = entry->next) {
@@ -377,7 +377,7 @@ int DataLinkedList_to_data(DictEntry *dict) {
                 if (data_t != data_i && data_t != data_f) {
                     // prev data is not a number, fail
                     if (!stat) {
-                        fprintf(stderr, "ERROR: in an array got a number type %d after a non-number %d\n",
+                        sprintf(error_message, "ERROR: in an array got a number type %d after a non-number %d\n",
                             data_item->data_t, data_t);
                     }
                     stat=1;
@@ -388,7 +388,7 @@ int DataLinkedList_to_data(DictEntry *dict) {
                 }
             } else if (data_item->data_t != data_t) {
                 if (!stat) {
-                    fprintf(stderr, "ERROR: in an array got a change in type from %d to %dthat cannot be promoted\n",
+                    sprintf(error_message, "ERROR: in an array got a change in type from %d to %d that cannot be promoted\n",
                         data_t, data_item->data_t);
                 }
                 stat=1;
@@ -446,7 +446,7 @@ int DataLinkedList_to_data(DictEntry *dict) {
 }
 
 
-void *tree_to_dict(cleri_parse_t *tree) {
+void *tree_to_dict(cleri_parse_t *tree, char *error_message) {
     //DEBUG dump_tree(tree->tree, ""); //DEBUG
     // printf("END DUMP\n");
 
@@ -458,17 +458,14 @@ void *tree_to_dict(cleri_parse_t *tree) {
 
     int in_seq = 0, in_kv_pair = 0, in_old_one_d = 0;
     int err;
-    err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d);
+    err = parse_tree(tree->tree, &cur_entry, &in_seq, &in_kv_pair, &in_old_one_d, error_message);
     if (err) {
-        fprintf(stderr, "error parsing tree\n");
+        sprintf(error_message, "error parsing tree\n");
         return 0;
     }
 
-    err = DataLinkedList_to_data(dict);
-    if (err) {
-        fprintf(stderr, "ERROR converting data linked list to data arrays, probably inconsistent data types\n");
-        return 0;
-    }
+    err = DataLinkedList_to_data(dict, error_message);
+    if (err) return 0;
 
     return dict;
 }
@@ -568,7 +565,7 @@ char *read_line(char **line, unsigned long *line_len, FILE *fp) {
     return *line;
 }
 
-int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment) {
+int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message) {
     char *line;
     unsigned long line_len;
     unsigned long line_len_init = 1024;
@@ -592,7 +589,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     }
     int nat_stat = sscanf(line, "%d", nat);
     if (nat_stat != 1) {
-        fprintf(stderr, "Failed to parse int natoms from '%s'\n", line);
+        sprintf(error_message, "Failed to parse int natoms from '%s'", line);
         free(line);
         return 0;
     }
@@ -611,15 +608,15 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         tree = cleri_parse(kv_grammar, line);
     }
     if (! tree->is_valid) {
-        fprintf(stderr, "Failed to parse string at pos %zd\n", tree->pos);
+        sprintf(error_message, "Failed to parse string at pos %zd", tree->pos);
         cleri_parse_free(tree);
         free(line);
         return 0;
     }
-    *info = tree_to_dict(tree);
+    *info = tree_to_dict(tree, error_message);
     cleri_parse_free(tree);
     if (! info) {
-        fprintf(stderr, "Failed to convert tree to dict\n");
+        sprintf(error_message, "Failed to convert tree to dict");
         free(line);
         return 0;
     }
@@ -696,7 +693,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         // advance to col type
         pf = strtok(NULL, ":");
         if (strlen(pf) != 1) {
-            fprintf(stderr, "Failed to parse property type '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            sprintf(error_message, "Failed to parse property type '%s' for property '%s' (# %d)", pf, cur_array->key, prop_i);
             free(props);
             free(line); free(re_str);
             return 0;
@@ -708,7 +705,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         int col_num;
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
-            fprintf(stderr, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)\n", pf, cur_array->key, prop_i);
+            sprintf(error_message, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)", pf, cur_array->key, prop_i);
             free(props);
             free(line); free(re_str);
             return 0;
@@ -741,7 +738,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 this_re = SIMPLESTRING_RE; // "\\S+";
                 break;
             default:
-                fprintf(stderr, "Unknown property type '%c' for property key '%s' (# %d)\n", col_type, cur_array->key, prop_i);
+                sprintf(error_message, "Unknown property type '%c' for property key '%s' (# %d)", col_type, cur_array->key, prop_i);
                 // free incomplete data before returning
                 free(cur_array->data);
                 cur_array->data = 0;
@@ -778,7 +775,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     pcre2_code *re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED, 0, &pcre2_error, &erroffset, NULL);
     if (re == NULL) {
         pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
-        fprintf(stderr, "ERROR %s compiling pcre pattern for atoms lines offset %ld re '%s'\n", line, erroffset, re_str);
+        sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %ld re '%s'", line, erroffset, re_str);
         free(line); free(re_str);
         return 0;
     }
@@ -800,14 +797,14 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         if (rc != tot_col_num+1) {
             if (rc < 0) {
                 if (rc == PCRE2_ERROR_NOMATCH) {
-                    fprintf(stderr, "ERROR: pcre2 regexp got NOMATCH on atom line %d\n", li);
+                    sprintf(error_message, "ERROR: pcre2 regexp got NOMATCH on atom line %d", li);
                 } else {
-                    fprintf(stderr, "ERROR: pcre2 regexp got error %d on atom line %d\n", rc, li);
+                    sprintf(error_message, "ERROR: pcre2 regexp got error %d on atom line %d", rc, li);
                 }
             } else if (rc == 0) {
-                fprintf(stderr, "ERROR: pcre2 regexp got match_data not big enough (should never happen) on atom line %d\n", li);
+                sprintf(error_message, "ERROR: pcre2 regexp got match_data not big enough (should never happen) on atom line %d", li);
             } else {
-                fprintf(stderr, "ERROR: pcre2 regexp failed on atom line %d at group %d\n", li, rc-1);
+                sprintf(error_message, "ERROR: pcre2 regexp failed on atom line %d at group %d", li, rc-1);
             }
             pcre2_match_data_free(match_data); pcre2_code_free(re);
             free(line); free(re_str);
