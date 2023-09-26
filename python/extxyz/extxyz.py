@@ -592,8 +592,21 @@ def read_frame(file, verbose=0, use_cextxyz=True,
 
     try:
         if use_cextxyz:
-            natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose, 
-                                                            comment=comment)        
+            try:
+                fpos = cextxyz.cftell(file)
+                natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose, 
+                                                                comment=comment)
+            except cextxyz.ExtXYZError as msg:
+                error_message,  = msg.args
+                if error_message.startswith('Failed to parse string'):
+                    try:
+                        # try again, ignoring comment line provided and intepreting as a plain XYZ file with species and position columns
+                        cextxyz.cfseek(file, fpos, 0)
+                        natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose, 
+                                                                        comment="Properties=species:S:1:pos:R:3")
+                    except cextxyz.ExtXYZError:
+                        raise
+                
             properties = info.pop('Properties', 'species:S:1:pos:R:3')
             properties = Properties(property_string=properties)
             data = np.zeros(natoms, properties.dtype_vector)

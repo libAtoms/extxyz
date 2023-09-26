@@ -68,7 +68,8 @@ module extxyz
             type(C_PTR), value :: kv_grammar, fp
             integer(kind=C_INT) :: nat
             type(C_PTR) :: info, arrays
-            type(C_PTR), value :: comment
+            character(kind=C_CHAR) :: comment(*)
+            character(kind=C_CHAR) :: error_message(*)
         end function extxyz_read_ll
 
         function extxyz_write_ll(fp, nat, info, arrays) bind(c)
@@ -431,6 +432,7 @@ function read_extxyz_file(file, at, verbose) result(success)
     type(Dictionary) :: f_info, f_arrays
     real(C_DOUBLE) :: lattice(3, 3) ! FIXME change C_DOUBLE to DP when this moves to QUIP
     integer :: i
+    character(C_CHAR), dimension(1024) :: error_message
 
     success = .false.
     if (present(verbose)) do_verbose = verbose
@@ -443,8 +445,11 @@ function read_extxyz_file(file, at, verbose) result(success)
     c_info = c_loc(info)
     c_arrays = c_loc(arrays)
 
-    err = extxyz_read_ll(kv_grammar, file, nat, c_info, c_arrays, C_NULL_PTR)
+    err = extxyz_read_ll(kv_grammar, file, nat, c_info, c_arrays, C_NULL_PTR, error_message)
     success = (err == 1)
+    if (.not. success) then
+        call print('error_message='//C_string_ptr_to_F_string(error_message))
+    end if
 
     if (do_verbose) then
         call print_dict(c_info)
