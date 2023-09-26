@@ -598,14 +598,17 @@ def read_frame(file, verbose=0, use_cextxyz=True,
                                                                 comment=comment)
             except cextxyz.ExtXYZError as msg:
                 error_message,  = msg.args
+                print('cextxyz error message', error_message)
                 if error_message.startswith('Failed to parse string'):
                     try:
-                        # try again, ignoring comment line provided and intepreting as a plain XYZ file with species and position columns
+                        # rewined then try again, ignoring comment line provided and interpreting as plain XYZ file with species and position columns
                         cextxyz.cfseek(file, fpos, 0)
                         natoms, info, arrays = cextxyz.read_frame_dicts(file, verbose=verbose, 
                                                                         comment="Properties=species:S:1:pos:R:3")
                     except cextxyz.ExtXYZError:
                         raise
+                else:
+                    raise
                 
             properties = info.pop('Properties', 'species:S:1:pos:R:3')
             properties = Properties(property_string=properties)

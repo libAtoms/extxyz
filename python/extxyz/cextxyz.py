@@ -258,7 +258,8 @@ def read_frame_dicts(fp, verbose=False, comment=None):
                                      comment,
                                      error_message):
             failure = True
-            if error_message.value == b'':
+            if (error_message.value == b'' or 
+                error_message.value.decode().startswith("Failed to parse int natoms from ' ")):
                 raise EOFError
             else:
                 raise ExtXYZError(error_message.value.decode().strip().replace('\n', ''))
