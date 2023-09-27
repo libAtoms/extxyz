@@ -1,5 +1,3 @@
 [submodule "extxyz/libcleri"]
 	path = libcleri
-	url = https://github.com/transceptor-technology/libcleri
-[submodule "libcleri"]
 	url = https://github.com/libAtoms/libcleri
