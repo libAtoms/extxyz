@@ -26,21 +26,16 @@ jobs:
 
       - name: Install PCRE2 (Windows only)
         if: matrix.os == 'windows-2019'
+        shell: bash        
         run: |
-          # Download the PCRE2 binary (adjust the URL as needed)
-          $url = "https://ftp.pcre.org/pub/pcre/pcre2-10.39.zip"
-          $outputDir = "$env:USERPROFILE\pcre2"
-
-          # Create the directory if it doesn't exist
-          New-Item -ItemType Directory -Force -Path $outputDir
-
-          # Download and unzip PCRE2
-          Invoke-WebRequest -Uri $url -OutFile "$outputDir\pcre2-binary.zip"
-          Expand-Archive -Path "$outputDir\pcre2-binary.zip" -DestinationPath $outputDir
-
-          # Add PCRE2 to the PATH environment variable
-          [System.Environment]::SetEnvironmentVariable("PATH", "$outputDir;$env:PATH", [System.EnvironmentVariableTarget]::Machine)
-
+          pcre2_version=10.42
+          download_url=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{pcre2_version}/pcre2-{pcre2_version}.tar.gz
+          curl -L $download_url -o pcre2.tar.gz
+          tar xvzf pcre2.tar.gz
+          cd pcre2-{pcre2_version}
+          ./configure --prefix={build_dir}
+          make
+          make install
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.12.1
         env:
@@ -51,11 +46,11 @@ jobs:
            CIBW_TEST_REQUIRES: pytest 
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
-      # # Uncomment to get SSH access for testing
-      # - name: Setup tmate session
-      #   if: failure()
-      #   uses: mxschmitt/action-tmate@v3
-      #   timeout-minutes: 15
+      # Uncomment to get SSH access for testing
+      - name: Setup tmate session
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 15
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
