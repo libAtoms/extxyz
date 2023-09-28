@@ -53,7 +53,7 @@ install: libextxyz.${dlext}
 
 test_fortran_main.o: fextxyz.o extxyz.o extxyz_kv_grammar.o
 
-fextxyz: test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
+fextxyz: libcleri test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
 	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS} ${QUIP_LDFLAGS}
 
 cextxyz: test_C_main.o extxyz.o extxyz_kv_grammar.o
