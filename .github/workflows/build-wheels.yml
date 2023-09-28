@@ -33,7 +33,7 @@ jobs:
           curl -L $download_url -o pcre2.tar.gz
           tar xvzf pcre2.tar.gz
           cd pcre2-${pcre2_version}
-          ./configure --prefix={build_dir}
+          ./configure
           make
           make install
       - name: Build wheels
