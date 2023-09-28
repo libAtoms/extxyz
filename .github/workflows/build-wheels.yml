@@ -12,14 +12,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-22.04, macos-13, windows-2019]
       fail-fast: false
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
       - name: Checkout submodules
-        run: git submodule update --init --recursive      
+        run: git submodule update --init --recursive
+
+      - name: Install PCRE2 (Windows only)
+        if: matrix.os == 'windows-2019'
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+          choco install pcre2	
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.12.1
         env:

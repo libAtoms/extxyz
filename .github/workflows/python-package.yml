@@ -62,8 +62,8 @@ jobs:
     - name: Test with pytest
       run: |
         USE_FORTRAN=T pytest -v --ignore QUIP
-    # Uncomment to get SSH access for testing
-    - name: Setup tmate session
-      if: failure()
-      uses: mxschmitt/action-tmate@v3
-      timeout-minutes: 15	
+    # # Uncomment to get SSH access for testing
+    # - name: Setup tmate session
+    #   if: failure()
+    #   uses: mxschmitt/action-tmate@v3
+    #   timeout-minutes: 15	
