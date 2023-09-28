@@ -29,10 +29,10 @@ jobs:
         shell: bash        
         run: |
           pcre2_version=10.42
-          download_url=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{pcre2_version}/pcre2-{pcre2_version}.tar.gz
+          download_url=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${pcre2_version}/pcre2-${pcre2_version}.tar.gz
           curl -L $download_url -o pcre2.tar.gz
           tar xvzf pcre2.tar.gz
-          cd pcre2-{pcre2_version}
+          cd pcre2-${pcre2_version}
           ./configure --prefix={build_dir}
           make
           make install
