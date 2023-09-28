@@ -22,13 +22,15 @@ else
 	dlext  ?= so
 endif
 
+.PHONY: default all libcleri install_libcleri install clean
+
 default: libextxyz.${dlext}
 
 all: libcleri extxyz_kv_grammar.c extxyz_kv_grammar.h libextxyz.${dlext}
 
 libcleri:
 	if [ -z ${LIBCLERI_PATH} ]; then echo "LIBCLERI_PATH must be defined" 1>&2; exit 1; fi
-	${MAKE} -C ${LIBCLERI_PATH} -f makefile
+	${MAKE} -C ${LIBCLERI_PATH} -f makefile libcleri.a
 
 install_libcleri: libcleri
 	${MAKE} -C ${LIBCLERI_PATH} -f makefile install INSTALL_PATH=${prefix}
@@ -53,11 +55,13 @@ install: libextxyz.${dlext}
 
 test_fortran_main.o: fextxyz.o extxyz.o extxyz_kv_grammar.o
 
-fextxyz: libcleri test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
-	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS} ${QUIP_LDFLAGS}
+FOBJS = test_fortran_main.o fextxyz.o extxyz.o extxyz_kv_grammar.o
+fextxyz: libcleri ${FOBJS}
+	${F90} -g ${FOBJS} -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS} ${QUIP_LDFLAGS}
 
-cextxyz: test_C_main.o extxyz.o extxyz_kv_grammar.o
-	${F90} -g $^ -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS}
+COBJS = test_C_main.o extxyz.o extxyz_kv_grammar.o
+cextxyz: libcleri ${COBJS}
+	${F90} -g ${COBJS} -o $@ ${LIBCLERI_PATH}/libcleri.a  ${LDFLAGS}
 
 clean:
 	rm -rf libextxyz.${dlext} *.o
