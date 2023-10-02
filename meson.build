@@ -13,6 +13,7 @@ python = pymod.find_installation('python3',
 )
 
 host_system = host_machine.system()
+cc = meson.get_compiler('c')
 
 # adapted from https://gitlab.gnome.org/GNOME/glib/-/blob/cd9a5c173a154e326a3ebaa28cfe41a7444625c5/meson.build#L2020-L2052
 pcre2 = dependency('libpcre2-8', version: '>= 10.23', required : false)
