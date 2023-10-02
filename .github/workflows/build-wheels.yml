@@ -34,6 +34,7 @@ jobs:
           tar xvzf pcre2.tar.gz
           cd pcre2-${pcre2_version}
           mkdir build
+          cd build
           cmake ..
           ninja
           ninja install
