@@ -33,9 +33,11 @@ jobs:
           curl -L $download_url -o pcre2.tar.gz
           tar xvzf pcre2.tar.gz
           cd pcre2-${pcre2_version}
-          ./configure
-          make || make
-          make install
+          mkdir build
+          cmake ..
+          ninja
+          ninja install
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.12.1
         env:
