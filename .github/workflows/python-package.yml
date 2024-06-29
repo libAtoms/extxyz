@@ -52,6 +52,9 @@ jobs:
         mkdir -p QUIP/build/${QUIP_ARCH}
         cp QUIP/.github/workflows/Makefile.inc QUIP/build/${QUIP_ARCH}/Makefile.inc
         (cd QUIP && make libAtoms)	
+    - name: Build C executable
+      run:
+        make -C libextxyz cextxyz
     - name: Build Fortran executable
       env:
         QUIP_ARCH: linux_x86_64_gfortran
