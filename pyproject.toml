@@ -1,4 +1,31 @@
 [build-system]
-# Minimum requirements for the build system to execute.
-requires = ["setuptools", "wheel", "pyleri>=1.3.3"]
-build-backend = "setuptools.build_meta"
+requires = ["meson>=1.0.0", "meson-python>=0.13.0", "ninja", "pyleri>=1.3.3", "oldest-supported-numpy"]
+build-backend = "mesonpy"
+
+[project]
+name = "extxyz"
+description = "Extended XYZ file format tools"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "James Kermode", email = "james.kermode@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python"
+]
+requires-python = ">=3.7.0"
+dynamic = [ "version" ]
+dependencies = [
+    "numpy>=1.13.0", 'pyleri>=1.3.3', 'ase>=3.17'
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+
+]
+
+[project.urls]
+documentation = "http://libatoms.github.io/extxyz/"
+repository = "https://github.com/libAtoms/extxyz"

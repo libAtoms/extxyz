@@ -46,6 +46,8 @@ cirrus_wheels_macos_arm64_task:
 
   build_script:
     - which python
+    # needed for discover_version.py
+    - git fetch --all
     # needed for submodules
     - git submodule update --init
     - uname -m
