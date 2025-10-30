@@ -9,8 +9,6 @@ from pprint import pprint
 from io import StringIO
 
 import numpy as np
-from numpy.core.arrayprint import (get_printoptions,
-                                   _get_format_function)
 
 import ase.units as units
 from ase.utils import lazyproperty

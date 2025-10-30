@@ -2,7 +2,8 @@ python3 = find_program('python3')
 
 run_command(
     python3,
-    '..' / 'python' / 'extxyz' / 'extxyz_kv_grammar.py'
+    '..' / 'python' / 'extxyz' / 'extxyz_kv_grammar.py',
+    check: true
 )
 
 # Build and install the extension module

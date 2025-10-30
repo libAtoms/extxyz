@@ -1,7 +1,7 @@
 import os
 import ctypes
 from ctypes.util import find_library
-from distutils import sysconfig
+import sysconfig
 
 import copy
 
