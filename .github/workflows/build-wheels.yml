@@ -25,6 +25,14 @@ jobs:
       - name: Checkout submodules
         run: git submodule update --init --recursive
 
+      - name: Set Python version for cibuildwheel
+        id: set-py-version
+        shell: bash
+        run: |
+          PY_VERSION="${{ matrix.python-version }}"
+          CIBW_PYTHON="cp${PY_VERSION//.}"
+          echo "cibw-python=${CIBW_PYTHON}" >> $GITHUB_OUTPUT
+
       - name: Install PCRE2 (Windows only)
         if: runner.os == 'Windows'
         shell: bash
@@ -43,7 +51,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
         env:
-           CIBW_BUILD: cp${{ replace(matrix.python-version, '.', '') }}-*
+           CIBW_BUILD: ${{ steps.set-py-version.outputs.cibw-python }}-*
            CIBW_SKIP: pp* *musl* "*-macosx_arm64"
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: "x86_64"
