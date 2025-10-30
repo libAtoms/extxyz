@@ -8,11 +8,12 @@ on:
 
 jobs:
   build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-22.04, macos-latest, windows-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
       fail-fast: false
 
     steps:
@@ -42,11 +43,12 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
         env:
-           CIBW_SKIP: cp27-* cp35-* pp* *musl* "*-macosx_arm64"
+           CIBW_BUILD: cp${{ replace(matrix.python-version, '.', '') }}-*
+           CIBW_SKIP: pp* *musl* "*-macosx_arm64"
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: "x86_64"
            CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
-           CIBW_TEST_REQUIRES: pytest 
+           CIBW_TEST_REQUIRES: pytest
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
       # Uncomment to get SSH access for testing
@@ -58,7 +60,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.os }}-py${{ matrix.python-version }}
           path: ./wheelhouse/*.whl
           
       - name: Release wheels
