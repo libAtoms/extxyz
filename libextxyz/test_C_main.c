@@ -14,7 +14,10 @@ int main(int argc, char *argv[]) {
     int nat;
     DictEntry *info, *arrays;
 
-    int success = extxyz_read_ll(kv_grammar, fp, &nat, &info, &arrays);
+    char comment;
+    char error_message;
+
+    int success = extxyz_read_ll(kv_grammar, fp, &nat, &info, &arrays, &comment, &error_message);
     if (! strcmp(argv[2], "T")) {
         printf("parsed success %d\n", success);
         printf("nat %d\n", nat);
