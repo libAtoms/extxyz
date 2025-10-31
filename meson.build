@@ -8,7 +8,8 @@ project(
 
 # https://mesonbuild.com/Python-module.html
 pymod = import('python')
-python = pymod.find_installation('python3',
+# Don't specify 'python3' - let Meson find the Python used to run itself
+python = pymod.find_installation(
     required: true,
     pure: false
 )
