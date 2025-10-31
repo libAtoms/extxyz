@@ -37,52 +37,23 @@ jobs:
           CIBW_PYTHON="cp${PY_VERSION//.}"
           echo "cibw-python=${CIBW_PYTHON}" >> $GITHUB_OUTPUT
 
-      - name: Install PCRE2 and pkg-config (Windows only)
+      - name: Install PCRE2 via vcpkg (Windows only)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          # Install pkg-config
-          choco install pkgconfiglite -y
+          # Install PCRE2 using vcpkg
+          vcpkg install pcre2:x64-windows
 
-          # Install PCRE2
-          pcre2_version=10.42
-          download_url=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${pcre2_version}/pcre2-${pcre2_version}.tar.gz
-          curl -L $download_url -o pcre2.tar.gz
-          tar xvzf pcre2.tar.gz
-          cd pcre2-${pcre2_version}
-          mkdir build
-          cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_INSTALL_PREFIX="C:/pcre2"
-          cmake --build . --config Release
-          cmake --install . --config Release
+          # Set up environment for meson/pkg-config
+          VCPKG_ROOT="C:/vcpkg"
+          PCRE2_DIR="${VCPKG_ROOT}/installed/x64-windows"
 
-      - name: Set PCRE2 paths (Windows only)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          # Create pkg-config directory and file
-          mkdir -p C:/pcre2/lib/pkgconfig
-          cat > C:/pcre2/lib/pkgconfig/libpcre2-8.pc <<'EOF'
-          prefix=C:/pcre2
-          exec_prefix=${prefix}
-          libdir=${exec_prefix}/lib
-          includedir=${prefix}/include
-
-          Name: libpcre2-8
-          Description: PCRE2 - Perl compatible regular expressions C library (8 bit)
-          Version: 10.42
-          Libs: -L${libdir} -lpcre2-8
-          Cflags: -I${includedir}
-          EOF
-
-          echo "CMAKE_PREFIX_PATH=C:/pcre2" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig" >> $GITHUB_ENV
-          echo "PCRE2_ROOT=C:/pcre2" >> $GITHUB_ENV
-          echo "PCRE2_DIR=C:/pcre2/lib/cmake/pcre2" >> $GITHUB_ENV
-          echo "LIB=C:/pcre2/lib;$LIB" >> $GITHUB_ENV
-          echo "INCLUDE=C:/pcre2/include;$INCLUDE" >> $GITHUB_ENV
-          echo "LIBRARY_PATH=C:/pcre2/lib" >> $GITHUB_ENV
-          echo "CPATH=C:/pcre2/include" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=${PCRE2_DIR}" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${PCRE2_DIR}/lib/pkgconfig" >> $GITHUB_ENV
+          echo "PCRE2_ROOT=${PCRE2_DIR}" >> $GITHUB_ENV
+          echo "LIB=${PCRE2_DIR}/lib;$LIB" >> $GITHUB_ENV
+          echo "INCLUDE=${PCRE2_DIR}/include;$INCLUDE" >> $GITHUB_ENV
+          echo "PATH=${PCRE2_DIR}/bin;$PATH" >> $GITHUB_ENV
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.22.0
@@ -92,9 +63,9 @@ jobs:
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
            CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
-           CIBW_BEFORE_ALL_MACOS: "brew install pcre2"
-           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=15.0"
-           CIBW_ENVIRONMENT_WINDOWS: "CMAKE_PREFIX_PATH=C:/pcre2 PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig PCRE2_ROOT=C:/pcre2 PCRE2_DIR=C:/pcre2/lib/cmake/pcre2 LIB=C:/pcre2/lib INCLUDE=C:/pcre2/include LIBRARY_PATH=C:/pcre2/lib CPATH=C:/pcre2/include"
+           CIBW_BEFORE_ALL_MACOS: "brew install pcre2 pkg-config"
+           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.os == 'macos-latest' && '15.0' || '13.0' }} PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
+           CIBW_ENVIRONMENT_WINDOWS: "CMAKE_PREFIX_PATH=C:/vcpkg/installed/x64-windows PKG_CONFIG_PATH=C:/vcpkg/installed/x64-windows/lib/pkgconfig PCRE2_ROOT=C:/vcpkg/installed/x64-windows LIB=C:/vcpkg/installed/x64-windows/lib INCLUDE=C:/vcpkg/installed/x64-windows/include PATH=C:/vcpkg/installed/x64-windows/bin;$PATH"
            CIBW_TEST_REQUIRES: pytest
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
