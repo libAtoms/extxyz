@@ -235,9 +235,9 @@ int parse_tree(cleri_node_t *node, DictEntry **cur_entry, int *in_seq, int *in_k
     }
 
     //DEBUG printf("looping over children\n"); //DEBUG
-    for (cleri_children_t *child = node->children; child; child = child->next) {
+    for (cleri_node_t *child = node->children; child; child = child->next) {
         //DEBUG printf("child\n"); //DEBUG
-        int err = parse_tree(child->node, cur_entry, in_seq, in_kv_pair, in_old_one_d, error_message);
+        int err = parse_tree(child, cur_entry, in_seq, in_kv_pair, in_old_one_d, error_message);
         if (err) {
             return err;
         }
@@ -319,8 +319,8 @@ void dump_tree(cleri_node_t *node, char *prefix) {
         printf("%snode NULL\n", prefix);
     }
 
-    for (cleri_children_t *child = node->children; child; child = child->next) {
-        dump_tree(child->node, new_prefix);
+    for (cleri_node_t *child = node->children; child; child = child->next) {
+        dump_tree(child, new_prefix);
     }
 
     free(new_prefix);
