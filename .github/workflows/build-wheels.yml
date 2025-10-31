@@ -55,7 +55,11 @@ jobs:
           echo "CMAKE_PREFIX_PATH=C:/pcre2" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig" >> $GITHUB_ENV
           echo "PCRE2_ROOT=C:/pcre2" >> $GITHUB_ENV
-          echo "PCRE2_DIR=C:/pcre2" >> $GITHUB_ENV
+          echo "PCRE2_DIR=C:/pcre2/lib/cmake/pcre2" >> $GITHUB_ENV
+          echo "LIB=C:/pcre2/lib;$LIB" >> $GITHUB_ENV
+          echo "INCLUDE=C:/pcre2/include;$INCLUDE" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=C:/pcre2/lib" >> $GITHUB_ENV
+          echo "CPATH=C:/pcre2/include" >> $GITHUB_ENV
 
       - name: Build wheels
         if: ${{ !(runner.os == 'macOS' && matrix.python-version == '3.8') }}
@@ -68,7 +72,7 @@ jobs:
            CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
            CIBW_BEFORE_ALL_MACOS: "brew install pcre2"
            CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=15.0"
-           CIBW_ENVIRONMENT_WINDOWS: "CMAKE_PREFIX_PATH=C:/pcre2 PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig PCRE2_ROOT=C:/pcre2 PCRE2_DIR=C:/pcre2/lib/cmake/pcre2"
+           CIBW_ENVIRONMENT_WINDOWS: "CMAKE_PREFIX_PATH=C:/pcre2 PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig PCRE2_ROOT=C:/pcre2 PCRE2_DIR=C:/pcre2/lib/cmake/pcre2 LIB=C:/pcre2/lib INCLUDE=C:/pcre2/include LIBRARY_PATH=C:/pcre2/lib CPATH=C:/pcre2/include"
            CIBW_TEST_REQUIRES: pytest
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
