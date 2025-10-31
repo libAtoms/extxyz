@@ -14,6 +14,5 @@ module = python.extension_module(
     install: true,  # Install it
     subdir: 'extxyz',
     gnu_symbol_visibility: 'default', # keep symbols public
-    dependencies: [cleri, pcre2],
-    implib: false  # Don't generate import library on Windows
+    dependencies: [cleri, pcre2]
 )
