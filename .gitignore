@@ -7,3 +7,7 @@ extxyz.egg-info/
 *.o
 pcre2-10.37/
 venv/
+
+# Claude notes (don't commit)
+MESON_BUILD_STATUS.md
+CLAUDE.md
