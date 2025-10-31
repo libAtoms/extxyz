@@ -68,7 +68,7 @@ jobs:
            CIBW_SKIP: pp* *musl*
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
-           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.os == 'macos-latest' && '15.0' || '13.0' }}"
+           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.os == 'macos-latest' && '15.0' || '14.0' }}"
            CIBW_ARCHS_WINDOWS: "AMD64"
            
       # Uncomment to get SSH access for testing
