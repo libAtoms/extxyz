@@ -61,9 +61,14 @@ def get_version_from_git():
     """
     Discover version from git repository.
     """
-    git_describe = subprocess.run(
-        ['git', 'describe', '--tags', '--dirty', '--always'],
-        stdout=subprocess.PIPE)
+    try:
+        git_describe = subprocess.run(
+            ['git', 'describe', '--tags', '--dirty', '--always'],
+            stdout=subprocess.PIPE)
+    except (FileNotFoundError, OSError) as e:
+        # git command not found in PATH (common in isolated build environments like Windows cibuildwheel)
+        raise CannotDiscoverVersion(f'git command not found: {e}')
+
     if git_describe.returncode != 0:
         raise CannotDiscoverVersion('git execution failed.')
     version = git_describe.stdout.decode('latin-1').strip()
