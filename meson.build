@@ -27,6 +27,9 @@ if not pcre2.found()
     else
       pcre2 = cc.find_library('pcre2-8', required : false)
     endif
+  elif host_system == 'windows'
+    # MinGW/GCC on Windows: Try to find the library directly
+    pcre2 = cc.find_library('pcre2-8', required : false)
   endif
 endif
 
