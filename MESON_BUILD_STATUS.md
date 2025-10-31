@@ -2,8 +2,8 @@
 
 **Branch**: `meson`
 **PR**: #17
-**Last Updated**: 2025-10-31 (Testing Windows fixes in commit 816b5e1)
-**Status**: 14/19 wheels building successfully ✅ | Windows: Testing pkgconfiglite + Meson wrap fixes 🔄
+**Last Updated**: 2025-10-31 (Critical Windows fix in commit 83dc67d)
+**Status**: 14/19 wheels building ✅ | Windows: Testing critical CIBW_ENVIRONMENT fix 🔄
 
 ## Current CI Results
 
@@ -49,17 +49,31 @@
 
 **Fallback in meson.build**: Added `cc.find_library('pcre2-8')` for MinGW, but this also fails
 
-**Attempts Made**:
+**Root Cause Discovered (2025-10-31)**:
+The Windows builds were **not failing due to PCRE2 detection** at all! They failed immediately when cibuildwheel started due to a malformed `CIBW_ENVIRONMENT_WINDOWS` configuration in the GitHub Actions workflow.
+
+**Error**:
+```
+cibuildwheel: Malformed environment option 'CMAKE_PREFIX_PATH=C:/vcpkg/installed/x64-windows PKG_CONFIG_PATH=...'
+```
+
+**Problem**: All environment variables were in a single string separated by spaces, which cibuildwheel couldn't parse.
+
+**Fix (commit 83dc67d)**: Changed to proper YAML multiline syntax:
+```yaml
+CIBW_ENVIRONMENT_WINDOWS: >-
+  CMAKE_PREFIX_PATH=C:/vcpkg/installed/x64-windows
+  PKG_CONFIG_PATH=C:/vcpkg/installed/x64-windows/lib/pkgconfig
+  ...
+```
+
+**Previous Attempts** (all failed before reaching Meson):
 1. Manual CMake build + install ❌
 2. Manual pkg-config file creation ❌
 3. Environment variables (LIB, INCLUDE, LIBRARY_PATH, CPATH) ❌
-4. vcpkg package manager ❌
-5. **pkgconfiglite + vcpkg** 🔄 (testing - commit 816b5e1)
-   - Install pkgconfiglite via chocolatey before vcpkg
-   - Ensures working pkg-config (not Strawberry Perl version)
-6. **Meson wrap fallback** 🔄 (testing - commit 816b5e1)
-   - Added `subprojects/pcre2.wrap` for automatic PCRE2 build
-   - Uses WrapDB pcre2 10.44 if all detection fails
+4. vcpkg package manager ❌ (couldn't pass env vars to cibuildwheel)
+5. **pkgconfiglite + vcpkg** (commit 816b5e1) - still using broken CIBW_ENVIRONMENT
+6. **Meson wrap fallback** (commit 816b5e1) - Added `subprojects/pcre2.wrap`
 
 ## Architecture Overview
 
