@@ -1,7 +1,9 @@
-python3 = find_program('python3')
+# Use the same Python executable found in parent meson.build
+# (cross-platform: python3 on Unix, python on Windows)
+python_for_codegen = find_program('python3', 'python', required: true)
 
 run_command(
-    python3,
+    python_for_codegen,
     '..' / 'python' / 'extxyz' / 'extxyz_kv_grammar.py',
     check: true
 )

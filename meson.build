@@ -1,8 +1,11 @@
 # https://mesonbuild.com/
+# Find Python executable (cross-platform: python3 on Unix, python on Windows)
+python_exe = find_program('python3', 'python', required: true)
+
 project(
     'extxyz', # Project name
     'c',
-    version: run_command('python3', 'discover_version.py', check: true).stdout().strip(), # Project version
+    version: run_command(python_exe, 'discover_version.py', check: true).stdout().strip(), # Project version
 )
 
 # https://mesonbuild.com/Python-module.html
