@@ -37,10 +37,14 @@ jobs:
           CIBW_PYTHON="cp${PY_VERSION//.}"
           echo "cibw-python=${CIBW_PYTHON}" >> $GITHUB_OUTPUT
 
-      - name: Install PCRE2 (Windows only)
+      - name: Install PCRE2 and pkg-config (Windows only)
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          # Install pkg-config
+          choco install pkgconfiglite -y
+
+          # Install PCRE2
           pcre2_version=10.42
           download_url=https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${pcre2_version}/pcre2-${pcre2_version}.tar.gz
           curl -L $download_url -o pcre2.tar.gz
@@ -56,6 +60,21 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          # Create pkg-config directory and file
+          mkdir -p C:/pcre2/lib/pkgconfig
+          cat > C:/pcre2/lib/pkgconfig/libpcre2-8.pc <<'EOF'
+          prefix=C:/pcre2
+          exec_prefix=${prefix}
+          libdir=${exec_prefix}/lib
+          includedir=${prefix}/include
+
+          Name: libpcre2-8
+          Description: PCRE2 - Perl compatible regular expressions C library (8 bit)
+          Version: 10.42
+          Libs: -L${libdir} -lpcre2-8
+          Cflags: -I${includedir}
+          EOF
+
           echo "CMAKE_PREFIX_PATH=C:/pcre2" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig" >> $GITHUB_ENV
           echo "PCRE2_ROOT=C:/pcre2" >> $GITHUB_ENV
@@ -74,7 +93,7 @@ jobs:
            CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
            CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
            CIBW_BEFORE_ALL_MACOS: "brew install pcre2"
-           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=${{ matrix.os == 'macos-latest' && '15.0' || '10.13' }}"
+           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=15.0"
            CIBW_ENVIRONMENT_WINDOWS: "CMAKE_PREFIX_PATH=C:/pcre2 PKG_CONFIG_PATH=C:/pcre2/lib/pkgconfig PCRE2_ROOT=C:/pcre2 PCRE2_DIR=C:/pcre2/lib/cmake/pcre2 LIB=C:/pcre2/lib INCLUDE=C:/pcre2/include LIBRARY_PATH=C:/pcre2/lib CPATH=C:/pcre2/include"
            CIBW_TEST_REQUIRES: pytest
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
