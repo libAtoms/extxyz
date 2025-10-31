@@ -90,7 +90,13 @@ def get_version_from_git():
 try:
     version = get_version_from_git()
 except CannotDiscoverVersion:
-    version = get_version_from_pkg_info()
+    try:
+        version = get_version_from_pkg_info()
+    except (CannotDiscoverVersion, FileNotFoundError):
+        # Fallback for isolated build environments (e.g., Windows cibuildwheel)
+        # where neither git nor PKG-INFO is available
+        # Use a development version that will be replaced by the build system
+        version = '0.0.0+unknown'
 
 #
 # Print version to screen
