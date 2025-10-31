@@ -41,12 +41,18 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          # Install pkg-config lite (ensures working pkg-config before Strawberry Perl)
+          choco install pkgconfiglite -y
+
           # Install PCRE2 using vcpkg
           vcpkg install pcre2:x64-windows
 
           # Set up environment for meson/pkg-config
           VCPKG_ROOT="C:/vcpkg"
           PCRE2_DIR="${VCPKG_ROOT}/installed/x64-windows"
+
+          # Add pkgconfiglite to PATH first (before Strawberry Perl)
+          echo "C:/ProgramData/chocolatey/lib/pkgconfiglite/tools/bin" >> $GITHUB_PATH
 
           echo "CMAKE_PREFIX_PATH=${PCRE2_DIR}" >> $GITHUB_ENV
           echo "PKG_CONFIG_PATH=${PCRE2_DIR}/lib/pkgconfig" >> $GITHUB_ENV
