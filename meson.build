@@ -16,6 +16,17 @@ python = pymod.find_installation('python3',
 host_system = host_machine.system()
 cc = meson.get_compiler('c')
 
+# Determine MSVC runtime library (for PCRE2 library name)
+vs_crt = 'release'
+vs_crt_opt = get_option('b_vscrt')
+if vs_crt_opt in ['mdd', 'mtd']
+  vs_crt = 'debug'
+elif vs_crt_opt == 'from_buildtype'
+  if get_option('buildtype') == 'debug'
+    vs_crt = 'debug'
+  endif
+endif
+
 # adapted from https://gitlab.gnome.org/GNOME/glib/-/blob/cd9a5c173a154e326a3ebaa28cfe41a7444625c5/meson.build#L2020-L2052
 pcre2 = dependency('libpcre2-8', version: '>= 10.23', required : false)
 if not pcre2.found()
