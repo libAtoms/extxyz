@@ -1,6 +1,5 @@
-# Use the same Python executable found in parent meson.build
-# (cross-platform: python3 on Unix, python on Windows)
-python_for_codegen = find_program('python3', 'python', required: true)
+# Use 'python' which works cross-platform inside cibuildwheel
+python_for_codegen = find_program('python', required: true)
 
 run_command(
     python_for_codegen,
