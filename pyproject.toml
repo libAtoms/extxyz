@@ -35,3 +35,23 @@ extxyz = "extxyz.cli:main"
 [project.urls]
 documentation = "http://libatoms.github.io/extxyz/"
 repository = "https://github.com/libAtoms/extxyz"
+
+[tool.cibuildwheel]
+test-requires = "pytest"
+test-command = "pytest -v {package}/tests"
+
+[tool.cibuildwheel.linux]
+before-all = "which yum && yum install -y pcre2-devel zlib-devel"
+
+[tool.cibuildwheel.macos]
+before-all = "brew install pcre2 pkg-config"
+
+[tool.cibuildwheel.macos.environment]
+PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
+
+[tool.cibuildwheel.windows.environment]
+CMAKE_PREFIX_PATH = "C:/vcpkg/installed/x64-windows"
+PKG_CONFIG_PATH = "C:/vcpkg/installed/x64-windows/lib/pkgconfig"
+PCRE2_ROOT = "C:/vcpkg/installed/x64-windows"
+LIB = "C:/vcpkg/installed/x64-windows/lib"
+INCLUDE = "C:/vcpkg/installed/x64-windows/include"
