@@ -8,11 +8,25 @@ run_command(
 )
 
 # Build and install the extension module
-module = python.extension_module(
-    '_extxyz', # Name of the module
-    ['extxyz.c', 'extxyz_kv_grammar.c'],
-    install: true,  # Install it
-    subdir: 'extxyz',
-    gnu_symbol_visibility: 'default', # keep symbols public
-    dependencies: [cleri, pcre2]
-)
+# On Windows, add link args to explicitly create the import library
+# that meson-python expects but the linker isn't generating
+if host_machine.system() == 'windows'
+    module = python.extension_module(
+        '_extxyz',
+        ['extxyz.c', 'extxyz_kv_grammar.c'],
+        install: true,
+        subdir: 'extxyz',
+        gnu_symbol_visibility: 'default',
+        dependencies: [cleri, pcre2],
+        link_args: ['/EXPORT:PyInit__extxyz']  # Export the init function to force .lib creation
+    )
+else
+    module = python.extension_module(
+        '_extxyz',
+        ['extxyz.c', 'extxyz_kv_grammar.c'],
+        install: true,
+        subdir: 'extxyz',
+        gnu_symbol_visibility: 'default',
+        dependencies: [cleri, pcre2]
+    )
+endif
