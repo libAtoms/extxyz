@@ -1,0 +1,29 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     libextxyz.dylib
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _init_DictEntry, symObjAddr: 0x0, symBinAddr: 0x2C30, symSize: 0x120 }
+  - { offsetInCU: 0x21C, offset: 0x21C, size: 0x8, addend: 0x0, symName: _init_DictEntry, symObjAddr: 0x0, symBinAddr: 0x2C30, symSize: 0x120 }
+  - { offsetInCU: 0x278, offset: 0x278, size: 0x8, addend: 0x0, symName: _atof_eEdD, symObjAddr: 0x120, symBinAddr: 0x2D50, symSize: 0xB4 }
+  - { offsetInCU: 0x2BC, offset: 0x2BC, size: 0x8, addend: 0x0, symName: _unquote, symObjAddr: 0x1D4, symBinAddr: 0x2E04, symSize: 0x1A8 }
+  - { offsetInCU: 0x350, offset: 0x350, size: 0x8, addend: 0x0, symName: _parse_tree, symObjAddr: 0x37C, symBinAddr: 0x2FAC, symSize: 0xA54 }
+  - { offsetInCU: 0x486, offset: 0x486, size: 0x8, addend: 0x0, symName: _dump_tree, symObjAddr: 0xDD0, symBinAddr: 0x3A00, symSize: 0x1A4 }
+  - { offsetInCU: 0x504, offset: 0x504, size: 0x8, addend: 0x0, symName: _opt_transpose, symObjAddr: 0xF74, symBinAddr: 0x3BA4, symSize: 0xC4 }
+  - { offsetInCU: 0x578, offset: 0x578, size: 0x8, addend: 0x0, symName: _free_DataLinkedList, symObjAddr: 0x1038, symBinAddr: 0x3C68, symSize: 0xB8 }
+  - { offsetInCU: 0x5E8, offset: 0x5E8, size: 0x8, addend: 0x0, symName: _DataLinkedList_to_data, symObjAddr: 0x10F0, symBinAddr: 0x3D20, symSize: 0x638 }
+  - { offsetInCU: 0x71A, offset: 0x71A, size: 0x8, addend: 0x0, symName: _tree_to_dict, symObjAddr: 0x1728, symBinAddr: 0x4358, symSize: 0xE4 }
+  - { offsetInCU: 0x7AD, offset: 0x7AD, size: 0x8, addend: 0x0, symName: _free_data, symObjAddr: 0x180C, symBinAddr: 0x443C, symSize: 0x154 }
+  - { offsetInCU: 0x83A, offset: 0x83A, size: 0x8, addend: 0x0, symName: _free_dict, symObjAddr: 0x1960, symBinAddr: 0x4590, symSize: 0xD0 }
+  - { offsetInCU: 0x88C, offset: 0x88C, size: 0x8, addend: 0x0, symName: _print_dict, symObjAddr: 0x1A30, symBinAddr: 0x4660, symSize: 0x9C }
+  - { offsetInCU: 0x8CF, offset: 0x8CF, size: 0x8, addend: 0x0, symName: _strcat_realloc, symObjAddr: 0x1ACC, symBinAddr: 0x46FC, symSize: 0xE0 }
+  - { offsetInCU: 0x913, offset: 0x913, size: 0x8, addend: 0x0, symName: _read_line, symObjAddr: 0x1BAC, symBinAddr: 0x47DC, symSize: 0x150 }
+  - { offsetInCU: 0x96A, offset: 0x96A, size: 0x8, addend: 0x0, symName: _extxyz_read_ll, symObjAddr: 0x1CFC, symBinAddr: 0x492C, symSize: 0xF64 }
+  - { offsetInCU: 0xD14, offset: 0xD14, size: 0x8, addend: 0x0, symName: _cleri_parse, symObjAddr: 0x2C8C, symBinAddr: 0x58BC, symSize: 0x30 }
+  - { offsetInCU: 0xD4A, offset: 0xD4A, size: 0x8, addend: 0x0, symName: _quoted, symObjAddr: 0x2CBC, symBinAddr: 0x58EC, symSize: 0x424 }
+  - { offsetInCU: 0xDF9, offset: 0xDF9, size: 0x8, addend: 0x0, symName: _concat_elem, symObjAddr: 0x30E0, symBinAddr: 0x5D10, symSize: 0x27C }
+  - { offsetInCU: 0xE80, offset: 0xE80, size: 0x8, addend: 0x0, symName: _concat_entry, symObjAddr: 0x336C, symBinAddr: 0x5F9C, symSize: 0x4F4 }
+  - { offsetInCU: 0xF85, offset: 0xF85, size: 0x8, addend: 0x0, symName: _extxyz_write_ll, symObjAddr: 0x3860, symBinAddr: 0x6490, symSize: 0x83C }
+  - { offsetInCU: 0x119A, offset: 0x119A, size: 0x8, addend: 0x0, symName: _extxyz_malloc, symObjAddr: 0x40BC, symBinAddr: 0x6CEC, symSize: 0x2C }
+  - { offsetInCU: 0x26, offset: 0x1C28, size: 0x8, addend: 0x0, symName: _compile_extxyz_kv_grammar, symObjAddr: 0x0, symBinAddr: 0x6D18, symSize: 0x8D0 }
+  - { offsetInCU: 0xA9, offset: 0x1CAB, size: 0x8, addend: 0x0, symName: _compile_extxyz_kv_grammar, symObjAddr: 0x0, symBinAddr: 0x6D18, symSize: 0x8D0 }
+...
