@@ -1,6 +1,10 @@
 import numpy as np
 
-from ase.constraints import full_3x3_to_voigt_6_stress
+try:
+    from ase.constraints import full_3x3_to_voigt_6_stress
+except ImportError:
+    from ase.stress import full_3x3_to_voigt_6_stress
+    
 from ase.calculators.singlepoint import SinglePointCalculator
 
 # partition ase.calculators.calculator.all_properties into two lists:
