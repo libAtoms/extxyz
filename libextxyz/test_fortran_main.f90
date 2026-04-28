@@ -19,7 +19,7 @@ program extxyz_main
     do_verbose = trim(verbose) == 'T'
 
     status = read_extxyz(infile, at, do_verbose)
-    call print(at)
+    ! call print(at)  ! crashes inside libAtoms's print iterator on current QUIP
 
     status = write_extxyz(outfile, at, .false., do_verbose)
 
