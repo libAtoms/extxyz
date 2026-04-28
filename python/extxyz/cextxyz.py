@@ -1,6 +1,8 @@
 import os
+import sys
 import ctypes
 from ctypes.util import find_library
+import sysconfig
 
 import copy
 
@@ -42,9 +44,8 @@ Dict_entry_struct._fields_ = [("key", ctypes.c_char_p),
 
 Dict_entry_ptr = ctypes.POINTER(Dict_entry_struct)
 
-# _extxyz.so is actually created as a python extension, but custom builder is
-# used to make the name just _extxyz.so, rather than _extxyz.cpython-<vers>-<os>.so
-extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)), '_extxyz.so')
+suffix = sysconfig.get_config_var('EXT_SUFFIX')
+extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)), f'_extxyz{suffix}')
 extxyz = ctypes.CDLL(extxyz_so)
 
 extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr
@@ -196,35 +197,45 @@ def py_to_c_dict(py_dict, keys=None):
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
 
-libc_path = find_library('c')
-libc = ctypes.CDLL(libc_path)
+# On Windows, route stdio through wrappers in _extxyz so we use the same
+# C runtime as extxyz_read_ll/extxyz_write_ll. find_library('c') returns
+# None there, and msvcrt.dll's CRT can differ from the .pyd's.
+if sys.platform == 'win32':
+    _stdio = extxyz
+    _fopen, _fclose, _ftell, _fseek = (
+        _stdio.extxyz_fopen, _stdio.extxyz_fclose,
+        _stdio.extxyz_ftell, _stdio.extxyz_fseek,
+    )
+else:
+    _stdio = ctypes.CDLL(find_library('c'))
+    _fopen, _fclose, _ftell, _fseek = (
+        _stdio.fopen, _stdio.fclose, _stdio.ftell, _stdio.fseek,
+    )
+
+_fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+_fopen.restype = FILE_ptr
+_fclose.argtypes = [FILE_ptr]
+_fclose.restype = ctypes.c_int
+_ftell.argtypes = [FILE_ptr]
+_ftell.restype = ctypes.c_long
+_fseek.argtypes = [FILE_ptr, ctypes.c_long, ctypes.c_int]
+_fseek.restype = ctypes.c_int
+
 
 def cfopen(filename, mode):
-    fopen = libc.fopen
-    fopen.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-    fopen.restype = FILE_ptr
-    return fopen(filename.encode('utf-8'),
-                 mode.encode('utf-8'))
+    return _fopen(filename.encode('utf-8'), mode.encode('utf-8'))
 
 
 def cfclose(fp):
-    fclose = libc.fclose
-    fclose.args = [FILE_ptr]
-    fclose(fp)
+    _fclose(fp)
 
-    
+
 def cftell(fp):
-    ftell = libc.ftell
-    ftell.argtypes = [FILE_ptr]
-    ftell.restype = ctypes.c_long
-    return ftell(fp)
+    return _ftell(fp)
 
 
 def cfseek(fp, offset, whence):
-    fseek = libc.fseek
-    fseek.argtypes = [FILE_ptr, ctypes.c_long, ctypes.c_int]
-    fseek.restype = ctypes.c_int
-    return fseek(fp, offset, whence)
+    return _fseek(fp, offset, whence)
 
 
 def read_frame_dicts(fp, verbose=False, comment=None):

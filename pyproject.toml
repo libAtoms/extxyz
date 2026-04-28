@@ -1,4 +1,69 @@
 [build-system]
-# Minimum requirements for the build system to execute.
-requires = ["setuptools", "wheel", "pyleri>=1.3.3"]
-build-backend = "setuptools.build_meta"
+requires = ["meson>=1.0.0", "meson-python>=0.13.0", "ninja", "pyleri>=1.3.0", "oldest-supported-numpy"]
+build-backend = "mesonpy"
+
+[project]
+name = "extxyz"
+description = "Extended XYZ file format tools"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "James Kermode", email = "james.kermode@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python"
+]
+requires-python = ">=3.8.0"
+dynamic = [ "version" ]
+dependencies = [
+    "numpy>=1.13.0",
+    'pyleri>=1.3.3',
+    'ase>=3.17',
+    "pip>=24.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+
+]
+
+[project.scripts]
+extxyz = "extxyz.cli:main"
+
+[project.urls]
+documentation = "http://libatoms.github.io/extxyz/"
+repository = "https://github.com/libAtoms/extxyz"
+
+[tool.meson-python]
+# Drop the phantom MSVC import library that Meson lists in the install
+# plan but never actually creates for python.extension_module() on
+# Windows. Without this, meson-python errors with FileNotFoundError
+# during wheel packaging. Path is rooted in Meson install locations.
+wheel.exclude = ["**/*.lib"]
+
+[tool.cibuildwheel]
+test-requires = "pytest"
+test-command = "pytest -v {package}/tests"
+
+[tool.cibuildwheel.linux]
+before-all = "which yum && yum install -y pcre2-devel zlib-devel"
+
+[tool.cibuildwheel.macos]
+before-all = "brew install pcre2 pkg-config"
+
+[tool.cibuildwheel.macos.environment]
+PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
+[tool.cibuildwheel.windows.environment]
+CMAKE_PREFIX_PATH = "C:/vcpkg/installed/x64-windows"
+PKG_CONFIG_PATH = "C:/vcpkg/installed/x64-windows/lib/pkgconfig"
+PCRE2_ROOT = "C:/vcpkg/installed/x64-windows"
+LIB = "C:/vcpkg/installed/x64-windows/lib"
+INCLUDE = "C:/vcpkg/installed/x64-windows/include"
+PATH = "C:/vcpkg/installed/x64-windows/bin;C:/Program Files/Git/bin;C:/Windows/System32;C:/Windows;$PATH"
