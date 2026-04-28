@@ -56,6 +56,10 @@ before-all = "brew install pcre2 pkg-config"
 [tool.cibuildwheel.macos.environment]
 PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
 
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
 [tool.cibuildwheel.windows.environment]
 CMAKE_PREFIX_PATH = "C:/vcpkg/installed/x64-windows"
 PKG_CONFIG_PATH = "C:/vcpkg/installed/x64-windows/lib/pkgconfig"
