@@ -1,6 +1,7 @@
 import sys
 import json
 import re
+import functools
 
 from pathlib import Path
 
@@ -11,7 +12,6 @@ from io import StringIO
 import numpy as np
 
 import ase.units as units
-from ase.utils import lazyproperty
 from ase.atoms import Atoms
 from ase.symbols import symbols2numbers
 
@@ -454,15 +454,15 @@ class Properties:
         else:
             return np.dtype(dtype_vector)
 
-    @lazyproperty
+    @functools.cached_property
     def dtype_scalar(self):
         return self.get_dtype(scalar=True)
 
-    @lazyproperty
+    @functools.cached_property
     def dtype_vector(self):
         return self.get_dtype(scalar=False)
 
-    @lazyproperty
+    @functools.cached_property
     def regex(self):
         regex = r'^\s*'
         for (_, property_type, cols) in self.properties:
@@ -473,14 +473,14 @@ class Properties:
         regex = re.compile(regex, flags=re.M)
         return regex
 
-    @lazyproperty
+    @functools.cached_property
     def property_string(self):
         property_strs = []
         for (name, property_type, cols) in self.properties:
             property_strs.append(f'{name}:{property_type}:{cols}')
         return ':'.join(property_strs)
 
-    @lazyproperty
+    @functools.cached_property
     def format_strings(self):
         format_strings = []
         for (_, property_type, ncols) in self.properties:

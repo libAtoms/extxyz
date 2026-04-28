@@ -58,9 +58,9 @@ for cextxyz in [False, True]:
                     elif val == 'float':
                         assert issubclass(info_v.dtype.type, numbers.Real)
                     elif val == 'bool':
-                        assert info_v.dtype == bool or info_v.dtype == np.bool
+                        assert info_v.dtype == bool or info_v.dtype == np.bool_
                     elif val == 'string':
-                        assert info_v.dtype.type is np.str_ or info_v.dtype.type is np.string_
+                        assert info_v.dtype.type is np.str_ or info_v.dtype.type is np.bytes_
                     else:
                         raise RuntimeError(f'unsupported array datatype {data_type}')
                 else:
