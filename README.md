@@ -28,20 +28,26 @@ Stable releases are made to PyPI, so you can install with
 pip install extxyz
 ```
 
-## `libextxyz` C library
+## `libextxyz` C library and standalone executables
 
-The underlying parser is written in C. The C code is compiled automatically when you build the Python package, but you can also compile it as shared library `libextxyz.so` as follows
+The C parser, the standalone `libextxyz` shared library, and the C-only
+`cextxyz` test driver are all Meson targets. To build them outside of the
+Python wheel flow:
 
 ```bash
-make -C libextxyz
-make -C libextxyz install
+meson setup builddir
+meson compile -C builddir extxyz cextxyz       # libextxyz.{so,dylib,dll} + cextxyz
+meson install -C builddir                      # installs libextxyz under --prefix
 ```
 
-The Makefile respects the usual environment variables `CC`, `CFLAGS`, `LDFLAGS`, etc, plus `prefix` (default `/usr/local`).
+The Meson build picks up PCRE2 via pkg-config, falling back to a bundled
+WrapDB build of PCRE2 if no system copy is found.
 
 ## Fortran bindings
 
-To build the `fextxyz` executable demonstrating the Fortran bindings, you first need to compile [QUIP](https://github.com/libAtoms/QUIP)'s `libAtoms` library. QUIP now uses Meson; see the [`Build QUIP/libAtoms via Meson`](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml) step in CI for an example.
+To build the `fextxyz` executable demonstrating the Fortran bindings, you
+first need to compile [QUIP](https://github.com/libAtoms/QUIP)'s `libAtoms`
+library. QUIP now uses Meson too:
 
 ```bash
 git clone --recursive https://github.com/libAtoms/QUIP
@@ -49,17 +55,21 @@ meson setup QUIP/builddir QUIP -Dgap=true -Dmpi=false
 meson compile -C QUIP/builddir libAtoms f90wrap_stub
 ```
 
-Then point the Make-based libextxyz build at the resulting library and module files:
+Then point this project's Meson build at the resulting library and module
+directories — the `fextxyz` target is opt-in via the `quip_lib_dir` and
+`quip_mod_dir` options:
 
 ```bash
 QUIP_LIB_DIR=$PWD/QUIP/builddir/src/libAtoms
 QUIP_MOD_DIR=$(find "$QUIP_LIB_DIR" -iname 'libatoms_module.mod' -printf '%h\n' | head -1)
-make -C libextxyz fextxyz \
-  QUIP_LDFLAGS="-L${QUIP_LIB_DIR} -Wl,-rpath,${QUIP_LIB_DIR} -llibAtoms -lf90wrap_stub -lopenblas -lgomp" \
-  QUIP_F90FLAGS="-I${QUIP_MOD_DIR}"
+meson setup builddir \
+  -Dquip_lib_dir="$QUIP_LIB_DIR" \
+  -Dquip_mod_dir="$QUIP_MOD_DIR"
+meson compile -C builddir fextxyz
 ```
 
-The Fortran bindings will later be moved to QUIP, since they are tied to QUIP's Dictionary and Atoms types.
+The Fortran bindings will later be moved to QUIP, since they are tied to
+QUIP's Dictionary and Atoms types.
 
 ## Julia bindings
 

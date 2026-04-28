@@ -58,10 +58,7 @@ jobs:
         # f90wrap_stub provides f90wrap_abort_, which libAtoms references
         # via f90wrap_abort hooks; needed when linking standalone Fortran.
         meson compile -C QUIP/builddir libAtoms f90wrap_stub
-    - name: Build C executable
-      run:
-        make -C libextxyz cextxyz
-    - name: Build Fortran executable
+    - name: Build libextxyz, cextxyz and fextxyz via Meson
       run: |
         # Meson library('libAtoms', ...) outputs liblibAtoms.so under the
         # target's build subdirectory. Fortran .mod files land in a
@@ -71,9 +68,12 @@ jobs:
         echo "QUIP_LIB_DIR=$QUIP_LIB_DIR"
         echo "QUIP_MOD_DIR=$QUIP_MOD_DIR"
         test -n "$QUIP_MOD_DIR" || { echo "libatoms_module.mod not found"; exit 1; }
-        make -C libextxyz fextxyz \
-          QUIP_LDFLAGS="-L${QUIP_LIB_DIR} -Wl,-rpath,${QUIP_LIB_DIR} -llibAtoms -lf90wrap_stub -lopenblas -lgomp" \
-          QUIP_F90FLAGS="-I${QUIP_MOD_DIR}"
+        meson setup builddir \
+          -Dquip_lib_dir="$QUIP_LIB_DIR" \
+          -Dquip_mod_dir="$QUIP_MOD_DIR"
+        meson compile -C builddir extxyz cextxyz fextxyz
+        # Make fextxyz visible at the path tests/conftest.py expects.
+        ln -sf "${PWD}/builddir/libextxyz/fextxyz" libextxyz/fextxyz
     - name: Test with pytest
       run: |
         USE_FORTRAN=T pytest -v --ignore QUIP

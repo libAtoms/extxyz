@@ -1,0 +1,9 @@
+option('quip_lib_dir',
+  type: 'string',
+  value: '',
+  description: 'Directory containing QUIP\'s liblibAtoms (and libf90wrap_stub) for the optional fextxyz Fortran demo. Empty = skip fextxyz.')
+
+option('quip_mod_dir',
+  type: 'string',
+  value: '',
+  description: 'Directory containing QUIP libAtoms .mod files (typically <quip_builddir>/src/libAtoms/liblibAtoms.{so,dylib}.p). Empty = skip fextxyz.')

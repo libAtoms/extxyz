@@ -66,6 +66,13 @@ else
   use_pcre2_static_flag = false
 endif
 
+quip_lib_dir = get_option('quip_lib_dir')
+quip_mod_dir = get_option('quip_mod_dir')
+build_fextxyz = quip_lib_dir != '' and quip_mod_dir != ''
+if build_fextxyz
+  add_languages('fortran', required: true, native: false)
+endif
+
 subdir('libcleri')
 subdir('libextxyz')
 subdir('python/extxyz')
