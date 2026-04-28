@@ -10,22 +10,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12, windows-2019]
+        os: [ubuntu-latest, macos-latest, windows-latest]
       fail-fast: false
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Checkout submodules
-        run: git submodule update --init --recursive      
+        run: git submodule update --init --recursive
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.12.1
+        uses: pypa/cibuildwheel@v2.22.0
         env:
-           CIBW_SKIP: cp27-* cp35-* pp* *musl* "*-macosx_arm64"
+           CIBW_SKIP: pp* *musl*
            CIBW_ARCHS_LINUX: "auto64"
-           CIBW_ARCHS_MACOS: "x86_64"
+           CIBW_ARCHS_MACOS: "arm64"
            CIBW_BEFORE_ALL_LINUX: "which yum && yum install -y pcre2-devel zlib-devel"
-           CIBW_TEST_REQUIRES: pytest 
+           CIBW_TEST_REQUIRES: pytest
            CIBW_TEST_COMMAND: "pytest -v {package}/tests"
            
       # # Uncomment to get SSH access for testing
@@ -35,8 +35,9 @@ jobs:
       #   timeout-minutes: 15
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
+          name: wheels-${{ matrix.os }}
           path: ./wheelhouse/*.whl
           
       - name: Release wheels
@@ -51,7 +52,7 @@ jobs:
         id: check-tag
         run: |
           if [[ ${{ github.event.ref }} =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo ::set-output name=match::true
+              echo "match=true" >> $GITHUB_OUTPUT
           fi
     
       - name: Deploy to PyPI
