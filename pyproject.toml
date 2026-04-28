@@ -36,6 +36,13 @@ extxyz = "extxyz.cli:main"
 documentation = "http://libatoms.github.io/extxyz/"
 repository = "https://github.com/libAtoms/extxyz"
 
+[tool.meson-python]
+# Drop the phantom MSVC import library that Meson lists in the install
+# plan but never actually creates for python.extension_module() on
+# Windows. Without this, meson-python errors with FileNotFoundError
+# during wheel packaging. Path is rooted in Meson install locations.
+wheel.exclude = ["**/*.lib"]
+
 [tool.cibuildwheel]
 test-requires = "pytest"
 test-command = "pytest -v {package}/tests"
