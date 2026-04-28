@@ -65,7 +65,7 @@ jobs:
         # target's build subdirectory. Fortran .mod files land in a
         # target-private "*.p" dir alongside the library.
         QUIP_LIB_DIR=${PWD}/QUIP/builddir/src/libAtoms
-        QUIP_MOD_DIR=$(find QUIP/builddir -iname 'libatoms_module.mod' -printf '%h\n' | head -1)
+        QUIP_MOD_DIR=$(find ${PWD}/QUIP/builddir -iname 'libatoms_module.mod' -printf '%h\n' | head -1)
         echo "QUIP_LIB_DIR=$QUIP_LIB_DIR"
         echo "QUIP_MOD_DIR=$QUIP_MOD_DIR"
         test -n "$QUIP_MOD_DIR" || { echo "libatoms_module.mod not found"; exit 1; }
