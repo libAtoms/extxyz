@@ -2,7 +2,7 @@ import sys
 import json
 import re
 
-from pathlib import PosixPath
+from pathlib import Path
 
 from itertools import islice, count
 from pprint import pprint
@@ -668,7 +668,7 @@ def read_frame(file, verbose=0, use_cextxyz=True,
 
 def iread(file, index=None, use_cextxyz=True, **kwargs):
     own_fh = False
-    if isinstance(file, str) or isinstance(file, PosixPath):
+    if isinstance(file, (str, Path)):
         if use_cextxyz:
             file = cextxyz.cfopen(str(file), 'r')
             own_fh = True
