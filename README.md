@@ -12,14 +12,15 @@ The latest development version can be installed via
 pip install git+https://github.com/libAtoms/extxyz
 ```
 
-This requires Python 3.6+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands.
+This requires Python 3.10+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands.
 
 ```
-brew install pcre2 # Mac OS, with homebrew
-sudo apt-get install libpcre2-dev # Ubuntu
+brew install pcre2          # macOS with Homebrew
+sudo apt-get install libpcre2-dev   # Ubuntu / Debian
+vcpkg install pcre2:x64-windows     # Windows (via vcpkg)
 ```
 
-Binary wheels for Linux and MacOS which do not require PCRE2 or libcleri are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases).
+Binary wheels for Linux, macOS (arm64 and x86_64), and Windows are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases) and bundle PCRE2 and libcleri, so an end-user `pip install extxyz` does not need either system library.
 
 Stable releases are made to PyPI, so you can install with
 
@@ -40,12 +41,22 @@ The Makefile respects the usual environment variables `CC`, `CFLAGS`, `LDFLAGS`,
 
 ## Fortran bindings
 
-To build the `fextxyz` exectuable demonstrating the Fortran bindings, you first need to download and compile [QUIP](https://github.com/libAtoms/QUIP) -- see the [CI](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml#L29) for an example of how to do that automatically. Then, set `QUIP_ROOT` and `QUIP_ARCH`
+To build the `fextxyz` executable demonstrating the Fortran bindings, you first need to compile [QUIP](https://github.com/libAtoms/QUIP)'s `libAtoms` library. QUIP now uses Meson; see the [`Build QUIP/libAtoms via Meson`](https://github.com/libAtoms/extxyz/blob/master/.github/workflows/python-package.yml) step in CI for an example.
 
 ```bash
-export QUIP_ARCH=linux_x86_64_gfortran
-export QUIP_ROOT=/path/to/QUIP
-make -C libextxyz fextxyz
+git clone --recursive https://github.com/libAtoms/QUIP
+meson setup QUIP/builddir QUIP -Dgap=true -Dmpi=false
+meson compile -C QUIP/builddir libAtoms f90wrap_stub
+```
+
+Then point the Make-based libextxyz build at the resulting library and module files:
+
+```bash
+QUIP_LIB_DIR=$PWD/QUIP/builddir/src/libAtoms
+QUIP_MOD_DIR=$(find "$QUIP_LIB_DIR" -iname 'libatoms_module.mod' -printf '%h\n' | head -1)
+make -C libextxyz fextxyz \
+  QUIP_LDFLAGS="-L${QUIP_LIB_DIR} -Wl,-rpath,${QUIP_LIB_DIR} -llibAtoms -lf90wrap_stub -lopenblas -lgomp" \
+  QUIP_F90FLAGS="-I${QUIP_MOD_DIR}"
 ```
 
 The Fortran bindings will later be moved to QUIP, since they are tied to QUIP's Dictionary and Atoms types.
