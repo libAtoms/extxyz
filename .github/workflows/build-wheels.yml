@@ -98,10 +98,8 @@ jobs:
 
       - name: Deploy to PyPI
         if: steps.check-tag.outputs.match == 'true'
-        shell: bash
-        run: |
-          pip3 install twine
-          python3 -m twine upload wheelhouse/*.whl
-        env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: wheelhouse/
+          password: ${{ secrets.TWINE_PASSWORD }}
+          skip-existing: true
