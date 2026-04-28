@@ -90,6 +90,7 @@ jobs:
 
       - name: Check tag
         id: check-tag
+        shell: bash
         run: |
           if [[ ${{ github.ref }} =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "match=true" >> $GITHUB_OUTPUT
@@ -97,9 +98,10 @@ jobs:
 
       - name: Deploy to PyPI
         if: steps.check-tag.outputs.match == 'true'
+        shell: bash
         run: |
           pip3 install twine
           python3 -m twine upload wheelhouse/*.whl
         env:
           TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}          
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
