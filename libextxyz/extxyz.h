@@ -71,3 +71,8 @@ void free_dict(DictEntry *dict);
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message);
 int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays);
 void* extxyz_malloc(size_t nbytes);
+
+FILE *extxyz_fopen(const char *filename, const char *mode);
+int extxyz_fclose(FILE *fp);
+long extxyz_ftell(FILE *fp);
+int extxyz_fseek(FILE *fp, long offset, int whence);
