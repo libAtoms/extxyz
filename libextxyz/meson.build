@@ -13,6 +13,7 @@ module = python.extension_module(
     ['extxyz.c', 'extxyz_kv_grammar.c'],
     install: true,  # Install it
     subdir: 'extxyz',
-    gnu_symbol_visibility: 'default', # keep symbols public
+    gnu_symbol_visibility: 'default', # keep symbols public on GCC/Clang
+    vs_module_defs: '_extxyz.def',    # explicit exports for MSVC (loaded via ctypes)
     dependencies: [cleri, pcre2]
 )
