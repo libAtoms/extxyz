@@ -1,10 +1,10 @@
 on:
   push:
-    branches: [ master ]
+    branches: [ master, meson ]
     tags:
       - v*
   pull_request:
-    branches: [ master ]    
+    branches: [ master, meson ]
 
 jobs:
   build_wheels:
