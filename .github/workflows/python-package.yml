@@ -51,7 +51,10 @@ jobs:
           openmpi-bin libopenmpi-dev netcdf-bin libnetcdf-dev libhdf5-serial-dev
         python -m pip install --upgrade meson ninja
         git clone --recursive https://github.com/libAtoms/QUIP QUIP
-        meson setup QUIP/builddir QUIP -Dgap=false -Dmpi=false
+        # QUIP's meson.build currently references GAP unconditionally
+        # (Potentials/meson.build), so we have to set -Dgap=true even
+        # though we only build the libAtoms target.
+        meson setup QUIP/builddir QUIP -Dgap=true -Dmpi=false
         meson compile -C QUIP/builddir libAtoms
     - name: Build C executable
       run:
