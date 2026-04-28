@@ -1165,3 +1165,23 @@ void* extxyz_malloc(size_t n_bytes) {
     // fprintf(stderr, "allocated %ld bytes at %x\n", n_bytes, res);
     return res;
 }
+
+// stdio thunks called via ctypes from Python. Routing fopen/fclose/ftell/fseek
+// through this DLL guarantees the FILE* lives in the same C runtime that
+// extxyz_read_ll/extxyz_write_ll use, avoiding CRT-mismatch crashes on Windows.
+
+FILE *extxyz_fopen(const char *filename, const char *mode) {
+    return fopen(filename, mode);
+}
+
+int extxyz_fclose(FILE *fp) {
+    return fclose(fp);
+}
+
+long extxyz_ftell(FILE *fp) {
+    return ftell(fp);
+}
+
+int extxyz_fseek(FILE *fp, long offset, int whence) {
+    return fseek(fp, offset, whence);
+}
