@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from extxyz.extxyz import read, write
+from conftest import read, write
 
 # from ase.io.extxyz import key_val_str_to_dict, key_val_dict_to_str
 

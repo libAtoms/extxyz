@@ -2,6 +2,11 @@
 
 This repository contains a specification of the extended XYZ (extxyz) file format, and tools for reading and writing to it from programs written in C, Fortran, Python and Julia.
 
+> **Using ASE?** As of v0.3.0, `extxyz` is the standalone C parser with no
+> ASE dependency, and a separate [`ase-extxyz`](python/ase-extxyz/) package
+> registers it as an ASE I/O plugin. Install both with
+> `pip install ase-extxyz` and use `ase.io.read("file.xyz", format="cextxyz")`.
+
 # Installation
 
 ## Python
@@ -25,8 +30,19 @@ Binary wheels for Linux, macOS (arm64 and x86_64), and Windows are built in the 
 Stable releases are made to PyPI, so you can install with
 
 ```bash
-pip install extxyz
+pip install extxyz                # standalone parser, no ASE
+pip install ase-extxyz            # ASE plugin (pulls in extxyz + ase)
 ```
+
+The Python API on `extxyz` itself is the dict/array based `Frame` parser:
+
+```python
+import extxyz
+for frame in extxyz.iread_dicts('trajectory.xyz'):
+    print(frame.natoms, frame.cell, list(frame.arrays))
+```
+
+For ASE-aware reading/writing see the [`ase-extxyz`](python/ase-extxyz/) sibling package.
 
 ## `libextxyz` C library and standalone executables
 

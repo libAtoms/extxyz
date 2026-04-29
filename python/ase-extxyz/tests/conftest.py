@@ -6,21 +6,43 @@ import pytest
 import numpy as np
 
 from ase.atoms import Atoms
-from extxyz.extxyz import read, write
+
+# Tests in ase-extxyz exercise the cextxyz plugin: read/write call
+# ase_extxyz.io.read_cextxyz / write_cextxyz, the same path that
+# `ase.io.read(..., format='cextxyz')` would.
+from ase_extxyz.io import read_cextxyz as _read_cextxyz
+from ase_extxyz.io import write_cextxyz as _write_cextxyz
+
+
+def read(file, **kwargs):
+    """Wrap the @reader generator into the legacy single/list return shape."""
+    if 'index' not in kwargs:
+        kwargs['index'] = slice(None)
+    out = list(_read_cextxyz(file, **kwargs))
+    if len(out) == 1:
+        return out[0]
+    return out
+
+
+def write(file, atoms, **kwargs):
+    _write_cextxyz(file, atoms, **kwargs)
+
 
 verbose = 0
 
 if 'USE_CEXTXYZ' in os.environ:
-    read_kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
-    write_kwargs_variants = [ { 'use_cextxyz' : os.environ['USE_CEXTXYZ'].startswith('t') or os.environ['USE_CEXTXYZ'].startswith('T') } ]
-
+    _flag = os.environ['USE_CEXTXYZ'].lower().startswith('t')
+    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': _flag}]
+    write_kwargs_variants = [{'use_cextxyz': _flag}]
 else:
-    read_kwargs_variants = [ { 'use_regex' : False, 'use_cextxyz' : False },
-                             { 'use_regex' : False, 'use_cextxyz' : True  } ]
-    write_kwargs_variants = [ { 'use_cextxyz' : False },
-                              { 'use_cextxyz' : True  } ]
+    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': False},
+                            {'use_regex': False, 'use_cextxyz': True}]
+    write_kwargs_variants = [{'use_cextxyz': False},
+                             {'use_cextxyz': True}]
 
-fextxyz_exe = str(Path(__file__).parents[1] / 'libextxyz/fextxyz')
+# fextxyz binary lives at the repo root (two levels up from this file)
+_repo_root = Path(__file__).resolve().parents[3]
+fextxyz_exe = str(_repo_root / 'libextxyz' / 'fextxyz')
 use_fortran_global = 'USE_FORTRAN' in os.environ and os.environ['USE_FORTRAN'].lower().startswith('t')
 
 class Helpers:

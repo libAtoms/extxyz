@@ -36,8 +36,13 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install flake8 pytest
+        python -m pip install flake8 pytest ase
+        # In-tree extxyz reports 0.2.2.devN+gSHA until the v0.3.0 tag,
+        # which is < 0.3.0 by PEP 440. ase-extxyz declares
+        # extxyz>=0.3.0 — install it with --no-deps so pip doesn't try
+        # to satisfy that from PyPI (where 0.3.0 isn't published yet).
         python -m pip install . --verbose
+        python -m pip install --no-deps ./python/ase-extxyz
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -74,9 +79,11 @@ jobs:
         meson compile -C builddir extxyz cextxyz fextxyz
         # Make fextxyz visible at the path tests/conftest.py expects.
         ln -sf "${PWD}/builddir/libextxyz/fextxyz" libextxyz/fextxyz
-    - name: Test with pytest
-      run: |
-        USE_FORTRAN=T pytest -v --ignore QUIP
+    - name: Test extxyz core (no ASE imports)
+      run: pytest -v tests/
+
+    - name: Test ase-extxyz (incl. fextxyz Fortran round-trip)
+      run: USE_FORTRAN=T pytest -v python/ase-extxyz/tests/
     # Uncomment to get SSH access for testing
     # - name: Setup tmate session
     #   if: failure()
