@@ -82,7 +82,10 @@ def get_version_from_git():
     version = version.replace('-', '.dev', 1)
     version = version.replace('-', '+', 1)
     if dirty:
-        version += '.dirty'
+        # PEP 440 local version segment uses '+', not '.'. If the version
+        # already has a '+local' part (i.e. .devN+gSHA), append '.dirty'
+        # to it; otherwise start a fresh local segment.
+        version += '.dirty' if '+' in version else '+dirty'
 
     return version
 

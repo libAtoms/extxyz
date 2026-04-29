@@ -112,7 +112,7 @@ be invoked via `python -m extxyz`.
 3. Decide what to do about unparseable comment lines.  Just assume an old fashioned xyz with an arbitrary line, or fail?  I don't think we really want every parsing breaking typo to result in plain xyz.
 4. Used to be able to quote with \{\}.  Do we want to support this?
 
-## Extended XYZ specifcation
+## Extended XYZ specification
 
 ### General formatting
 

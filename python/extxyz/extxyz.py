@@ -767,10 +767,14 @@ def write(file, atoms, use_cextxyz=True, append=False, columns=None,
     own_fh = False
     mode = 'w'
     if append: mode = 'a'
-    if use_cextxyz:
+    # cextxyz writes via FILE* and needs a path; if the caller already
+    # handed us an open Python file object (e.g. ExtXYZTrajectoryWriter),
+    # fall back to the pure-Python writer which works on any file-like.
+    if use_cextxyz and isinstance(file, (str, Path)):
         file = cextxyz.cfopen(str(file), mode)
         own_fh = True
-    else:        
+    else:
+        use_cextxyz = False
         if isinstance(file, str):
             if file == '-':
                 file = sys.stdout

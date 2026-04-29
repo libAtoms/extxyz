@@ -775,7 +775,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     pcre2_code *re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED, 0, &pcre2_error, &erroffset, NULL);
     if (re == NULL) {
         pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
-        sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %ld re '%s'", line, erroffset, re_str);
+        sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %zu re '%s'", line, erroffset, re_str);
         free(line); free(re_str);
         return 0;
     }

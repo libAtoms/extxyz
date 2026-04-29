@@ -57,11 +57,8 @@ if build_fextxyz
         ['test_fortran_main.f90', 'fextxyz.f90'] + extxyz_c_sources,
         install: false,
         fortran_args: ['-I' + quip_mod_dir],
-        link_args: [
-            '-L' + quip_lib_dir,
-            '-Wl,-rpath,' + quip_lib_dir,
-            '-llibAtoms', '-lf90wrap_stub',
-        ],
+        link_args: ['-L' + quip_lib_dir, '-llibAtoms', '-lf90wrap_stub'],
+        build_rpath: quip_lib_dir,
         dependencies: [cleri, pcre2, openblas_dep, gomp_dep],
     )
 endif
