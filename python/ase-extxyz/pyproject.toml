@@ -1,0 +1,50 @@
+[build-system]
+requires = ["flit_core>=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "ase-extxyz"
+version = "0.1.0"
+description = "ASE I/O plugin backed by the libextxyz C parser"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "James Kermode", email = "james.kermode@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "ase>=3.23.0",
+    "extxyz>=0.3.0",
+    "numpy>=1.13.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[project.entry-points."ase.ioformats"]
+"cextxyz" = "ase_extxyz.io:cextxyz_format"
+
+[project.urls]
+repository = "https://github.com/libAtoms/extxyz"
+
+[tool.flit.module]
+name = "ase_extxyz"

@@ -12,10 +12,11 @@ python_sources = [
     '__main__.py',
     version_file,
     'cli.py',
+    'core.py',
     'extxyz.py',
     'cextxyz.py',
     'extxyz_kv_grammar.py',
-    'utils.py'
+    'grammar.py',
 ]
 
 # Install pure Python
