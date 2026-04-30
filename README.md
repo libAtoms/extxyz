@@ -57,13 +57,13 @@ forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.124 ms | 0.173 ms | 0.137 ms | 0.72× | 0.90× |
-|    100 |   0.01 MB | 0.214 ms | 0.234 ms | 0.200 ms | 0.92× | 1.07× |
-|  1 000 |   0.11 MB | 1.226 ms | 0.821 ms | 0.612 ms | 1.49× | 2.00× |
-|  4 000 |   0.44 MB | 4.444 ms | 2.643 ms | 1.939 ms | 1.68× | 2.29× |
-| 16 000 |   1.74 MB | 18.5 ms  | 9.94 ms  | 7.39 ms  | 1.86× | 2.50× |
-| 64 000 |   6.98 MB | 74.4 ms  | 40.0 ms  | 29.1 ms  | 1.86× | 2.56× |
-|200 000 |  21.80 MB |234.9 ms  |126.4 ms  | 92.7 ms  | 1.86× | 2.54× |
+|     10 |   0.00 MB | 0.142 ms | 0.202 ms | 0.154 ms | 0.70× | 0.92× |
+|    100 |   0.01 MB | 0.255 ms | 0.233 ms | 0.191 ms | 1.10× | 1.33× |
+|  1 000 |   0.11 MB | 1.355 ms | 0.748 ms | 0.677 ms | 1.81× | 2.00× |
+|  4 000 |   0.44 MB | 4.805 ms | 2.306 ms | 1.978 ms | 2.08× | 2.43× |
+| 16 000 |   1.74 MB | 18.7 ms  | 8.42 ms  | 7.80 ms  | 2.22× | 2.39× |
+| 64 000 |   6.98 MB | 76.0 ms  | 33.5 ms  | 30.7 ms  | 2.27× | 2.47× |
+|200 000 |  21.80 MB |233.2 ms  |107.1 ms  | 92.7 ms  | 2.18× | 2.51× |
 
 ![Read-time benchmark](benchmarks/read_speedup.png)
 
@@ -71,13 +71,15 @@ Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
 compile, libcleri grammar walk for the comment line) is larger than
 the regex match itself, so the built-in is faster on tiny files. From
 ~1 000 atoms upwards the parser dominates and `cextxyz` runs at a
-steady ~1.85× over the built-in end-to-end (~2.5× for the parser
-alone). The gap between the two cextxyz curves is the
-`Frame → Atoms` translation in the ASE plugin layer, which is
-roughly proportional to atom count and unavoidable when an `Atoms`
-object is the contract.
+steady ~2.2× over the built-in end-to-end (~2.5× for the parser
+alone). The remaining gap between the two cextxyz curves is the
+`Frame → Atoms` translation in the ASE plugin layer; we shrink it by
+aliasing the parser's per-atom buffers directly into `atoms.arrays`
+(so `Atoms.__init__` doesn't memcpy positions) and vectorising the
+species → atomic-number lookup with `np.unique` instead of a per-atom
+dict walk.
 
-The big lever was PCRE2 JIT (`pcre2_jit_compile(re,
+The big parser-side lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile
 of the pre-JIT code attributed ~38 % of CPU to the per-atom
 `pcre2_match` and another ~14 % to libcleri's regex matching during

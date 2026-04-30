@@ -16,7 +16,7 @@ import numpy as np
 from ase.atoms import Atoms
 from ase.calculators.calculator import all_properties
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.symbols import symbols2numbers
+from ase.data import atomic_numbers as _ATOMIC_NUMBERS
 from ase.units import fs as _ASE_FS
 from ase.utils.plugins import ExternalIOFormat
 
@@ -63,10 +63,31 @@ _ASE_TO_EXTXYZ = {
 }
 
 
+def _species_to_numbers(species: np.ndarray) -> np.ndarray:
+    """Vectorized symbol-string → atomic-number lookup.
+
+    ``ase.symbols.symbols2numbers`` does the dict lookup once per atom; for
+    typical frames with K << N unique species we can do K lookups and a
+    single ``np.take``, which is much cheaper at large N.
+    """
+    unique_syms, inverse = np.unique(species, return_inverse=True)
+    unique_nums = np.fromiter(
+        (_ATOMIC_NUMBERS[s] for s in unique_syms),
+        dtype=int, count=len(unique_syms),
+    )
+    return unique_nums[inverse]
+
+
 def _frame_to_atoms(frame: Frame, *,
                     create_calc: bool = False,
                     calc_prefix: str = '') -> Atoms:
-    """Build an :class:`ase.Atoms` from one :class:`extxyz.Frame`."""
+    """Build an :class:`ase.Atoms` from one :class:`extxyz.Frame`.
+
+    The frame's numpy buffers (positions and any per-atom extras) are
+    aliased into ``atoms.arrays`` rather than copied. This skips ASE's
+    ``new_array`` per-array ``np.array(..., order='C')`` copy, which is
+    the dominant cost for large frames.
+    """
     arrays_in = frame.arrays  # don't copy unless we mutate
 
     try:
@@ -74,23 +95,24 @@ def _frame_to_atoms(frame: Frame, *,
     except KeyError:
         raise ValueError("frame has no 'pos' column")
 
-    symbols = arrays_in.get('species')
+    species = arrays_in.get('species')
     numbers = arrays_in.get('Z')
-    if symbols is not None and numbers is not None:
-        if np.any(symbols2numbers(symbols) != numbers):
-            raise ValueError(f'inconsistent symbols {symbols} and numbers {numbers}')
-        symbols = None  # numbers wins
+    if numbers is None:
+        if species is None:
+            raise ValueError("frame has neither 'species' nor 'Z' column")
+        numbers = _species_to_numbers(species)
+    elif species is not None:
+        if np.any(_species_to_numbers(species) != numbers):
+            raise ValueError(f'inconsistent symbols {species} and numbers {numbers}')
 
     cell = frame.cell.T if frame.cell.any() else None
-    atoms = Atoms(symbols=symbols,
-                  numbers=numbers,
-                  positions=positions,
-                  cell=cell,
-                  pbc=frame.pbc)
 
-    # Remaining per-atom columns: rename to ASE conventions, apply conversion.
-    # Hot path — skip the dict copy and the .get() default tuple.
-    extra = None
+    # Construct without positions: ASE allocates a throwaway zeros((N, 3))
+    # which we immediately overwrite with the parser's buffer (no memcpy).
+    atoms = Atoms(numbers=numbers, cell=cell, pbc=frame.pbc)
+    atoms.arrays['positions'] = positions
+
+    # Per-atom extras — direct assign to skip new_array's copy.
     for name, value in arrays_in.items():
         if name in ('pos', 'species', 'Z'):
             continue
@@ -101,15 +123,15 @@ def _frame_to_atoms(frame: Frame, *,
             out_name, converter = mapping
             if converter is not None:
                 value = converter(atoms, value)
-        if extra is None:
-            extra = {}
-        extra[out_name] = value
-    if extra is not None:
-        atoms.arrays.update(extra)
+        atoms.arrays[out_name] = value
 
     if create_calc:
         info = dict(frame.info)
-        atoms.calc = _create_single_point_calculator(atoms, info, extra or {}, calc_prefix)
+        # Pass a shallow dict copy so the calc creator doesn't pop calc-related
+        # keys out of atoms.arrays — preserves the old behaviour where forces
+        # etc. are visible in both atoms.arrays and atoms.calc.results.
+        atoms.calc = _create_single_point_calculator(
+            atoms, info, dict(atoms.arrays), calc_prefix)
         atoms.info.update(info)
     elif frame.info:
         atoms.info.update(frame.info)
