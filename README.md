@@ -47,31 +47,41 @@ For ASE-aware reading/writing see the [`ase-extxyz`](python/ase-extxyz/) sibling
 ## Performance: cextxyz vs ASE built-in `extxyz` reader
 
 ASE already ships a regex-based `extxyz` reader. The `cextxyz` plugin
-re-parses with the libcleri-based C grammar. We benchmarked both on a
-single-frame file with `N` Cu atoms (each frame containing positions,
+re-parses with the libcleri-based C grammar, with PCRE2 JIT
+compilation enabled on the per-atom data regex (`PCRE2_JIT_COMPLETE`
++ `PCRE2_ANCHORED`).
+
+Benchmark on a single-frame file with `N` Cu atoms (positions,
 forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.122 ms | 0.138 ms | 0.102 ms | 0.89× | 1.20× |
-|    100 |   0.01 MB | 0.211 ms | 0.248 ms | 0.208 ms | 0.85× | 1.01× |
-|  1 000 |   0.11 MB | 1.190 ms | 1.494 ms | 1.298 ms | 0.80× | 0.92× |
-|  4 000 |   0.44 MB | 4.557 ms | 5.443 ms | 4.722 ms | 0.84× | 0.97× |
-| 16 000 |   1.74 MB | 18.6 ms  | 22.2 ms  | 19.5 ms  | 0.84× | 0.95× |
-| 64 000 |   6.98 MB | 75.5 ms  | 84.9 ms  | 73.7 ms  | 0.89× | 1.02× |
-|200 000 |  21.80 MB | 229.2 ms | 260.6 ms | 229.2 ms | 0.88× | 1.00× |
+|     10 |   0.00 MB | 0.124 ms | 0.178 ms | 0.144 ms | 0.70× | 0.86× |
+|    100 |   0.01 MB | 0.207 ms | 0.222 ms | 0.177 ms | 0.93× | 1.17× |
+|  1 000 |   0.11 MB | 1.249 ms | 0.838 ms | 0.638 ms | 1.49× | 1.96× |
+|  4 000 |   0.44 MB | 4.490 ms | 2.585 ms | 1.937 ms | 1.74× | 2.32× |
+| 16 000 |   1.74 MB | 17.6 ms  | 10.2 ms  |  7.25 ms | 1.72× | 2.43× |
+| 64 000 |   6.98 MB | 73.4 ms  | 39.1 ms  | 28.8 ms  | 1.88× | 2.55× |
+|200 000 |  21.80 MB |230.1 ms  |126.9 ms  | 91.3 ms  | 1.81× | 2.52× |
 
 ![Read-time benchmark](benchmarks/read_speedup.png)
 
-For files of this shape, the ASE built-in regex reader is competitive
-with the C parser end-to-end — `cextxyz` ends up around 15 % slower
-because the per-frame `Frame → Atoms` translation in the plugin layer
-costs about as much as the C parser saves over `np.fromregex`. The
-parser-only path (`extxyz.read_dicts`) is within a few percent of the
-built-in across the range tested. For files with very rich
-comment-line `info` dicts (many keys, nested arrays) the C grammar's
-strictness becomes the main reason to reach for the plugin, not raw
-speed.
+Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
+compile, libcleri grammar walk for the comment line) is larger than
+the regex match itself, so the built-in is faster on tiny files. From
+~1 000 atoms upwards the parser dominates and `cextxyz` runs at a
+steady ~1.85× over the built-in end-to-end (~2.5× for the parser
+alone). The gap between the two cextxyz curves is the
+`Frame → Atoms` translation in the ASE plugin layer, which is
+roughly proportional to atom count and unavoidable when an `Atoms`
+object is the contract.
+
+The big lever was PCRE2 JIT (`pcre2_jit_compile(re,
+PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile
+attributed ~38 % of CPU to the per-atom `pcre2_match` before JIT.
+Enabling JIT on the comment-line grammar (libcleri) is a follow-up
+that requires an upstream patch; expected to help mostly on files
+with many small frames and rich `info` dicts.
 
 Reproduce locally (requires `extxyz`, `ase-extxyz`, `ase`, `matplotlib`):
 

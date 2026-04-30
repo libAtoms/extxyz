@@ -772,13 +772,21 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     // with PCRE2_SPTR
     int pcre2_error;
     PCRE2_SIZE erroffset;
-    pcre2_code *re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED, 0, &pcre2_error, &erroffset, NULL);
+    // PCRE2_ANCHORED: our pattern starts with "^\s*" so anchoring at offset 0
+    // saves the engine from probing every starting position.
+    pcre2_code *re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED,
+                                   PCRE2_ANCHORED, &pcre2_error, &erroffset, NULL);
     if (re == NULL) {
         pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
         sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %zu re '%s'", line, erroffset, re_str);
         free(line); free(re_str);
         return 0;
     }
+    // Try to JIT-compile. PCRE2 with JIT is typically 5-30× faster on the
+    // hot pcre2_match per-atom-line loop. Silently fall through to the
+    // interpreter if PCRE2 was built without JIT support — pcre2_match
+    // auto-detects whether JIT is available.
+    (void) pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
     pcre2_match_data *match_data;
     match_data = pcre2_match_data_create_from_pattern(re, NULL);
 

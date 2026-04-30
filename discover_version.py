@@ -62,8 +62,13 @@ def get_version_from_git():
     Discover version from git repository.
     """
     try:
+        # Match only the v<MAJOR>.<MINOR>.<PATCH> tag scheme used by
+        # the extxyz package; ase-extxyz uses an "ase-extxyz-v…" prefix
+        # which we must ignore so it doesn't get fed back as the base
+        # version of the extxyz wheel.
         git_describe = subprocess.run(
-            ['git', 'describe', '--tags', '--dirty', '--always'],
+            ['git', 'describe', '--tags', '--dirty', '--always',
+             '--match', 'v[0-9]*'],
             stdout=subprocess.PIPE)
     except (FileNotFoundError, OSError) as e:
         # git command not found in PATH (common in isolated build environments like Windows cibuildwheel)
