@@ -5,4 +5,4 @@ Importing this package has no side effects; ASE discovers the
 ``pyproject.toml`` and lazily imports :mod:`ase_extxyz.io` when the format
 is first used.
 """
-__version__ = "0.1.0"
+__version__ = "0.1.1"

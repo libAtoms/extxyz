@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "ase-extxyz"
-version = "0.1.0"
+version = "0.1.1"
 description = "ASE I/O plugin backed by the libextxyz C parser"
 readme = "README.md"
 license = { file = "LICENSE" }
