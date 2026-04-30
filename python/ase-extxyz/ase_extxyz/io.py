@@ -67,39 +67,52 @@ def _frame_to_atoms(frame: Frame, *,
                     create_calc: bool = False,
                     calc_prefix: str = '') -> Atoms:
     """Build an :class:`ase.Atoms` from one :class:`extxyz.Frame`."""
-    arrays = dict(frame.arrays)
+    arrays_in = frame.arrays  # don't copy unless we mutate
 
-    positions = arrays.pop('pos', None)
-    if positions is None:
+    try:
+        positions = arrays_in['pos']
+    except KeyError:
         raise ValueError("frame has no 'pos' column")
 
-    symbols = arrays.pop('species', None)
-    numbers = arrays.pop('Z', None)
+    symbols = arrays_in.get('species')
+    numbers = arrays_in.get('Z')
     if symbols is not None and numbers is not None:
         if np.any(symbols2numbers(symbols) != numbers):
             raise ValueError(f'inconsistent symbols {symbols} and numbers {numbers}')
         symbols = None  # numbers wins
 
-    cell = frame.cell.T if not np.allclose(frame.cell, 0) else None
+    cell = frame.cell.T if frame.cell.any() else None
     atoms = Atoms(symbols=symbols,
                   numbers=numbers,
                   positions=positions,
                   cell=cell,
-                  pbc=frame.pbc.tolist())
+                  pbc=frame.pbc)
 
     # Remaining per-atom columns: rename to ASE conventions, apply conversion.
-    extra = {}
-    for name, value in arrays.items():
-        out_name, converter = _EXTXYZ_TO_ASE.get(name, (name, None))
-        if converter is not None:
-            value = converter(atoms, value)
+    # Hot path — skip the dict copy and the .get() default tuple.
+    extra = None
+    for name, value in arrays_in.items():
+        if name in ('pos', 'species', 'Z'):
+            continue
+        mapping = _EXTXYZ_TO_ASE.get(name)
+        if mapping is None:
+            out_name = name
+        else:
+            out_name, converter = mapping
+            if converter is not None:
+                value = converter(atoms, value)
+        if extra is None:
+            extra = {}
         extra[out_name] = value
-    atoms.arrays.update(extra)
+    if extra is not None:
+        atoms.arrays.update(extra)
 
-    info = dict(frame.info)
     if create_calc:
-        atoms.calc = _create_single_point_calculator(atoms, info, extra, calc_prefix)
-    atoms.info.update(info)
+        info = dict(frame.info)
+        atoms.calc = _create_single_point_calculator(atoms, info, extra or {}, calc_prefix)
+        atoms.info.update(info)
+    elif frame.info:
+        atoms.info.update(frame.info)
     return atoms
 
 
