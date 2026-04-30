@@ -48,21 +48,22 @@ For ASE-aware reading/writing see the [`ase-extxyz`](python/ase-extxyz/) sibling
 
 ASE already ships a regex-based `extxyz` reader. The `cextxyz` plugin
 re-parses with the libcleri-based C grammar, with PCRE2 JIT
-compilation enabled on the per-atom data regex (`PCRE2_JIT_COMPLETE`
-+ `PCRE2_ANCHORED`).
+compilation enabled both on the per-atom data regex
+(`PCRE2_JIT_COMPLETE` + `PCRE2_ANCHORED`) and on libcleri's internal
+regexes (so the comment-line grammar walk also runs JIT'd code).
 
 Benchmark on a single-frame file with `N` Cu atoms (positions,
 forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.124 ms | 0.178 ms | 0.144 ms | 0.70× | 0.86× |
-|    100 |   0.01 MB | 0.207 ms | 0.222 ms | 0.177 ms | 0.93× | 1.17× |
-|  1 000 |   0.11 MB | 1.249 ms | 0.838 ms | 0.638 ms | 1.49× | 1.96× |
-|  4 000 |   0.44 MB | 4.490 ms | 2.585 ms | 1.937 ms | 1.74× | 2.32× |
-| 16 000 |   1.74 MB | 17.6 ms  | 10.2 ms  |  7.25 ms | 1.72× | 2.43× |
-| 64 000 |   6.98 MB | 73.4 ms  | 39.1 ms  | 28.8 ms  | 1.88× | 2.55× |
-|200 000 |  21.80 MB |230.1 ms  |126.9 ms  | 91.3 ms  | 1.81× | 2.52× |
+|     10 |   0.00 MB | 0.124 ms | 0.173 ms | 0.137 ms | 0.72× | 0.90× |
+|    100 |   0.01 MB | 0.214 ms | 0.234 ms | 0.200 ms | 0.92× | 1.07× |
+|  1 000 |   0.11 MB | 1.226 ms | 0.821 ms | 0.612 ms | 1.49× | 2.00× |
+|  4 000 |   0.44 MB | 4.444 ms | 2.643 ms | 1.939 ms | 1.68× | 2.29× |
+| 16 000 |   1.74 MB | 18.5 ms  | 9.94 ms  | 7.39 ms  | 1.86× | 2.50× |
+| 64 000 |   6.98 MB | 74.4 ms  | 40.0 ms  | 29.1 ms  | 1.86× | 2.56× |
+|200 000 |  21.80 MB |234.9 ms  |126.4 ms  | 92.7 ms  | 1.86× | 2.54× |
 
 ![Read-time benchmark](benchmarks/read_speedup.png)
 
@@ -78,10 +79,15 @@ object is the contract.
 
 The big lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile
-attributed ~38 % of CPU to the per-atom `pcre2_match` before JIT.
-Enabling JIT on the comment-line grammar (libcleri) is a follow-up
-that requires an upstream patch; expected to help mostly on files
-with many small frames and rich `info` dicts.
+of the pre-JIT code attributed ~38 % of CPU to the per-atom
+`pcre2_match` and another ~14 % to libcleri's regex matching during
+the comment-line grammar walk. The same JIT call now wraps both call
+sites (the libcleri side via libAtoms/libcleri PR #2). On Linux,
+both call sites detect when running under valgrind via the
+`LD_PRELOAD` it injects and skip JIT compilation — PCRE2 JIT
+intentionally reads bytes past the input end as a speed trick, which
+valgrind reports as uninitialised-value warnings (PCRE2 docs
+explicitly call this out).
 
 Reproduce locally (requires `extxyz`, `ase-extxyz`, `ase`, `matplotlib`):
 
