@@ -73,10 +73,16 @@ test-command = "pytest -v {package}/tests"
 before-all = "which yum && yum install -y pcre2-devel zlib-devel"
 
 [tool.cibuildwheel.macos]
-before-all = "brew install pcre2 pkg-config"
+# Build a static PCRE2 from source at MACOSX_DEPLOYMENT_TARGET rather than using the
+# Homebrew bottle (which is compiled for the runner's newest macOS and would make the
+# wheel fail to load on older macOS). meson links it into _extxyz.so via PKG_CONFIG_PATH.
+before-all = "bash {project}/tools/wheels/build_pcre2_macos.sh"
 
 [tool.cibuildwheel.macos.environment]
-PKG_CONFIG_PATH = "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig"
+# 11.0 (Big Sur) is the oldest macOS that runs on arm64; build for it so wheels install
+# on all supported macOS. Keep in sync with tools/wheels/build_pcre2_macos.sh.
+MACOSX_DEPLOYMENT_TARGET = "11.0"
+PKG_CONFIG_PATH = "/tmp/pcre2/lib/pkgconfig"
 
 [tool.cibuildwheel.windows]
 before-build = "pip install delvewheel"

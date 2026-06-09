@@ -65,7 +65,9 @@ jobs:
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
            CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
-           CIBW_ENVIRONMENT_MACOS: "MACOSX_DEPLOYMENT_TARGET=15.0"
+           # macOS deployment target + PCRE2 PKG_CONFIG_PATH live in
+           # [tool.cibuildwheel.macos.environment] in pyproject.toml (a single
+           # CIBW_ENVIRONMENT_MACOS here would replace, not merge with, that table).
            CIBW_ARCHS_WINDOWS: "AMD64"
            
       # Uncomment to get SSH access for testing
