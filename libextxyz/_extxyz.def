@@ -1,5 +1,6 @@
 EXPORTS
     compile_extxyz_kv_grammar
+    cleri_grammar_free
     extxyz_read_ll
     extxyz_write_ll
     print_dict

@@ -13,7 +13,13 @@ import textwrap
 
 import pytest
 
-CRASH_SIGNALS = {-signal.SIGSEGV, -signal.SIGABRT, -signal.SIGBUS}
+# Negative returncodes for the signals a crash would raise. SIGBUS is absent on
+# Windows, so build the set only from signals that exist on this platform.
+CRASH_SIGNALS = {
+    -getattr(signal, name)
+    for name in ("SIGSEGV", "SIGABRT", "SIGBUS")
+    if hasattr(signal, name)
+}
 
 
 def _run_cextxyz_parse(tmp_path, content):

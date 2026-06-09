@@ -51,8 +51,13 @@ extxyz = ctypes.CDLL(extxyz_so)
 
 extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr
 
-extxyz.cleri_grammar_free.argtypes = [cleri_grammar_t_ptr]
-extxyz.cleri_grammar_free.restype = None
+# cleri_grammar_free is a libcleri symbol; it is only re-exported from the
+# extension when listed in _extxyz.def (Windows) or with default visibility
+# (Linux/macOS). Degrade gracefully if a build doesn't expose it.
+_have_grammar_free = hasattr(extxyz, 'cleri_grammar_free')
+if _have_grammar_free:
+    extxyz.cleri_grammar_free.argtypes = [cleri_grammar_t_ptr]
+    extxyz.cleri_grammar_free.restype = None
 
 extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(ctypes.c_int),
@@ -212,7 +217,8 @@ def _free_kv_grammar():
     """
     global _kv_grammar
     if _kv_grammar is not None:
-        extxyz.cleri_grammar_free(_kv_grammar)
+        if _have_grammar_free:
+            extxyz.cleri_grammar_free(_kv_grammar)
         _kv_grammar = None
 
 # On Windows, route stdio through wrappers in _extxyz so we use the same
