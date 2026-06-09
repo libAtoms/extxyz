@@ -57,13 +57,13 @@ forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.142 ms | 0.202 ms | 0.154 ms | 0.70× | 0.92× |
-|    100 |   0.01 MB | 0.255 ms | 0.233 ms | 0.191 ms | 1.10× | 1.33× |
-|  1 000 |   0.11 MB | 1.355 ms | 0.748 ms | 0.677 ms | 1.81× | 2.00× |
-|  4 000 |   0.44 MB | 4.805 ms | 2.306 ms | 1.978 ms | 2.08× | 2.43× |
-| 16 000 |   1.74 MB | 18.7 ms  | 8.42 ms  | 7.80 ms  | 2.22× | 2.39× |
-| 64 000 |   6.98 MB | 76.0 ms  | 33.5 ms  | 30.7 ms  | 2.27× | 2.47× |
-|200 000 |  21.80 MB |233.2 ms  |107.1 ms  | 92.7 ms  | 2.18× | 2.51× |
+|     10 |   0.00 MB | 0.122 ms | 0.173 ms | 0.128 ms | 0.71× | 0.95× |
+|    100 |   0.01 MB | 0.208 ms | 0.194 ms | 0.161 ms | 1.07× | 1.29× |
+|  1 000 |   0.11 MB | 1.193 ms | 0.550 ms | 0.500 ms | 2.17× | 2.39× |
+|  4 000 |   0.44 MB | 4.455 ms | 1.694 ms | 1.523 ms | 2.63× | 2.92× |
+| 16 000 |   1.74 MB | 17.5 ms  | 6.50 ms  | 5.79 ms  | 2.69× | 3.02× |
+| 64 000 |   6.98 MB | 70.9 ms  | 25.5 ms  | 22.4 ms  | 2.78× | 3.17× |
+|200 000 |  21.80 MB |226.2 ms  | 80.1 ms  | 69.3 ms  | 2.83× | 3.26× |
 
 ![Read-time benchmark](benchmarks/read_speedup.png)
 
@@ -71,13 +71,20 @@ Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
 compile, libcleri grammar walk for the comment line) is larger than
 the regex match itself, so the built-in is faster on tiny files. From
 ~1 000 atoms upwards the parser dominates and `cextxyz` runs at a
-steady ~2.2× over the built-in end-to-end (~2.5× for the parser
+steady ~2.8× over the built-in end-to-end (~3.2× for the parser
 alone). The remaining gap between the two cextxyz curves is the
 `Frame → Atoms` translation in the ASE plugin layer; we shrink it by
 aliasing the parser's per-atom buffers directly into `atoms.arrays`
 (so `Atoms.__init__` doesn't memcpy positions) and vectorising the
 species → atomic-number lookup with `np.unique` instead of a per-atom
 dict walk.
+
+The parser-side numbers also reflect two later read-path changes:
+dropping a redundant per-frame array copy, and storing each per-atom
+string column as one contiguous fixed-width buffer (so the C reader
+does a single allocation per column instead of one `malloc` per atom,
+and Python decodes the whole column with a single `np.frombuffer`
+instead of a per-atom loop) — worth ~18% on a 200k-atom read.
 
 The big parser-side lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile
