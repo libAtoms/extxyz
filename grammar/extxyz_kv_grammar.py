@@ -59,7 +59,12 @@ class ExtxyzKVGrammar(Grammar):
     bools_sp = Repeat(Choice(r_true, r_false), mi=1)
     strings_sp = Repeat(r_string, mi=1)
 
+    # Single quotes are a backward-compatible quote container equivalent to
+    # double quotes (the old Fortran/C reader treated ', " and {} alike):
+    # ints/floats/bools only, no strings. (A string-only single-quote
+    # container is a separate, deferred proposal — issue #5.)
     old_one_d_array = Choice(Sequence('"', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools), '"'),
+                             Sequence("'", Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools), "'"),
                              Sequence('{', Choice(ints_sp, ints, floats_sp, floats, bools_sp, bools, strings_sp, strings), '}'))
 
     one_d_array_i = Sequence('[', ints, ']')
