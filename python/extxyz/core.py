@@ -275,7 +275,8 @@ def _write_frame_python(file, frame: Frame, *, columns=None,
     np.savetxt(file, props.data_columns, fmt=props.format_strings)
 
 
-def _write_frame_cextxyz(c_file, frame: Frame, *, columns=None, verbose=0):
+def _write_frame_cextxyz(c_file, frame: Frame, *, columns=None,
+                         format_dict=None, verbose=0):
     """Write one Frame using the C writer."""
     info = dict(frame.info)
     info['Lattice'] = frame.cell.T  # match the column-major layout of comment-line Lattice="..."
@@ -294,7 +295,7 @@ def _write_frame_cextxyz(c_file, frame: Frame, *, columns=None, verbose=0):
 
     cextxyz.write_frame_dicts(c_file, frame.natoms, info,
                               {k: frame.arrays[k] for k in columns},
-                              columns, verbose)
+                              columns, verbose, format_dict=format_dict)
 
 
 def write_dicts(file, frames: Frame | Iterable[Frame], *,
@@ -317,9 +318,8 @@ def write_dicts(file, frames: Frame | Iterable[Frame], *,
         c_file = cextxyz.cfopen(str(file), mode)
         try:
             for frame in frames:
-                if format_dict is not None:
-                    raise ValueError('C writer does not support custom format strings')
-                _write_frame_cextxyz(c_file, frame, columns=columns, verbose=verbose)
+                _write_frame_cextxyz(c_file, frame, columns=columns,
+                                     format_dict=format_dict, verbose=verbose)
         finally:
             cextxyz.cfclose(c_file)
         return
