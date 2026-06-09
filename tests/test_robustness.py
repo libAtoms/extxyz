@@ -6,16 +6,12 @@ run in a *subprocess*: the test asserts the child exits gracefully (catching
 ``ExtXYZError``/``EOFError`` or parsing successfully) rather than dying on
 SIGSEGV/SIGABRT.
 """
-import os
 import signal
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
-
-PYTHON_DIR = str(Path(__file__).resolve().parent.parent / "python")
 
 CRASH_SIGNALS = {-signal.SIGSEGV, -signal.SIGABRT, -signal.SIGBUS}
 
@@ -24,15 +20,19 @@ def _run_cextxyz_parse(tmp_path, content):
     """Parse ``content`` with the C backend in a subprocess.
 
     Returns the CompletedProcess. The child exits 0 on a graceful outcome
-    (parsed, or raised ExtXYZError/EOFError), and 3 on any other Python
+    (parsed, or raised ExtXYZError/EOFError), and non-zero on any other Python
     exception. A negative returncode means it was killed by a signal (crash).
+
+    The child inherits this process's environment, so it imports the same
+    ``extxyz`` we do (the installed package in CI, or a source tree on
+    ``PYTHONPATH`` locally) -- we must NOT force the source dir onto the path,
+    as it lacks the build-generated ``extxyz._version``.
     """
     xyz = tmp_path / "in.xyz"
     xyz.write_text(content)
     child = textwrap.dedent(
         f"""
         import sys
-        sys.path.insert(0, {PYTHON_DIR!r})
         from extxyz import read_dicts
         from extxyz.cextxyz import ExtXYZError
         try:
@@ -47,10 +47,9 @@ def _run_cextxyz_parse(tmp_path, content):
         sys.exit(0)
         """
     )
-    env = dict(os.environ, PYTHONPATH=PYTHON_DIR)
     return subprocess.run(
         [sys.executable, "-c", child],
-        capture_output=True, text=True, env=env, timeout=30,
+        capture_output=True, text=True, timeout=30,
     )
 
 
@@ -94,8 +93,6 @@ def test_grammar_freed_at_exit_does_not_crash(tmp_path):
     xyz.write_text(f"1\n{LATTICE} Properties=species:S:1:pos:R:3\nH 0 0 0\n")
     child = textwrap.dedent(
         f"""
-        import sys
-        sys.path.insert(0, {PYTHON_DIR!r})
         from extxyz import read_dicts
         from extxyz import cextxyz
         read_dicts({str(xyz)!r}, use_cextxyz=True)
@@ -105,9 +102,8 @@ def test_grammar_freed_at_exit_does_not_crash(tmp_path):
         print("OK")
         """
     )
-    env = dict(os.environ, PYTHONPATH=PYTHON_DIR)
     proc = subprocess.run([sys.executable, "-c", child],
-                          capture_output=True, text=True, env=env, timeout=30)
+                          capture_output=True, text=True, timeout=30)
     assert proc.returncode == 0, (proc.returncode, proc.stdout, proc.stderr)
     assert "OK" in proc.stdout
 

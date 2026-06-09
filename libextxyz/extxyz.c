@@ -682,7 +682,9 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     strcat_realloc(&re_str, &re_str_len, "^\\s*");
 
     *arrays = (DictEntry *) 0;
-    DictEntry *cur_array;
+    // initialised to silence a GCC -Wmaybe-uninitialized false positive; it is
+    // always assigned at the top of the loop below before any use.
+    DictEntry *cur_array = (DictEntry *) 0;
 
     char *pf = strtok(props, ":");
     int prop_i = 0, tot_col_num = 0;
