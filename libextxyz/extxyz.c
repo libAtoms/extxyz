@@ -471,12 +471,15 @@ void *tree_to_dict(cleri_parse_t *tree, char *error_message) {
 }
 
 
-void free_data(void *data, enum data_type data_t, int nrows, int ncols) {
+// `width` is the entry's n_in_row: <0 means a string column is one contiguous
+// fixed-width buffer (free once); >=0 is the legacy char** (free each cell —
+// covers info strings, whose n_in_row is a non-negative parse-time item count).
+void free_data(void *data, enum data_type data_t, int nrows, int ncols, int width) {
     if (!data) {
         return;
     }
-    if (data_t == data_s) {
-        // free allocated strings inside array
+    if (data_t == data_s && width >= 0) {
+        // legacy char** : free each individually-allocated string
         nrows = nrows == 0 ? 1 : nrows;
         ncols = ncols == 0 ? 1 : ncols;
         for (int ri=0; ri < nrows; ri++) {
@@ -485,6 +488,7 @@ void free_data(void *data, enum data_type data_t, int nrows, int ncols) {
         }
         }
     }
+    // contiguous string buffers (width>0) and all numeric data: one free
     free(data);
 }
 
@@ -497,7 +501,7 @@ void free_dict(DictEntry *dict) {
             free(entry->key);
         }
         free_DataLinkedList(entry->first_data_ll, entry->data_t, 1);
-        free_data(entry->data, entry->data_t, entry->nrows, entry->ncols); 
+        free_data(entry->data, entry->data_t, entry->nrows, entry->ncols, entry->n_in_row);
 
         next_entry = entry->next;
         free(entry);
@@ -510,6 +514,42 @@ void free_dict(DictEntry *dict) {
 void free_partial_dicts(DictEntry **info, DictEntry **arrays) {
     if (info && *info) { free_dict(*info); *info = 0; }
     if (arrays && *arrays) { free_dict(*arrays); *arrays = 0; }
+}
+
+// Initial bytes-per-cell for a per-atom string column. Grows on demand.
+#define STR_CELL_W0 8
+
+// Store one string field into a per-atom string column held as a single
+// contiguous fixed-width buffer (numpy 'S{width}' layout). `*data` is the column
+// buffer; `*n_in_row` holds the NEGATED cell width (it marks the column as
+// contiguous: n_in_row < 0, width = -n_in_row). A negative sentinel is used
+// because parse_tree leaves a positive n_in_row on finalized scalar info entries
+// (it counts data items), so width>0 would be ambiguous. Cells are filled in
+// increasing index order, so `filled` == `cell_index`. If the field doesn't fit
+// the current width, the buffer is grown (calloc wider, copy the already-filled
+// cells, free the old) — rare for typical short tokens. calloc zero-fills, so
+// each cell stays NUL-padded (a valid C string for the writer/Fortran paths).
+// Returns 0 on success, 1 on allocation failure.
+static int store_str_cell(char **data, int *n_in_row, size_t total_cells,
+                          size_t cell_index, size_t filled,
+                          const char *pf, size_t len) {
+    size_t W = (size_t)(-(*n_in_row));   // n_in_row holds -width
+    if (len + 1 > W) {
+        size_t newW = (len + 1 + 7) & ~(size_t)7;   // round up to a multiple of 8
+        char *nb = (char *) calloc(total_cells, newW);
+        if (! nb) {
+            return 1;
+        }
+        for (size_t k = 0; k < filled; k++) {
+            memcpy(nb + k*newW, *data + k*W, W);
+        }
+        free(*data);
+        *data = nb;
+        *n_in_row = -(int) newW;
+        W = newW;
+    }
+    memcpy(*data + cell_index*W, pf, len);
+    return 0;
 }
 
 void print_dict(DictEntry *dict) {
@@ -760,10 +800,13 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 break;
             case 'S':
                 cur_array->data_t = data_s;
-                // calloc (not malloc) so unfilled slots are NULL: if parsing
-                // errors partway through, free_dict can safely free(NULL) the
-                // not-yet-populated string pointers.
-                cur_array->data = calloc((*nat)*col_num, sizeof(char *));
+                // One contiguous fixed-width buffer for the whole column (not an
+                // array of N malloc'd pointers). n_in_row carries the NEGATED
+                // cell width and marks the column as contiguous (n_in_row < 0);
+                // it grows on demand during the fill. calloc zero-fills so cells
+                // are NUL-padded.
+                cur_array->n_in_row = -STR_CELL_W0;
+                cur_array->data = calloc((size_t)(*nat)*col_num, STR_CELL_W0);
                 this_re = SIMPLESTRING_RE; // "\\S+";
                 break;
             default:
@@ -865,8 +908,18 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 } else if (cur_array->data_t == data_b) {
                     ((int *)(cur_array->data))[li*nc + col_i] = (pf[0] == 'T');
                 } else if (cur_array->data_t == data_s) {
-                    ((char **)(cur_array->data))[li*nc + col_i] = (char *) malloc((strlen(pf)+1)*sizeof(char));
-                    strcpy(((char **)(cur_array->data))[li*nc+col_i], pf);
+                    // field bounds from the PCRE2 capture (pf is NUL-terminated
+                    // at line[ovector[2*field_i+1]] above)
+                    size_t len = (size_t)(ovector[2*field_i+1] - ovector[2*field_i]);
+                    size_t cell = (size_t)(li*nc + col_i);
+                    if (store_str_cell((char **)&cur_array->data, &cur_array->n_in_row,
+                                       (size_t)(*nat)*nc, cell, cell, pf, len)) {
+                        sprintf(error_message, "ERROR: out of memory storing string on atom line %d", li);
+                        pcre2_match_data_free(match_data); pcre2_code_free(re);
+                        free(line); free(re_str);
+                        free_partial_dicts(info, arrays);
+                        return 0;
+                    }
                 }
                 field_i++;
             }
@@ -1189,8 +1242,13 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
                     break;
                 case data_s:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        // assuming simple string, no need for quotes
-                        fprintf(fp, FMT_S, ((char **)(entry->data))[i_at*ncols+i_col]);
+                        // assuming simple string, no need for quotes.
+                        // n_in_row>0: contiguous fixed-width buffer (read path /
+                        // Fortran); 0: legacy char** (Python write via py_to_c_dict)
+                        const char *s = (entry->n_in_row < 0)
+                            ? (const char *)entry->data + (size_t)(i_at*ncols+i_col)*(-entry->n_in_row)
+                            : ((char **)(entry->data))[i_at*ncols+i_col];
+                        fprintf(fp, FMT_S, s);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }

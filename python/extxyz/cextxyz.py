@@ -71,6 +71,19 @@ extxyz.print_dict.args = [Dict_entry_ptr]
 
 extxyz.free_dict.args = [Dict_entry_ptr]
 
+
+def _read_contiguous_strings(addr, width, count):
+    """Read a per-atom string column stored by the C parser as one contiguous
+    fixed-width buffer (``n_in_row`` == width > 0) into a numpy unicode array.
+
+    One ``np.frombuffer`` + ``astype`` (numpy-C decode) replaces the former
+    per-cell Python decode loop. ``string_at`` copies the bytes, so the result
+    owns its data and is safe after the C buffer is freed.
+    """
+    raw = ctypes.string_at(addr, count * width)
+    return np.frombuffer(raw, dtype=f'S{width}', count=count).astype(str)
+
+
 def c_to_py_dict(c_dict, deepcopy=False):
     """
     Convert DictEntry `c_dict` to a Python dict
@@ -94,16 +107,24 @@ def c_to_py_dict(c_dict, deepcopy=False):
             if node.nrows == 0:
                 # vector (1D array)
                 if node.data_t == DATA_S:
-                    value = np.array([data_ptr[i].decode('utf-8')
-                                    for i in range(node.ncols)])
+                    if node.n_in_row < 0:
+                        value = _read_contiguous_strings(node.data, -node.n_in_row,
+                                                         node.ncols)
+                    else:
+                        value = np.array([data_ptr[i].decode('utf-8')
+                                        for i in range(node.ncols)])
                 else:
                     value = np.ctypeslib.as_array(data_ptr, [node.ncols])
             else:
                 # matrix (2D array)
                 if node.data_t == DATA_S:
-                    value = np.array([data_ptr[i].decode('utf-8')
-                                      for i in range(node.nrows*node.ncols)])
-                    value = value.reshape(node.nrows, node.ncols)
+                    n = node.nrows * node.ncols
+                    if node.n_in_row < 0:
+                        value = _read_contiguous_strings(node.data, -node.n_in_row,
+                                                         n).reshape(node.nrows, node.ncols)
+                    else:
+                        value = np.array([data_ptr[i].decode('utf-8')
+                                          for i in range(n)]).reshape(node.nrows, node.ncols)
                 else:
                     value = np.ctypeslib.as_array(data_ptr,
                                                 [node.nrows, node.ncols])
