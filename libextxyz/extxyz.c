@@ -1073,7 +1073,19 @@ int concat_entry(char **str, unsigned long *str_len, DictEntry *entry, int old_s
     return 0;
 }
 
-int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
+// Write with caller-supplied per-atom column formats. Any of fmt_i/fmt_f/
+// fmt_b/fmt_s may be NULL to use the compiled-in default. The formats apply to
+// the per-atom data columns only (matching the pure-Python writer's
+// format_dict); info-line values keep the default formatting. fmt_f must
+// consume a double, fmt_i an int, fmt_b/fmt_s a char* ("T"/"F" or the string).
+int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
+                        const char *fmt_i, const char *fmt_f,
+                        const char *fmt_b, const char *fmt_s) {
+    const char *FMT_I = fmt_i ? fmt_i : INTEGER_FMT;
+    const char *FMT_F = fmt_f ? fmt_f : FLOAT_FMT;
+    const char *FMT_B = fmt_b ? fmt_b : BOOL_FMT;
+    const char *FMT_S = fmt_s ? fmt_s : STRING_FMT;
+
     fprintf(fp, "%d\n", nat);
 
     // Write info
@@ -1153,7 +1165,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
             switch(entry->data_t) {
                 case data_i:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, INTEGER_FMT, ((int *)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, FMT_I, ((int *)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1161,7 +1173,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                     break;
                 case data_f:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, FLOAT_FMT, ((double *)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, FMT_F, ((double *)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1169,7 +1181,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                     break;
                 case data_b:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, BOOL_FMT, ((int *)(entry->data))[i_at*ncols+i_col] ? "T" : "F");
+                        fprintf(fp, FMT_B, ((int *)(entry->data))[i_at*ncols+i_col] ? "T" : "F");
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1178,7 +1190,7 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
                 case data_s:
                     for (int i_col=0; i_col < ncols; i_col++) {
                         // assuming simple string, no need for quotes
-                        fprintf(fp, STRING_FMT, ((char **)(entry->data))[i_at*ncols+i_col]);
+                        fprintf(fp, FMT_S, ((char **)(entry->data))[i_at*ncols+i_col]);
                         if (i_col < ncols-1) {
                             fprintf(fp, " ");
                         }
@@ -1195,6 +1207,11 @@ int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
     }
 
     return 0;
+}
+
+// Backward-compatible writer: default per-atom column formats.
+int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays) {
+    return extxyz_write_ll_fmt(fp, nat, info, arrays, NULL, NULL, NULL, NULL);
 }
 
 // Utility function to allocate memory from Fortran

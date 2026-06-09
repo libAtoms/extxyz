@@ -334,5 +334,16 @@ def write_frame_dicts(fp, nat, info, arrays, columns=None, verbose=False, format
     if verbose:
         extxyz.print_dict(c_info)
         extxyz.print_dict(c_arrays)
-    if extxyz.extxyz_write_ll(fp, nat, c_info, c_arrays) != 0:
+    if format_dict:
+        # format_dict maps property type codes (R/I/S/L) to printf format
+        # strings, matching the pure-Python writer. Apply them to the per-atom
+        # columns; missing entries (None) fall back to the C defaults.
+        def _fmt(code):
+            f = format_dict.get(code)
+            return f.encode('utf-8') if f is not None else None
+        rc = extxyz.extxyz_write_ll_fmt(fp, nat, c_info, c_arrays,
+                                        _fmt('I'), _fmt('R'), _fmt('L'), _fmt('S'))
+    else:
+        rc = extxyz.extxyz_write_ll(fp, nat, c_info, c_arrays)
+    if rc != 0:
         raise IOError("error writing to extended XYZ file")
