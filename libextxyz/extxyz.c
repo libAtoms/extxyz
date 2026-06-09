@@ -1241,7 +1241,37 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
     free(quoted_properties_str);
     free(properties_str);
 
-    // write per-atom data
+    // write per-atom data. Build each line in a growable memory buffer with
+    // snprintf and fwrite it in blocks, instead of one (FILE-locked) fprintf per
+    // value — same output bytes, fewer locked stdio calls. Flush at line
+    // boundaries once the buffer passes WBUF_FLUSH so a line is never split.
+    size_t wbuf_cap = 1u << 16, wbuf_n = 0;
+    const size_t WBUF_FLUSH = 1u << 15;
+    char *wbuf = (char *) malloc(wbuf_cap);
+    if (! wbuf) { return 7; }
+    // append `fmt`-formatted `val`, growing the buffer (and re-formatting) only
+    // if it didn't fit — for a flushed buffer it almost always fits first time.
+    #define WB_FMT(fmt, val) do { \
+        int _l = snprintf(wbuf + wbuf_n, wbuf_cap - wbuf_n, (fmt), (val)); \
+        if (_l < 0) { free(wbuf); return 7; } \
+        if ((size_t)_l >= wbuf_cap - wbuf_n) { \
+            while (wbuf_n + (size_t)_l + 1 > wbuf_cap) wbuf_cap *= 2; \
+            char *_nb = (char *) realloc(wbuf, wbuf_cap); \
+            if (! _nb) { free(wbuf); return 7; } \
+            wbuf = _nb; \
+            snprintf(wbuf + wbuf_n, wbuf_cap - wbuf_n, (fmt), (val)); \
+        } \
+        wbuf_n += (size_t)_l; \
+    } while (0)
+    #define WB_CH(c) do { \
+        if (wbuf_n + 1 > wbuf_cap) { \
+            wbuf_cap *= 2; \
+            char *_nb = (char *) realloc(wbuf, wbuf_cap); \
+            if (! _nb) { free(wbuf); return 7; } \
+            wbuf = _nb; \
+        } \
+        wbuf[wbuf_n++] = (c); \
+    } while (0)
 
     for (int i_at=0; i_at < nat; i_at++) {
         for (DictEntry *entry = arrays; entry; entry = entry->next) {
@@ -1249,26 +1279,20 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
             switch(entry->data_t) {
                 case data_i:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, FMT_I, ((int *)(entry->data))[i_at*ncols+i_col]);
-                        if (i_col < ncols-1) {
-                            fprintf(fp, " ");
-                        }
+                        WB_FMT(FMT_I, ((int *)(entry->data))[i_at*ncols+i_col]);
+                        if (i_col < ncols-1) { WB_CH(' '); }
                     }
                     break;
                 case data_f:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, FMT_F, ((double *)(entry->data))[i_at*ncols+i_col]);
-                        if (i_col < ncols-1) {
-                            fprintf(fp, " ");
-                        }
+                        WB_FMT(FMT_F, ((double *)(entry->data))[i_at*ncols+i_col]);
+                        if (i_col < ncols-1) { WB_CH(' '); }
                     }
                     break;
                 case data_b:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        fprintf(fp, FMT_B, ((int *)(entry->data))[i_at*ncols+i_col] ? "T" : "F");
-                        if (i_col < ncols-1) {
-                            fprintf(fp, " ");
-                        }
+                        WB_FMT(FMT_B, ((int *)(entry->data))[i_at*ncols+i_col] ? "T" : "F");
+                        if (i_col < ncols-1) { WB_CH(' '); }
                     }
                     break;
                 case data_s:
@@ -1279,21 +1303,23 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
                         const char *s = (entry->n_in_row < 0)
                             ? (const char *)entry->data + (size_t)(i_at*ncols+i_col)*(-entry->n_in_row)
                             : ((char **)(entry->data))[i_at*ncols+i_col];
-                        fprintf(fp, FMT_S, s);
-                        if (i_col < ncols-1) {
-                            fprintf(fp, " ");
-                        }
+                        WB_FMT(FMT_S, s);
+                        if (i_col < ncols-1) { WB_CH(' '); }
                     }
                     break;
                 default:
+                    free(wbuf);
                     return 6;
             }
-            if (entry->next) {
-                fprintf(fp, "   ");
-            }
+            if (entry->next) { WB_CH(' '); WB_CH(' '); WB_CH(' '); }
         }
-        fprintf(fp, "\n");
+        WB_CH('\n');
+        if (wbuf_n >= WBUF_FLUSH) { fwrite(wbuf, 1, wbuf_n, fp); wbuf_n = 0; }
     }
+    if (wbuf_n) { fwrite(wbuf, 1, wbuf_n, fp); }
+    free(wbuf);
+    #undef WB_FMT
+    #undef WB_CH
 
     return 0;
 }
