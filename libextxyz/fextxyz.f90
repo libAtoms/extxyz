@@ -277,6 +277,10 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
         nbytes = int(len_trim(key) + 1, C_SIZE_T) ! +1 for NUL char
         node%key = extxyz_malloc(nbytes)
         node%first_data_ll = C_NULL_PTR
+        ! nodes are raw-malloc'd (not zeroed): clear n_in_row so the C writer
+        ! and free_data treat string data as the legacy char** (n_in_row >= 0),
+        ! not as a contiguous fixed-width buffer (n_in_row < 0).
+        node%n_in_row = 0
         call F_string_to_C_string_ptr(key, node%key)
         if (type == T_INTEGER) then
             allocate(int_0)
