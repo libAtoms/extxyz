@@ -46,7 +46,7 @@ for b in ['T', 'true', 'True', 'TRUE', 'F', 'false', 'False', 'FALSE']:
 bare_strings = []
 all_bare_str = ''
 for c in [chr(i) for i in range(32, 127)]:
-    if re.search('\S', c) and c not in r'"=,\\][}{':
+    if re.search(r'\S', c) and c not in r'"=,\\][}{':
         all_bare_str += c
 bare_strings += [all_bare_str]
 print_config(f'tests_barestring.xyz', 'bs='+all_bare_str)
@@ -63,7 +63,7 @@ for s in bare_strings:
     print_config(f'tests_quotedstring.xyz', 'qs="'+s+'"')
 all_quoted_str = ''
 for c in [chr(i) for i in range(32, 127)]:
-    if re.search('\S', c):
+    if re.search(r'\S', c):
         if c == '"' or c == '\\':
             all_quoted_str += '\\'
         all_quoted_str += c
@@ -107,7 +107,7 @@ print_config('tests_twodarray_string.xyz', 's_aa=[ [ T, FALSE], [ 12, -5 ], [ b,
 for l_i, l in enumerate(['i 5', 'i_a [2, 3]']):
     print_config(f'tests_fail_no_equals_{l_i}.xyz', l)
 
-for c_i, c in enumerate('"=,\[]{} '):
+for c_i, c in enumerate(r'"=,\[]{} '):
     print_config(f'tests_fail_barestring_{c_i}.xyz', 's=abc'+c+'def')
 
 for l_i, l in enumerate(["'abc'", "\"abc'", "\"abc\\\"def"]):
