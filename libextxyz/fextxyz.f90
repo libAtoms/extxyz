@@ -160,6 +160,9 @@ function c_dict_to_f_dict(c_dict, f_dict) result(success)
     character(len=MAX_VALUE_LENGTH) :: f_char_0
     character(len=MAX_VALUE_LENGTH), allocatable :: f_char_1(:)
     integer :: i
+    ! for reading a contiguous fixed-width string column (n_in_row < 0)
+    integer :: cell_w, cell_j
+    character(kind=C_CHAR), pointer :: str_buf(:) => null()
 
     success = .false.
     node => c_dict
@@ -210,11 +213,27 @@ function c_dict_to_f_dict(c_dict, f_dict) result(success)
                 call C_string_ptr_to_F_string(char_0, f_char_0)
                 call set_value(f_dict, key, f_char_0)
             else if (node%nrows == 0) then
-                call c_f_pointer(node%data, char_1, (/ node%ncols /))
                 allocate(f_char_1(node%ncols))
-                do i=1,node%ncols
-                    call C_string_ptr_to_F_string(char_1(i), f_char_1(i))
-                end do
+                if (node%n_in_row < 0) then
+                    ! per-atom string column: one contiguous buffer, cell_w
+                    ! bytes per (NUL-padded) cell, stored as -n_in_row
+                    cell_w = -node%n_in_row
+                    call c_f_pointer(node%data, str_buf, (/ cell_w * node%ncols /))
+                    do i=1,node%ncols
+                        f_char_1(i) = ' '
+                        do cell_j=1,cell_w
+                            if (str_buf((i-1)*cell_w + cell_j) == C_NULL_CHAR) exit
+                            if (cell_j <= len(f_char_1(i))) &
+                                f_char_1(i)(cell_j:cell_j) = str_buf((i-1)*cell_w + cell_j)
+                        end do
+                    end do
+                else
+                    ! legacy char** : array of pointers to NUL-terminated strings
+                    call c_f_pointer(node%data, char_1, (/ node%ncols /))
+                    do i=1,node%ncols
+                        call C_string_ptr_to_F_string(char_1(i), f_char_1(i))
+                    end do
+                end if
                 call set_value(f_dict, key, f_char_1)
                 deallocate(f_char_1)
             else
@@ -258,6 +277,10 @@ function f_dict_to_c_dict(f_dict, c_dict, verbose) result(success)
         nbytes = int(len_trim(key) + 1, C_SIZE_T) ! +1 for NUL char
         node%key = extxyz_malloc(nbytes)
         node%first_data_ll = C_NULL_PTR
+        ! nodes are raw-malloc'd (not zeroed): clear n_in_row so the C writer
+        ! and free_data treat string data as the legacy char** (n_in_row >= 0),
+        ! not as a contiguous fixed-width buffer (n_in_row < 0).
+        node%n_in_row = 0
         call F_string_to_C_string_ptr(key, node%key)
         if (type == T_INTEGER) then
             allocate(int_0)
