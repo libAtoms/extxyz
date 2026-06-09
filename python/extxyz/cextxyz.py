@@ -3,6 +3,7 @@ import sys
 import ctypes
 from ctypes.util import find_library
 import sysconfig
+import atexit
 
 import copy
 
@@ -49,6 +50,9 @@ extxyz_so = os.path.join(os.path.abspath(os.path.dirname(__file__)), f'_extxyz{s
 extxyz = ctypes.CDLL(extxyz_so)
 
 extxyz.compile_extxyz_kv_grammar.restype = cleri_grammar_t_ptr
+
+extxyz.cleri_grammar_free.argtypes = [cleri_grammar_t_ptr]
+extxyz.cleri_grammar_free.restype = None
 
 extxyz.extxyz_read_ll.args = [ctypes.c_void_p, ctypes.c_void_p,
                               ctypes.POINTER(ctypes.c_int),
@@ -196,6 +200,20 @@ def py_to_c_dict(py_dict, keys=None):
 
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
+
+
+@atexit.register
+def _free_kv_grammar():
+    """Release the process-wide grammar so it isn't reported as leaked.
+
+    The grammar (a cleri_grammar_t plus its whole nested cleri_t tree and PCRE2
+    data) is compiled once and cached for the life of the process; without this
+    it shows up as a definite leak under valgrind/leaks.
+    """
+    global _kv_grammar
+    if _kv_grammar is not None:
+        extxyz.cleri_grammar_free(_kv_grammar)
+        _kv_grammar = None
 
 # On Windows, route stdio through wrappers in _extxyz so we use the same
 # C runtime as extxyz_read_ll/extxyz_write_ll. find_library('c') returns
