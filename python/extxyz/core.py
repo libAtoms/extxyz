@@ -125,14 +125,15 @@ def _read_frame_dict(file, *, use_cextxyz=True, use_regex=True, verbose=0,
             try:
                 fpos = cextxyz.cftell(file)
                 natoms, info, arrays = cextxyz.read_frame_dicts(
-                    file, verbose=verbose, comment=comment)
+                    file, verbose=verbose, comment=comment, use_regex=use_regex)
             except cextxyz.ExtXYZError as msg:
                 error_message, = msg.args
                 if error_message.startswith('Failed to parse string'):
                     cextxyz.cfseek(file, fpos, 0)
                     natoms, info, arrays = cextxyz.read_frame_dicts(
                         file, verbose=verbose,
-                        comment="Properties=species:S:1:pos:R:3")
+                        comment="Properties=species:S:1:pos:R:3",
+                        use_regex=use_regex)
                 else:
                     raise
             info.pop('Properties', None)

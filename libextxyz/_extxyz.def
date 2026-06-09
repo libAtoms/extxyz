@@ -2,6 +2,7 @@ EXPORTS
     compile_extxyz_kv_grammar
     cleri_grammar_free
     extxyz_read_ll
+    extxyz_read_ll_opts
     extxyz_write_ll
     extxyz_write_ll_fmt
     print_dict

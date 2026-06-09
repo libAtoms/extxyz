@@ -71,6 +71,45 @@ double atof_eEdD(char *str) {
     return (atof(str));
 }
 
+// Validated per-atom field parsers for the tokenizer (use_tokenizer) path. The
+// regex path validates each field as a side effect of matching; the tokenizer
+// just splits on whitespace, so these reject malformed tokens (return 0) that
+// atoi/atof would silently accept (e.g. "NOTANUM" -> 0). Each token is
+// NUL-terminated.
+static int parse_int_field(const char *tok, int *out) {
+    char *end;
+    long v = strtol(tok, &end, 10);
+    if (end == tok || *end != '\0') return 0;   // empty or trailing junk
+    *out = (int) v;                              // truncates like atoi (parity)
+    return 1;
+}
+
+static int parse_double_field(char *tok, double *out) {
+    if (parse_double_fast(tok, out)) return 1;   // exact fast path
+    // reject leads that strtod would otherwise accept (inf, nan, 0x hex)
+    const char *p = tok;
+    if (*p == '+' || *p == '-') p++;
+    if (!((*p >= '0' && *p <= '9') || *p == '.')) return 0;
+    for (char *q = tok; *q; q++) { if (*q == 'd' || *q == 'D') { *q = 'e'; break; } }
+    char *end;
+    double v = strtod(tok, &end);
+    if (end == tok || *end != '\0') return 0;
+    *out = v;
+    return 1;
+}
+
+static int parse_bool_field(const char *tok, int *out) {
+    // accept exactly the BOOL_RE set; value computed as the regex fill does
+    // (tok[0]=='T'), so the two read modes agree bit-for-bit on valid input
+    if (strcmp(tok, "T") == 0 || strcmp(tok, "F") == 0 ||
+        strcmp(tok, "true") == 0 || strcmp(tok, "True") == 0 || strcmp(tok, "TRUE") == 0 ||
+        strcmp(tok, "false") == 0 || strcmp(tok, "False") == 0 || strcmp(tok, "FALSE") == 0) {
+        *out = (tok[0] == 'T');
+        return 1;
+    }
+    return 0;
+}
+
 void unquote(char *str) {
     // remove quotes and do backslash escapes
     int output_len = 0;
@@ -644,7 +683,11 @@ char *read_line(char **line, unsigned long *line_len, FILE *fp) {
     return *line;
 }
 
-int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message) {
+// use_tokenizer: if non-zero, parse per-atom lines by whitespace-tokenising and
+// validating each field, instead of compiling and matching a per-line PCRE2
+// regex. Faster, opt-in; slightly more lenient than the grammar on numeric
+// edge cases. extxyz_read_ll (below) is the regex default.
+int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message, int use_tokenizer) {
     char *line;
     unsigned long line_len;
     unsigned long line_len_init = 1024;
@@ -849,11 +892,13 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 return 0;
         }
 
-        for (int ci=0; ci < col_num; ci++) {
-            strcat_realloc(&re_str, &re_str_len, "(");
-            strcat_realloc(&re_str, &re_str_len, this_re);
-            strcat_realloc(&re_str, &re_str_len, ")");
-            strcat_realloc(&re_str, &re_str_len, WHITESPACE_RE); // "\\s+");
+        if (! use_tokenizer) {
+            for (int ci=0; ci < col_num; ci++) {
+                strcat_realloc(&re_str, &re_str_len, "(");
+                strcat_realloc(&re_str, &re_str_len, this_re);
+                strcat_realloc(&re_str, &re_str_len, ")");
+                strcat_realloc(&re_str, &re_str_len, WHITESPACE_RE); // "\\s+");
+            }
         }
 
         // ready to next triplet
@@ -864,34 +909,37 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
 
     free(props);
 
-    // trim off last \s+
-    re_str[strlen(re_str)-3] = 0;
-    // tack on to EOL
-    strcat_realloc(&re_str, &re_str_len, re_at_eol);
+    // Build/compile the per-line regex only in regex mode. In tokenizer mode
+    // re/match_data stay NULL (pcre2_*_free(NULL) is a no-op) and re_str is left
+    // as-is (still freed below).
+    pcre2_code *re = NULL;
+    pcre2_match_data *match_data = NULL;
+    if (! use_tokenizer) {
+        // trim off last \s+
+        re_str[strlen(re_str)-3] = 0;
+        // tack on to EOL
+        strcat_realloc(&re_str, &re_str_len, re_at_eol);
 
-    // should consider doing string types more carefully, e.g. as shown in
-    // https://www.pcre.org/current/doc/html/pcre2demo.html 
-    // with PCRE2_SPTR
-    int pcre2_error;
-    PCRE2_SIZE erroffset;
-    // PCRE2_ANCHORED: our pattern starts with "^\s*" so anchoring at offset 0
-    // saves the engine from probing every starting position.
-    pcre2_code *re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED,
-                                   PCRE2_ANCHORED, &pcre2_error, &erroffset, NULL);
-    if (re == NULL) {
-        pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
-        sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %zu re '%s'", line, erroffset, re_str);
-        free(line); free(re_str);
-        free_partial_dicts(info, arrays);
-        return 0;
+        int pcre2_error;
+        PCRE2_SIZE erroffset;
+        // PCRE2_ANCHORED: our pattern starts with "^\s*" so anchoring at offset 0
+        // saves the engine from probing every starting position.
+        re = pcre2_compile((unsigned char *)re_str, PCRE2_ZERO_TERMINATED,
+                           PCRE2_ANCHORED, &pcre2_error, &erroffset, NULL);
+        if (re == NULL) {
+            pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
+            sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %zu re '%s'", line, erroffset, re_str);
+            free(line); free(re_str);
+            free_partial_dicts(info, arrays);
+            return 0;
+        }
+        // Try to JIT-compile. PCRE2 with JIT is typically 5-30× faster on the
+        // hot pcre2_match per-atom-line loop. Silently fall through to the
+        // interpreter if PCRE2 was built without JIT support — pcre2_match
+        // auto-detects whether JIT is available.
+        (void) pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
+        match_data = pcre2_match_data_create_from_pattern(re, NULL);
     }
-    // Try to JIT-compile. PCRE2 with JIT is typically 5-30× faster on the
-    // hot pcre2_match per-atom-line loop. Silently fall through to the
-    // interpreter if PCRE2 was built without JIT support — pcre2_match
-    // auto-detects whether JIT is available.
-    (void) pcre2_jit_compile(re, PCRE2_JIT_COMPLETE);
-    pcre2_match_data *match_data;
-    match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
     // read per-atom data
     for (int li=0; li < (*nat); li++) {
@@ -903,6 +951,58 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             return 0;
         }
 
+        if (use_tokenizer) {
+            // Split the line on whitespace into exactly tot_col_num fields and
+            // parse each by column type, validating numeric/bool fields.
+            char *p = line;
+            int field_err = 0;
+            for (DictEntry *cur_array = *arrays; cur_array && !field_err; cur_array = cur_array->next) {
+                int nc = cur_array->ncols;
+                for (int col_i = 0; col_i < nc; col_i++) {
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (*p == '\0' || *p == '\n' || *p == '\r') { field_err = 1; break; }
+                    char *tok = p;
+                    while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') p++;
+                    size_t len = (size_t)(p - tok);
+                    char sep = *p;
+                    *p = '\0';
+                    int ok = 1;
+                    if (cur_array->data_t == data_i) {
+                        ok = parse_int_field(tok, &((int *)(cur_array->data))[li*nc + col_i]);
+                    } else if (cur_array->data_t == data_f) {
+                        ok = parse_double_field(tok, &((double *)(cur_array->data))[li*nc + col_i]);
+                    } else if (cur_array->data_t == data_b) {
+                        ok = parse_bool_field(tok, &((int *)(cur_array->data))[li*nc + col_i]);
+                    } else if (cur_array->data_t == data_s) {
+                        size_t cell = (size_t)(li*nc + col_i);
+                        if (store_str_cell((char **)&cur_array->data, &cur_array->n_in_row,
+                                           (size_t)(*nat)*nc, cell, cell, tok, len)) {
+                            sprintf(error_message, "ERROR: out of memory storing string on atom line %d", li);
+                            pcre2_match_data_free(match_data); pcre2_code_free(re);
+                            free(line); free(re_str);
+                            free_partial_dicts(info, arrays);
+                            return 0;
+                        }
+                    }
+                    if (! ok) {
+                        sprintf(error_message, "ERROR: invalid field '%s' for property '%s' on atom line %d", tok, cur_array->key, li);
+                        pcre2_match_data_free(match_data); pcre2_code_free(re);
+                        free(line); free(re_str);
+                        free_partial_dicts(info, arrays);
+                        return 0;
+                    }
+                    if (sep) p++;   // step past the separator we overwrote
+                }
+            }
+            while (*p == ' ' || *p == '\t') p++;
+            if (field_err || (*p != '\0' && *p != '\n' && *p != '\r')) {
+                sprintf(error_message, "ERROR: expected %d fields on atom line %d", tot_col_num, li);
+                pcre2_match_data_free(match_data); pcre2_code_free(re);
+                free(line); free(re_str);
+                free_partial_dicts(info, arrays);
+                return 0;
+            }
+        } else {
         // read data with PCRE + atoi/f
         // apply PCRE
         int rc = pcre2_match(re, (unsigned char *)line, PCRE2_ZERO_TERMINATED, 0, 0, match_data, NULL);
@@ -932,7 +1032,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 pf = line + ovector[2*field_i];
                 // overwrite end of field, must be at least one space so won't damage anything
                 line[ovector[2*field_i+1]] = 0;
-                if (cur_array->data_t == data_i) { 
+                if (cur_array->data_t == data_i) {
                     ((int *)(cur_array->data))[li*nc + col_i] = atoi(pf);
                 } else if (cur_array->data_t == data_f) {
                     ((double *)(cur_array->data))[li*nc + col_i] = atof_eEdD(pf);
@@ -954,6 +1054,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 }
                 field_i++;
             }
+        }
         }
         /* {
             // use strtok + sscanf
@@ -992,6 +1093,11 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     pcre2_match_data_free(match_data); pcre2_code_free(re);
     free(line); free(re_str);
     return 1;
+}
+
+// Backward-compatible reader: per-atom lines parsed with the PCRE2 regex.
+int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message) {
+    return extxyz_read_ll_opts(kv_grammar, fp, nat, info, arrays, comment, error_message, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
