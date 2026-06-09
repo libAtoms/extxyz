@@ -504,6 +504,14 @@ void free_dict(DictEntry *dict) {
     }
 }
 
+// Free the partially- or fully-built info/arrays dicts on an error path and
+// NULL them out, so a failed parse neither leaks nor leaves the caller with
+// dangling/half-built dictionaries it might try to read or free again.
+void free_partial_dicts(DictEntry **info, DictEntry **arrays) {
+    if (info && *info) { free_dict(*info); *info = 0; }
+    if (arrays && *arrays) { free_dict(*arrays); *arrays = 0; }
+}
+
 void print_dict(DictEntry *dict) {
     for (DictEntry *entry = dict; entry; entry = entry->next) {
         printf("key '%s' type %d shape %d %d\n", entry->key, entry->data_t,
@@ -674,7 +682,9 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
     strcat_realloc(&re_str, &re_str_len, "^\\s*");
 
     *arrays = (DictEntry *) 0;
-    DictEntry *cur_array;
+    // initialised to silence a GCC -Wmaybe-uninitialized false positive; it is
+    // always assigned at the top of the loop below before any use.
+    DictEntry *cur_array = (DictEntry *) 0;
 
     char *pf = strtok(props, ":");
     int prop_i = 0, tot_col_num = 0;
@@ -692,22 +702,38 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
 
         // advance to col type
         pf = strtok(NULL, ":");
+        if (! pf) {
+            sprintf(error_message, "Failed to parse Properties: missing type field for property '%s' (# %d)", cur_array->key, prop_i);
+            free(props);
+            free(line); free(re_str);
+            free_partial_dicts(info, arrays);
+            return 0;
+        }
         if (strlen(pf) != 1) {
             sprintf(error_message, "Failed to parse property type '%s' for property '%s' (# %d)", pf, cur_array->key, prop_i);
             free(props);
             free(line); free(re_str);
+            free_partial_dicts(info, arrays);
             return 0;
         }
         char col_type = pf[0];
 
         // advance to col num
         pf = strtok(NULL, ":");
+        if (! pf) {
+            sprintf(error_message, "Failed to parse Properties: missing column count for property '%s' (# %d)", cur_array->key, prop_i);
+            free(props);
+            free(line); free(re_str);
+            free_partial_dicts(info, arrays);
+            return 0;
+        }
         int col_num;
         int col_num_stat = sscanf(pf, "%d", &col_num);
         if (col_num_stat != 1) {
             sprintf(error_message, "Failed to parse int property ncolumns from '%s' for property '%s' (# %d)", pf, cur_array->key, prop_i);
             free(props);
             free(line); free(re_str);
+            free_partial_dicts(info, arrays);
             return 0;
         }
 
@@ -734,16 +760,18 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
                 break;
             case 'S':
                 cur_array->data_t = data_s;
-                cur_array->data = malloc(((*nat)*col_num)*sizeof(char *));
+                // calloc (not malloc) so unfilled slots are NULL: if parsing
+                // errors partway through, free_dict can safely free(NULL) the
+                // not-yet-populated string pointers.
+                cur_array->data = calloc((*nat)*col_num, sizeof(char *));
                 this_re = SIMPLESTRING_RE; // "\\S+";
                 break;
             default:
                 sprintf(error_message, "Unknown property type '%c' for property key '%s' (# %d)", col_type, cur_array->key, prop_i);
-                // free incomplete data before returning
-                free(cur_array->data);
-                cur_array->data = 0;
                 free(props);
                 free(line); free(re_str);
+                // free_partial_dicts frees cur_array (incl. its data) via *arrays
+                free_partial_dicts(info, arrays);
                 return 0;
         }
 
@@ -780,6 +808,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         pcre2_get_error_message(pcre2_error, (unsigned char *)line, line_len);
         sprintf(error_message, "ERROR %s compiling pcre pattern for atoms lines offset %zu re '%s'", line, erroffset, re_str);
         free(line); free(re_str);
+        free_partial_dicts(info, arrays);
         return 0;
     }
     // Try to JIT-compile. PCRE2 with JIT is typically 5-30× faster on the
@@ -796,6 +825,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
         if (! stat) {
             pcre2_match_data_free(match_data); pcre2_code_free(re);
             free(line); free(re_str);
+            free_partial_dicts(info, arrays);
             return 0;
         }
 
@@ -816,6 +846,7 @@ int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **
             }
             pcre2_match_data_free(match_data); pcre2_code_free(re);
             free(line); free(re_str);
+            free_partial_dicts(info, arrays);
             return 0;
         }
         // loop through parsed strings and fill in allocated data structures
