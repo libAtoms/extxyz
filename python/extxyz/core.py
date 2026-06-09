@@ -135,23 +135,25 @@ def _read_frame_dict(file, *, use_cextxyz=True, use_regex=True, verbose=0,
                         comment="Properties=species:S:1:pos:R:3")
                 else:
                     raise
-            properties = info.pop('Properties', 'species:S:1:pos:R:3')
-            properties = Properties(property_string=properties)
-            data = np.zeros(natoms, properties.dtype_vector)
-            for name, value in arrays.items():
-                data[name] = value
+            info.pop('Properties', None)
+            # ``read_frame_dicts`` already freed the C buffers, so ``arrays``
+            # are independently-owned numpy arrays in the correct per-column
+            # shapes — use them directly. (Previously these were copied into a
+            # structured array and copied back out again: two redundant copies
+            # per column. The pure-Python path below still needs the structured
+            # ``data`` array produced by np.fromregex/genfromtxt.)
+            arrays_out = arrays
         else:
             natoms, info, data, properties = _read_frame_pure_python(
                 file, verbose=verbose, use_regex=use_regex)
+            # the setter re-views the scalar columns as dtype_vector
+            properties.data = data
+            arrays_out = {name: properties.data[name].copy()
+                          for name in properties.dtype_vector.names}
     except EOFError:
         return None
 
-    properties.data = data
     lattice = extract_lattice(info)
-
-    arrays_out = {name: properties.data[name].copy()
-                  for name in properties.dtype_vector.names}
-
     pbc = np.asarray(info.pop('pbc', [True, True, True]), dtype=bool)
     cell = lattice if lattice is not None else np.zeros((3, 3))
 
