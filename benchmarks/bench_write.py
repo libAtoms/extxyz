@@ -18,6 +18,7 @@ Run::
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import subprocess
 import sys
@@ -75,6 +76,7 @@ def _time_ng(src_path, repeats):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument('--out', type=Path, default=Path('benchmarks/write_results.csv'))
     ap.add_argument('--max-atoms', type=int, default=200_000)
     ap.add_argument('--repeats', type=int, default=5)
     args = ap.parse_args()
@@ -85,6 +87,7 @@ def main():
            f'{"ASE":>8}  {"plugin":>8}  {"ng":>8}  {"vs ASE":>7}  {"vs ng":>6}')
     print(hdr); print('-' * len(hdr))
 
+    rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for n in sizes:
             src = Path(tmp) / f'src_{n}.xyz'
@@ -100,11 +103,26 @@ def main():
             t_plug = _best(lambda: ase.io.write(str(out), atoms, format='cextxyz'), args.repeats)
             t_ng = _time_ng(src, args.repeats)
 
+            # columns mirror bench_read.py's results.csv: builtin / plugin / "ours",
+            # plugin-vs-builtin speedup, and ours-vs-builtin speedup.
+            rows.append(dict(natoms=n, frames=1, file_mb=mb,
+                             builtin_s=t_ase, cextxyz_s=t_plug,
+                             write_dicts_s=t_c, pypython_s=t_py,
+                             speedup=t_ase / t_plug,
+                             write_speedup=t_ase / t_c))
+
             ng_s = f'{t_ng*1e3:8.1f}' if t_ng else f'{"n/a":>8}'
             vs_ng = f'{t_ng*1e3/(t_c*1e3):6.2f}x' if t_ng else f'{"-":>6}'
             print(f'{n:>9}  {mb:>6.2f}  {t_c*1e3:>8.1f}  {t_py*1e3:>9.1f}  '
                   f'{t_ase*1e3:>8.1f}  {t_plug*1e3:>8.1f}  {ng_s}  '
                   f'{t_ase/t_c:>6.2f}x  {vs_ng}')
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    with args.out.open('w', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+    print(f'Wrote {args.out}')
 
 
 if __name__ == '__main__':
