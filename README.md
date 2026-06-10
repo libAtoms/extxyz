@@ -211,33 +211,67 @@ Julia bindings are distributed in a separate package, named [ExtXYZ.jl](https://
 
 # Usage
 
-Usage of the Python package is similar to the `ase.io.read()` and `ase.io.write()` functions, e.g:
+As of v0.3.0 the `extxyz` package is a standalone parser with **no ASE
+dependency**; ASE integration lives in the separate
+[`ase-extxyz`](python/ase-extxyz/) plugin.
+
+## Native API — `Frame` dicts (no ASE)
+
+`read_dicts` / `iread_dicts` / `write_dicts` work with lightweight `Frame`
+objects exposing `.natoms`, `.cell`, `.pbc`, `.info` and `.arrays`:
 
 ```python
-from extxyz import read, iread, write, ExtXYZTrajectoryWriter
-from ase.build import bulk
-from ase.optimize import BFGS
-from ase.calculators.emt import EMT
+import extxyz
 
-atoms = bulk("Cu") * 3
-frames = [atoms.copy() for frame in range(3)]
-for frame in frames:
-    frame.rattle()
-    
-write("filename.xyz", frames)
+# read every frame (eager) or stream them lazily
+frames = extxyz.read_dicts("filename.xyz")          # Frame, or list[Frame]
+for frame in extxyz.iread_dicts("trajectory.xyz"):
+    print(frame.natoms, frame.cell, frame.info, list(frame.arrays))
 
-frames = read("filename.xyz") # all frames in file
-atoms = read("filename.xyz", index=0) # first frame in file
-write("newfile.xyz", frames)
-
-traj = ExtXYZTrajectoryWriter("traj.xyz", atoms=atoms)
-atoms.calc = EMT()
-opt = BFGS(atoms, trajectory=traj)
-opt.run(fmax=1e-3)
+# read just the first frame, then write it back out
+frame = extxyz.read_dicts("filename.xyz", index=0)
+extxyz.write_dicts("newfile.xyz", frame)
 ```
 
-There is also an `extxyz` command line tool for testing purposes, see `extxyz -h` for help. This can alternatively
-be invoked via `python -m extxyz`.
+`index` accepts an int, a `slice`, or `':'` (negative indices are not
+supported). Pass `use_cextxyz=False` for the pure-Python parser, or
+`use_regex=False` (C backend) for the faster opt-in tokenizer.
+
+## With ASE — the `ase-extxyz` plugin
+
+Once `ase-extxyz` is installed, ASE discovers the `cextxyz` format
+automatically (no explicit import needed):
+
+```python
+import ase.io
+from ase.build import bulk
+
+frames = [bulk("Cu") * 3 for _ in range(3)]
+for f in frames:
+    f.rattle()
+
+ase.io.write("filename.xyz", frames, format="cextxyz")
+atoms  = ase.io.read("filename.xyz", format="cextxyz", index=0)    # first frame
+images = ase.io.read("filename.xyz", format="cextxyz", index=":")  # all frames
+```
+
+To attach to an ASE optimizer or dynamics (keeps the file open across steps
+instead of re-opening it each iteration), use `ExtXYZTrajectoryWriter`:
+
+```python
+from ase_extxyz.io import ExtXYZTrajectoryWriter
+from ase.optimize import LBFGS
+
+with ExtXYZTrajectoryWriter("opt.xyz", atoms=atoms) as traj:
+    opt = LBFGS(atoms)
+    opt.attach(traj, interval=1)
+    opt.run(fmax=1e-3)
+```
+
+## Command-line tool
+
+The `extxyz` package installs an `extxyz` command-line tool (equivalently
+`python -m extxyz`) for quick reading and round-tripping; see `extxyz -h`.
 
 ## Remaining issues
 
