@@ -57,13 +57,13 @@ forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.124 ms | 0.168 ms | 0.132 ms | 0.74× | 0.94× |
-|    100 |   0.01 MB | 0.209 ms | 0.180 ms | 0.147 ms | 1.17× | 1.42× |
-|  1 000 |   0.11 MB | 1.200 ms | 0.431 ms | 0.378 ms | 2.79× | 3.18× |
-|  4 000 |   0.44 MB | 4.445 ms | 1.309 ms | 1.095 ms | 3.40× | 4.06× |
-| 16 000 |   1.74 MB | 17.7 ms  | 4.73 ms  | 4.02 ms  | 3.74× | 4.40× |
-| 64 000 |   6.98 MB | 71.4 ms  | 19.3 ms  | 15.9 ms  | 3.70× | 4.48× |
-|200 000 |  21.80 MB |223.7 ms  | 61.0 ms  | 50.7 ms  | 3.67× | 4.41× |
+|     10 |   0.00 MB | 0.107 ms | 0.074 ms | 0.119 ms | 1.46× | 0.90× |
+|    100 |   0.01 MB | 0.203 ms | 0.096 ms | 0.145 ms | 2.11× | 1.41× |
+|  1 000 |   0.11 MB | 1.170 ms | 0.277 ms | 0.367 ms | 4.23× | 3.18× |
+|  4 000 |   0.44 MB | 4.414 ms | 0.908 ms | 1.122 ms | 4.86× | 3.93× |
+| 16 000 |   1.74 MB | 17.5 ms  | 3.40 ms  | 3.96 ms  | 5.15× | 4.42× |
+| 64 000 |   6.98 MB | 69.9 ms  | 13.5 ms  | 15.6 ms  | 5.17× | 4.48× |
+|200 000 |  21.80 MB |218.8 ms  | 42.8 ms  | 49.4 ms  | 5.12× | 4.43× |
 
 ![Read-time benchmark](benchmarks/read_speedup.png)
 
@@ -71,13 +71,12 @@ Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
 compile, libcleri grammar walk for the comment line) is larger than
 the regex match itself, so the built-in is faster on tiny files. From
 ~1 000 atoms upwards the parser dominates and `cextxyz` runs at a
-steady ~3.7× over the built-in end-to-end (~4.4× for the parser
-alone). The remaining gap between the two cextxyz curves is the
-`Frame → Atoms` translation in the ASE plugin layer; we shrink it by
-aliasing the parser's per-atom buffers directly into `atoms.arrays`
-(so `Atoms.__init__` doesn't memcpy positions) and vectorising the
-species → atomic-number lookup with `np.unique` instead of a per-atom
-dict walk.
+steady ~5× over the built-in end-to-end (~4.4× for the parser alone).
+The two cextxyz curves track each other closely: the `Frame → Atoms`
+translation in the ASE plugin is kept cheap by aliasing the parser's
+per-atom buffers directly into `atoms.arrays` (so `Atoms.__init__`
+doesn't memcpy positions) and vectorising the species → atomic-number
+lookup with `np.unique` instead of a per-atom dict walk.
 
 The parser-side numbers also reflect three later read-path changes:
 dropping a redundant per-frame array copy; storing each per-atom
@@ -90,6 +89,27 @@ parsed as one correctly-rounded `mant / 10^frac` division (bit-exact
 with `strtod`, falling back to `strtod` for exponents or higher
 precision). Together these are worth ~40% on a 200k-atom read (the
 float fast path alone ~1.4×).
+
+### Opt-in tokenizer (`use_regex=False`)
+
+The single biggest remaining cost is the per-line `pcre2_match`. Passing
+`use_regex=False` to `read_dicts`/`iread_dicts` (C backend only) skips it: the
+per-atom lines are split on whitespace and each field is parsed and validated by
+its column type, with no regex compile or match. It is **opt-in and off by
+default**, and a further **~1.5×** on top of everything above:
+
+| atoms / frame | `read_dicts` (regex) | `read_dicts` (`use_regex=False`) | tokenizer / regex | tokenizer / built-in |
+|--:|--:|--:|--:|--:|
+|   1 000 | 0.367 ms | 0.219 ms | 1.68× | 5.34× |
+|  16 000 | 3.96 ms  | 2.63 ms  | 1.50× | 6.66× |
+|  64 000 | 15.6 ms  | 10.4 ms  | 1.50× | 6.70× |
+| 200 000 | 49.4 ms  | 32.9 ms  | 1.50× | 6.64× |
+
+It validates each field (a malformed numeric/bool or the wrong field count is a
+clear parse error, not a silent `0`) and is bit-identical to the regex parser on
+valid input. The trade-off is that it is marginally more lenient than the grammar
+on a few numeric edge cases (e.g. leading-zero integers `007`, `1.`/`.5`), which
+is why it is opt-in rather than the default.
 
 The big parser-side lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile

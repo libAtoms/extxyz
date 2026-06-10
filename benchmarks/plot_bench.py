@@ -31,6 +31,11 @@ def main():
     dicts = [float(r['read_dicts_s']) for r in rows]
     speedup = [float(r['speedup']) for r in rows]
     parse_speedup = [float(r['parse_speedup']) for r in rows]
+    # optional opt-in tokenizer columns (added later)
+    has_fast = rows and 'read_dicts_fast_s' in rows[0]
+    if has_fast:
+        dicts_fast = [float(r['read_dicts_fast_s']) for r in rows]
+        fast_speedup = [float(r['fast_speedup']) for r in rows]
 
     fig, (ax_t, ax_s) = plt.subplots(1, 2, figsize=(11, 4.2))
 
@@ -41,6 +46,10 @@ def main():
     ax_t.loglog(natoms, dicts, '^--',
                 label="extxyz.read_dicts (parser only, no Atoms)",
                 color='tab:green')
+    if has_fast:
+        ax_t.loglog(natoms, dicts_fast, 'v:',
+                    label="read_dicts, tokenizer (use_regex=False)",
+                    color='tab:purple')
     ax_t.set_xlabel('atoms per frame')
     ax_t.set_ylabel('read time (s)')
     ax_t.set_title('Read time vs system size')
@@ -51,6 +60,9 @@ def main():
                   label="full plugin / built-in", color='tab:blue')
     ax_s.semilogx(natoms, parse_speedup, '^--',
                   label="parser only / built-in", color='tab:green')
+    if has_fast:
+        ax_s.semilogx(natoms, fast_speedup, 'v:',
+                      label="parser, tokenizer / built-in", color='tab:purple')
     ax_s.axhline(1, color='gray', linewidth=0.8, linestyle='--')
     ax_s.set_xlabel('atoms per frame')
     ax_s.set_ylabel('speedup (built-in / candidate)')

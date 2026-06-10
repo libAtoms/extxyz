@@ -86,6 +86,11 @@ def time_read_dicts(path: Path, repeats: int) -> float:
     return _best_of(lambda: extxyz.read_dicts(str(path)), repeats)
 
 
+def time_read_dicts_fast(path: Path, repeats: int) -> float:
+    """As above but with the opt-in whitespace tokenizer (use_regex=False)."""
+    return _best_of(lambda: extxyz.read_dicts(str(path), use_regex=False), repeats)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', type=Path,
@@ -112,7 +117,7 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     header = (f'{"N atoms":>10}  {"frames":>6}  {"file MB":>8}  '
               f'{"builtin":>10}  {"cextxyz":>10}  {"read_dicts":>11}  '
-              f'{"speedup":>8}  {"parse_speedup":>14}')
+              f'{"rd_fast":>9}  {"speedup":>8}  {"parse_sp":>9}  {"fast_sp":>8}')
     print(header)
     print('-' * len(header))
 
@@ -123,18 +128,22 @@ def main():
             t_builtin = time_read_ase(path, 'extxyz', args.repeats)
             t_cext = time_read_ase(path, 'cextxyz', args.repeats)
             t_dicts = time_read_dicts(path, args.repeats)
+            t_dicts_fast = time_read_dicts_fast(path, args.repeats)
             speedup = t_builtin / t_cext if t_cext > 0 else float('nan')
             parse_speedup = t_builtin / t_dicts if t_dicts > 0 else float('nan')
+            fast_speedup = t_builtin / t_dicts_fast if t_dicts_fast > 0 else float('nan')
             row = dict(natoms=n, frames=args.frames,
                        file_mb=size_bytes / 1e6,
                        builtin_s=t_builtin, cextxyz_s=t_cext,
-                       read_dicts_s=t_dicts,
+                       read_dicts_s=t_dicts, read_dicts_fast_s=t_dicts_fast,
                        speedup=speedup,
-                       parse_speedup=parse_speedup)
+                       parse_speedup=parse_speedup,
+                       fast_speedup=fast_speedup)
             rows.append(row)
             print(f'{n:>10}  {args.frames:>6}  {row["file_mb"]:>8.2f}  '
                   f'{t_builtin:>10.4f}  {t_cext:>10.4f}  {t_dicts:>11.4f}  '
-                  f'{speedup:>7.2f}x  {parse_speedup:>13.2f}x')
+                  f'{t_dicts_fast:>9.4f}  {speedup:>7.2f}x  {parse_speedup:>8.2f}x  '
+                  f'{fast_speedup:>7.2f}x')
 
     with args.out.open('w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

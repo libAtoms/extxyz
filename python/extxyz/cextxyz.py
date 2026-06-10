@@ -283,13 +283,17 @@ def cfseek(fp, offset, whence):
     return _fseek(fp, offset, whence)
 
 
-def read_frame_dicts(fp, verbose=False, comment=None):
-    """Read a single frame using extxyz_read_ll() C function
+def read_frame_dicts(fp, verbose=False, comment=None, use_regex=True):
+    """Read a single frame using extxyz_read_ll_opts() C function
 
     Args:
         fp (FILE_ptr): open file pointer, as returned by `cfopen()`
         verbose (bool, optional): Dump C dictionaries to stdout. Defaults to False.
         comment (str, optional): Overrride comment line with specified string.
+        use_regex (bool, optional): parse per-atom lines with the PCRE2 regex
+            (default). If False, use the faster whitespace tokenizer (validates
+            each field; marginally more lenient than the grammar on numeric
+            edge cases).
 
     Returns:
         nat, info, arrays: int, dict, dict
@@ -304,15 +308,16 @@ def read_frame_dicts(fp, verbose=False, comment=None):
             comment = comment.encode('utf-8')
         else:
             comment = ctypes.POINTER(ctypes.c_char)()
-            
-        error_message = ctypes.create_string_buffer(1024)            
-        if not extxyz.extxyz_read_ll(_kv_grammar,
+
+        error_message = ctypes.create_string_buffer(1024)
+        if not extxyz.extxyz_read_ll_opts(_kv_grammar,
                                      fp,
                                      ctypes.byref(nat),
                                      ctypes.byref(info),
                                      ctypes.byref(arrays),
                                      comment,
-                                     error_message):
+                                     error_message,
+                                     ctypes.c_int(0 if use_regex else 1)):
             failure = True
             if (error_message.value == b'' or 
                 error_message.value.decode().startswith("Failed to parse int natoms from ' ")):
