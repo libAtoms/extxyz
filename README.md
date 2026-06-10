@@ -3,7 +3,7 @@
 This repository contains a specification of the extended XYZ (extxyz) file format, and tools for reading and writing to it from programs written in C, Fortran, Python and Julia.
 
 > **Using ASE?** As of v0.3.0, `extxyz` is the standalone C parser with no
-> ASE dependency, and a separate [`ase-extxyz`](python/ase-extxyz/) package
+> ASE dependency, and a separate [`ase-extxyz`](https://github.com/libAtoms/extxyz/tree/master/python/ase-extxyz) package
 > registers it as an ASE I/O plugin. Install both with
 > `pip install ase-extxyz` and use `ase.io.read("file.xyz", format="cextxyz")`.
 
@@ -42,7 +42,7 @@ for frame in extxyz.iread_dicts('trajectory.xyz'):
     print(frame.natoms, frame.cell, list(frame.arrays))
 ```
 
-For ASE-aware reading/writing see the [`ase-extxyz`](python/ase-extxyz/) sibling package.
+For ASE-aware reading/writing see the [`ase-extxyz`](https://github.com/libAtoms/extxyz/tree/master/python/ase-extxyz) sibling package.
 
 ## Performance: cextxyz vs ASE built-in `extxyz` reader
 
@@ -65,7 +65,7 @@ forces, and a couple of `info` keys):
 | 64 000 |   6.98 MB | 69.9 ms  | 13.5 ms  | 15.6 ms  | 5.17× | 4.48× |
 |200 000 |  21.80 MB |218.8 ms  | 42.8 ms  | 49.4 ms  | 5.12× | 4.43× |
 
-![Read-time benchmark](benchmarks/read_speedup.png)
+![Read-time benchmark](https://raw.githubusercontent.com/libAtoms/extxyz/master/benchmarks/read_speedup.png)
 
 Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
 compile, libcleri grammar walk for the comment line) is larger than
@@ -147,7 +147,7 @@ than `extxyz-ng`):
 | 64 000 |  6.98 MB | 166.6 ms  | 31.6 ms  | 28.2 ms  | 5.26× | 5.92× |
 |200 000 |  21.80 MB | 521.3 ms  | 106.7 ms  | 92.5 ms  | 4.88× | 5.64× |
 
-![Write-time benchmark](benchmarks/write_speedup.png)
+![Write-time benchmark](https://raw.githubusercontent.com/libAtoms/extxyz/master/benchmarks/write_speedup.png)
 
 Writing is bounded by formatting the per-atom floats, not I/O. The C writer (a)
 builds each line in a memory buffer and `fwrite`s it in blocks rather than one
@@ -213,7 +213,7 @@ Julia bindings are distributed in a separate package, named [ExtXYZ.jl](https://
 
 As of v0.3.0 the `extxyz` package is a standalone parser with **no ASE
 dependency**; ASE integration lives in the separate
-[`ase-extxyz`](python/ase-extxyz/) plugin.
+[`ase-extxyz`](https://github.com/libAtoms/extxyz/tree/master/python/ase-extxyz) plugin.
 
 ## Native API — `Frame` dicts (no ASE)
 
