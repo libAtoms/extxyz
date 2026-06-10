@@ -8,7 +8,7 @@ run_command(
 )
 
 # Build and install the extension module
-extxyz_c_sources = ['extxyz.c', 'extxyz_kv_grammar.c']
+extxyz_c_sources = ['extxyz.c', 'extxyz_kv_grammar.c', 'fast_format.c']
 
 # Python extension (loaded by cextxyz.py via ctypes.CDLL)
 module = python.extension_module(
@@ -38,6 +38,17 @@ executable(
     install: false,
     dependencies: [cleri, pcre2],
 )
+
+# Exhaustive check that the fast "%16.8f" formatter is byte-identical to printf.
+# No pcre2/cleri needed — just the formatter. `meson test` runs a fast subset;
+# pass a larger N to the exe for a deeper sweep.
+test_fmt_float = executable(
+    'test_fmt_float',
+    ['test_fmt_float.c', 'fast_format.c'],
+    install: false,
+    dependencies: cc.find_library('m', required: false),   # ldexp in the test
+)
+test('fmt_float', test_fmt_float, args: ['1000000'], timeout: 120)
 
 # Fortran demo executable. Requires QUIP's libAtoms; opt in by passing
 # -Dquip_lib_dir=... and -Dquip_mod_dir=... to meson setup.

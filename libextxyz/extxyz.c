@@ -8,6 +8,7 @@
 
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
+#include "fast_format.h"
 
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
     if (key) {
@@ -1275,6 +1276,9 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
     const char *FMT_F = fmt_f ? fmt_f : FLOAT_FMT;
     const char *FMT_B = fmt_b ? fmt_b : BOOL_FMT;
     const char *FMT_S = fmt_s ? fmt_s : STRING_FMT;
+    // The default "%16.8f" has a fast exact formatter; custom float formats
+    // (format_dict, #22) keep using snprintf via WB_FMT.
+    const int f_default = (fmt_f == NULL);
 
     fprintf(fp, "%d\n", nat);
 
@@ -1378,6 +1382,17 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
         } \
         wbuf[wbuf_n++] = (c); \
     } while (0)
+    // append a default-formatted ("%16.8f") double via the fast exact formatter,
+    // reserving its worst-case width first.
+    #define WB_FLOAT(val) do { \
+        if (wbuf_cap - wbuf_n < FMT_F16_8_BUFSIZE) { \
+            while (wbuf_n + FMT_F16_8_BUFSIZE > wbuf_cap) wbuf_cap *= 2; \
+            char *_nb = (char *) realloc(wbuf, wbuf_cap); \
+            if (! _nb) { free(wbuf); return 7; } \
+            wbuf = _nb; \
+        } \
+        wbuf_n += (size_t)fmt_default_f16_8(wbuf + wbuf_n, (val)); \
+    } while (0)
 
     for (int i_at=0; i_at < nat; i_at++) {
         for (DictEntry *entry = arrays; entry; entry = entry->next) {
@@ -1391,7 +1406,9 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
                     break;
                 case data_f:
                     for (int i_col=0; i_col < ncols; i_col++) {
-                        WB_FMT(FMT_F, ((double *)(entry->data))[i_at*ncols+i_col]);
+                        double _v = ((double *)(entry->data))[i_at*ncols+i_col];
+                        if (f_default) { WB_FLOAT(_v); }
+                        else { WB_FMT(FMT_F, _v); }
                         if (i_col < ncols-1) { WB_CH(' '); }
                     }
                     break;
@@ -1426,6 +1443,7 @@ int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
     free(wbuf);
     #undef WB_FMT
     #undef WB_CH
+    #undef WB_FLOAT
 
     return 0;
 }

@@ -132,13 +132,21 @@ python benchmarks/plot_bench.py
 
 ### Writing
 
-Writing is bounded by formatting the per-atom floats (`"%16.8f"`), not I/O. The C
-writer builds each line in a memory buffer and `fwrite`s it in blocks rather than
-one `fprintf` per value (same output bytes, fewer locked stdio calls). It writes a
-200k-atom frame in ~210 ms — about **2.5× faster than ASE's built-in `extxyz`
-writer** (and faster than `extxyz-ng`); the pure-Python (`np.savetxt`) writer
-matches ASE. `benchmarks/bench_write.py` reproduces the comparison (and times
-`extxyz-ng` if `EXTXYZ_NG_PYTHON` points at a venv with it installed).
+Writing is bounded by formatting the per-atom floats, not I/O. The C writer (a)
+builds each line in a memory buffer and `fwrite`s it in blocks rather than one
+`fprintf` per value, and (b) formats the default `"%16.8f"` floats with a custom
+exact integer routine instead of `snprintf`. A double is `m·2^e` exactly and
+`10^8 = 2^8·5^8`, so `v·10^8 = m·390625·2^(e+8)` is an exact rational that we round
+to nearest (ties to even) with integer-only arithmetic — **bit-for-bit identical
+to `printf`**, validated against `snprintf` over tens of millions of values
+(`libextxyz/test_fmt_float.c`, run by `meson test`). It falls back to `snprintf`
+for non-finite / very large values, for any custom `format_dict`, and on compilers
+without 128-bit ints (MSVC).
+
+Together these write a 200k-atom frame in ~84 ms — about **6× faster than ASE's
+built-in `extxyz` writer** and **~3× faster than `extxyz-ng`**; the pure-Python
+(`np.savetxt`) writer matches ASE. `benchmarks/bench_write.py` reproduces the
+comparison (and times `extxyz-ng` if `EXTXYZ_NG_PYTHON` points at a venv with it).
 
 ## `libextxyz` C library and standalone executables
 
