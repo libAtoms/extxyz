@@ -130,6 +130,16 @@ python benchmarks/bench_read.py --max-atoms 200000 --repeats 3
 python benchmarks/plot_bench.py
 ```
 
+### Writing
+
+Writing is bounded by formatting the per-atom floats (`"%16.8f"`), not I/O. The C
+writer builds each line in a memory buffer and `fwrite`s it in blocks rather than
+one `fprintf` per value (same output bytes, fewer locked stdio calls). It writes a
+200k-atom frame in ~210 ms — about **2.5× faster than ASE's built-in `extxyz`
+writer** (and faster than `extxyz-ng`); the pure-Python (`np.savetxt`) writer
+matches ASE. `benchmarks/bench_write.py` reproduces the comparison (and times
+`extxyz-ng` if `EXTXYZ_NG_PYTHON` points at a venv with it installed).
+
 ## `libextxyz` C library and standalone executables
 
 The C parser, the standalone `libextxyz` shared library, and the C-only
