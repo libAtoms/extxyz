@@ -81,7 +81,7 @@ def read_comment_line(line, verbose=0):
     return result_to_dict(result, verbose=verbose)
 
 
-def _read_frame_pure_python(file, verbose=0, use_regex=True):
+def _read_frame_pure_python(file, verbose=0, use_regex=False):
     """Read one extxyz frame from ``file`` using the pure-Python path.
 
     Returns ``(natoms, info_dict, structured_data, properties)``.
@@ -117,7 +117,7 @@ def _read_frame_pure_python(file, verbose=0, use_regex=True):
     return natoms, info, data, properties
 
 
-def _read_frame_dict(file, *, use_cextxyz=True, use_regex=True, verbose=0,
+def _read_frame_dict(file, *, use_cextxyz=True, use_regex=False, verbose=0,
                     comment=None) -> Frame | None:
     """Read one frame and return a :class:`Frame`, or ``None`` past EOF."""
     try:
@@ -162,7 +162,7 @@ def _read_frame_dict(file, *, use_cextxyz=True, use_regex=True, verbose=0,
 
 
 def iread_dicts(file, index=None, *,
-                use_cextxyz=True, use_regex=True, verbose=0, comment=None
+                use_cextxyz=True, use_regex=False, verbose=0, comment=None
                 ) -> Iterator[Frame]:
     """Yield :class:`Frame` instances from ``file`` lazily.
 

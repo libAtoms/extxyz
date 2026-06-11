@@ -1,6 +1,6 @@
-"""The opt-in tokenizer read mode (use_regex=False on the C backend).
+"""The tokenizer read mode (use_regex=False on the C backend, the default).
 
-It must (a) produce bit-identical results to the default regex parser for valid
+It must (a) produce bit-identical results to the strict regex parser for valid
 files, and (b) reject malformed per-atom fields with a clear error instead of
 silently mis-parsing (which atoi/atof would do).
 """
@@ -74,10 +74,19 @@ def test_tokenizer_rejects_malformed(tmp_path, body):
         read_dicts(p, use_cextxyz=True, use_regex=False)
 
 
-def test_regex_mode_unchanged_is_default(tmp_path):
-    """use_regex defaults to True; malformed numerics that the tokenizer rejects
-    are also rejected by the regex (NOMATCH)."""
-    p = tmp_path / "bad.xyz"
-    p.write_text("1\nProperties=species:S:1:pos:R:3\nH NOTANUM 0 0\n")
+def test_tokenizer_is_default(tmp_path):
+    """use_regex defaults to False (tokenizer) since v0.4.2: a default read
+    matches an explicit use_regex=False read, and malformed numerics are
+    still rejected."""
+    good = tmp_path / "good.xyz"
+    good.write_text('1\nLattice="3 0 0 0 3 0 0 0 3" Properties=species:S:1:pos:R:3\n'
+                    'H 0.1 0.2 0.3\n')
+    default = read_dicts(good, use_cextxyz=True)
+    fast = read_dicts(good, use_cextxyz=True, use_regex=False)
+    assert default.arrays.keys() == fast.arrays.keys()
+    assert np.array_equal(default.arrays['pos'], fast.arrays['pos'])
+
+    bad = tmp_path / "bad.xyz"
+    bad.write_text("1\nProperties=species:S:1:pos:R:3\nH NOTANUM 0 0\n")
     with pytest.raises(cextxyz.ExtXYZError):
-        read_dicts(p, use_cextxyz=True)   # default regex
+        read_dicts(bad, use_cextxyz=True)   # default tokenizer
