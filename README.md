@@ -90,13 +90,14 @@ with `strtod`, falling back to `strtod` for exponents or higher
 precision). Together these are worth ~40% on a 200k-atom read (the
 float fast path alone ~1.4×).
 
-### Opt-in tokenizer (`use_regex=False`)
+### Default tokenizer (`use_regex=False`)
 
-The single biggest remaining cost is the per-line `pcre2_match`. Passing
-`use_regex=False` to `read_dicts`/`iread_dicts` (C backend only) skips it: the
+The single biggest remaining cost is the per-line `pcre2_match`. The default
+`use_regex=False` in `read_dicts`/`iread_dicts` (C backend only) skips it: the
 per-atom lines are split on whitespace and each field is parsed and validated by
-its column type, with no regex compile or match. It is **opt-in and off by
-default**, and a further **~1.5×** on top of everything above:
+its column type, with no regex compile or match. It is **the default since
+v0.4.2** (pass `use_regex=True` for the strict regex parser), and a further
+**~1.5×** on top of everything above:
 
 | atoms / frame | `read_dicts` (regex) | `read_dicts` (`use_regex=False`) | tokenizer / regex | tokenizer / built-in |
 |--:|--:|--:|--:|--:|
@@ -108,8 +109,8 @@ default**, and a further **~1.5×** on top of everything above:
 It validates each field (a malformed numeric/bool or the wrong field count is a
 clear parse error, not a silent `0`) and is bit-identical to the regex parser on
 valid input. The trade-off is that it is marginally more lenient than the grammar
-on a few numeric edge cases (e.g. leading-zero integers `007`, `1.`/`.5`), which
-is why it is opt-in rather than the default.
+on a few numeric edge cases (e.g. leading-zero integers `007`, `1.`/`.5`); pass
+`use_regex=True` if you need the grammar enforced exactly.
 
 The big parser-side lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile
@@ -235,7 +236,8 @@ extxyz.write_dicts("newfile.xyz", frame)
 
 `index` accepts an int, a `slice`, or `':'` (negative indices are not
 supported). Pass `use_cextxyz=False` for the pure-Python parser, or
-`use_regex=False` (C backend) for the faster opt-in tokenizer.
+`use_regex=True` (C backend) for the strict regex parser instead of the
+default whitespace tokenizer.
 
 ## With ASE — the `ase-extxyz` plugin
 

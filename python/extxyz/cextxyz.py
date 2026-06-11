@@ -283,17 +283,17 @@ def cfseek(fp, offset, whence):
     return _fseek(fp, offset, whence)
 
 
-def read_frame_dicts(fp, verbose=False, comment=None, use_regex=True):
+def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
     """Read a single frame using extxyz_read_ll_opts() C function
 
     Args:
         fp (FILE_ptr): open file pointer, as returned by `cfopen()`
         verbose (bool, optional): Dump C dictionaries to stdout. Defaults to False.
         comment (str, optional): Overrride comment line with specified string.
-        use_regex (bool, optional): parse per-atom lines with the PCRE2 regex
-            (default). If False, use the faster whitespace tokenizer (validates
-            each field; marginally more lenient than the grammar on numeric
-            edge cases).
+        use_regex (bool, optional): if False (default), parse per-atom lines
+            with the fast whitespace tokenizer, which validates each field.
+            If True, use the slower PCRE2 regex parser instead (marginally
+            stricter than the tokenizer on numeric edge cases).
 
     Returns:
         nat, info, arrays: int, dict, dict
