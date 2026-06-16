@@ -1,5 +1,5 @@
 [build-system]
-requires = ["meson>=1.0.0", "meson-python>=0.13.0", "ninja", "pyleri>=1.3.3"]
+requires = ["meson>=1.0.0", "meson-python>=0.13.0", "ninja", "pyleri>=1.3.3", "numpy>=1.13.0"]
 build-backend = "mesonpy"
 
 [project]
@@ -67,7 +67,9 @@ wheel.exclude = [
 
 [tool.cibuildwheel]
 test-requires = "pytest"
-test-command = "pytest -v {package}/tests"
+# Assert the wheel actually shipped the C-API fast read path before running the
+# suite, so a silent ctypes fallback fails the build instead of shipping slow.
+test-command = "python {package}/tools/assert_c_read_path.py && pytest -v {package}/tests"
 
 [tool.cibuildwheel.linux]
 before-all = "which yum && yum install -y pcre2-devel zlib-devel"

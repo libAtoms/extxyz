@@ -1,0 +1,18 @@
+; MSVC exports for the _extxyz extension when built WITH the C-API fast read
+; path (libextxyz/pyext.c, i.e. numpy available). Same ctypes-loaded symbols as
+; _extxyz.def plus PyInit__extxyz so `import extxyz._extxyz` works on Windows.
+; Keep in sync with _extxyz.def (the numpy-less variant).
+EXPORTS
+    PyInit__extxyz
+    compile_extxyz_kv_grammar
+    cleri_grammar_free
+    extxyz_read_ll
+    extxyz_read_ll_opts
+    extxyz_write_ll
+    extxyz_write_ll_fmt
+    print_dict
+    free_dict
+    extxyz_fopen
+    extxyz_fclose
+    extxyz_ftell
+    extxyz_fseek

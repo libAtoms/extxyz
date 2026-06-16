@@ -17,6 +17,22 @@ python = pymod.find_installation(
 host_system = host_machine.system()
 cc = meson.get_compiler('c')
 
+# numpy headers for the C-API fast read path in the _extxyz extension. Resolved
+# non-fatally: a standalone C/Fortran/Julia build without numpy still configures
+# (the extension then falls back to the ctypes-only marshalling path).
+np_cmd = run_command(python, '-c',
+    'import numpy; print(numpy.get_include())', check: false)
+have_numpy = np_cmd.returncode() == 0
+if have_numpy
+  # Pass as a -I compile arg rather than include_directories(): numpy's include
+  # path is absolute and may sit inside the source tree (e.g. an in-repo .venv),
+  # which include_directories() rejects. -I works regardless of location.
+  numpy_inc_arg = '-I' + np_cmd.stdout().strip()
+  message('numpy headers found: building _extxyz with the C-API fast read path')
+else
+  message('numpy headers not found: _extxyz will use the ctypes read path only')
+endif
+
 # Determine MSVC runtime library (for PCRE2 library name)
 vs_crt = 'release'
 vs_crt_opt = get_option('b_vscrt')
