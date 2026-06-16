@@ -290,6 +290,7 @@ def _normalize_index(index):
 def read_cextxyz(filename, index=-1, *,
                  use_cextxyz: bool = True,
                  use_regex: bool = False,
+                 use_cleri: bool = True,
                  create_calc: bool = False,
                  calc_prefix: str = '',
                  verbose: int = 0):
@@ -298,6 +299,9 @@ def read_cextxyz(filename, index=-1, *,
     Generator that yields one ``Atoms`` per frame, sliced by ``index``.
     ``filename`` is a path-like — ASE passes the path through to us
     because the format's IOFormat code is ``+S`` (see :data:`cextxyz_format`).
+
+    ``use_cleri`` (C backend only): True (default) parses the comment line with
+    the libcleri grammar; False uses the faster first-char dispatch parser.
     """
     forward, post = _normalize_index(index)
 
@@ -305,6 +309,7 @@ def read_cextxyz(filename, index=-1, *,
         for frame in extxyz.iread_dicts(filename, index=forward,
                                         use_cextxyz=use_cextxyz,
                                         use_regex=use_regex,
+                                        use_cleri=use_cleri,
                                         verbose=verbose):
             yield _frame_to_atoms(frame, create_calc=create_calc,
                                   calc_prefix=calc_prefix)
@@ -314,6 +319,7 @@ def read_cextxyz(filename, index=-1, *,
     frames = list(extxyz.iread_dicts(filename,
                                      use_cextxyz=use_cextxyz,
                                      use_regex=use_regex,
+                                     use_cleri=use_cleri,
                                      verbose=verbose))
     if isinstance(post, int):
         yield _frame_to_atoms(frames[post], create_calc=create_calc,

@@ -88,6 +88,13 @@ jobs:
 
     - name: Test ase-extxyz (incl. fextxyz Fortran round-trip)
       run: USE_FORTRAN=T pytest -v python/ase-extxyz/tests/
+
+    - name: Test with the first-char dispatch comment parser (use_cleri=False)
+      # Run the whole C-backend suite through the dispatcher so every fixture
+      # exercises it, in addition to the differential parity test.
+      run: |
+        USE_CLERI=false USE_CEXTXYZ=true pytest -v python/ase-extxyz/tests/
+        pytest -v tests/test_dispatch_parity.py
     # Uncomment to get SSH access for testing
     # - name: Setup tmate session
     #   if: failure()

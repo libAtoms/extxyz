@@ -244,6 +244,14 @@ def py_to_c_dict(py_dict, keys=None):
 # construct grammar only once on module initialisation
 _kv_grammar = extxyz.compile_extxyz_kv_grammar()
 
+# Pre-compile the first-char dispatcher's token regexes once, here at import
+# (single-threaded), so the lazy in-C init never races between concurrent
+# reads. Guarded by hasattr: a build whose _extxyz didn't export it (the symbol
+# is in _extxyz.def) still works via the C function's own lazy init.
+_have_dispatch = hasattr(extxyz, 'extxyz_dispatch_init')
+if _have_dispatch:
+    extxyz.extxyz_dispatch_init()
+
 
 @atexit.register
 def _free_kv_grammar():
@@ -258,6 +266,8 @@ def _free_kv_grammar():
         if _have_grammar_free:
             extxyz.cleri_grammar_free(_kv_grammar)
         _kv_grammar = None
+    if _have_dispatch:
+        extxyz.extxyz_dispatch_free()
 
 # On Windows, route stdio through wrappers in _extxyz so we use the same
 # C runtime as extxyz_read_ll/extxyz_write_ll. find_library('c') returns
@@ -300,7 +310,8 @@ def cfseek(fp, offset, whence):
     return _fseek(fp, offset, whence)
 
 
-def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
+def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False,
+                     use_cleri=True):
     """Read a single frame, returning ``(nat, info, arrays)``.
 
     Uses the C-API ``_extxyz.read_frame`` fast path (read + dict marshalling in
@@ -317,6 +328,10 @@ def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
             with the fast whitespace tokenizer, which validates each field.
             If True, use the slower PCRE2 regex parser instead (marginally
             stricter than the tokenizer on numeric edge cases).
+        use_cleri (bool, optional): if True (default), parse the comment line
+            with the libcleri grammar. If False, use the faster first-char
+            dispatch parser, which accepts the same language (validated by a
+            differential conformance test) and builds the same dicts.
 
     Returns:
         nat, info, arrays: int, dict, dict
@@ -324,7 +339,8 @@ def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
     if _HAVE_C_READ and not _USE_LEGACY_MARSHAL and not verbose:
         try:
             return _ext_mod.read_frame(_kv_grammar.value, fp.value,
-                                       0 if use_regex else 1, comment)
+                                       0 if use_regex else 1, comment,
+                                       1 if use_cleri else 0)
         except _ext_mod.ExtXYZError as exc:
             # Re-raise as the canonical cextxyz.ExtXYZError so callers (and
             # tests) catch one exception type regardless of backend. Normalise
@@ -332,10 +348,11 @@ def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
             # core.py's "Failed to parse string" fallback still matches.
             raise ExtXYZError(str(exc).strip().replace('\n', '')) from None
     return read_frame_dicts_ctypes(fp, verbose=verbose, comment=comment,
-                                   use_regex=use_regex)
+                                   use_regex=use_regex, use_cleri=use_cleri)
 
 
-def read_frame_dicts_ctypes(fp, verbose=False, comment=None, use_regex=False):
+def read_frame_dicts_ctypes(fp, verbose=False, comment=None, use_regex=False,
+                            use_cleri=True):
     """Read a single frame using extxyz_read_ll_opts() and marshal the C
     dictionaries to Python via ctypes (the original, slower path).
 
@@ -361,7 +378,8 @@ def read_frame_dicts_ctypes(fp, verbose=False, comment=None, use_regex=False):
                                      ctypes.byref(arrays),
                                      comment,
                                      error_message,
-                                     ctypes.c_int(0 if use_regex else 1)):
+                                     ctypes.c_int(0 if use_regex else 1),
+                                     ctypes.c_int(1 if use_cleri else 0)):
             failure = True
             if (error_message.value == b'' or 
                 error_message.value.decode().startswith("Failed to parse int natoms from ' ")):

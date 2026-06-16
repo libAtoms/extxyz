@@ -166,7 +166,8 @@ static PyObject *dict_to_py(DictEntry *head)
 }
 
 /* read_frame(grammar_addr:int, fp_addr:int, use_tokenizer:int,
- *            comment:str|None=None) -> (nat:int, info:dict, arrays:dict)
+ *            comment:str|None=None, use_cleri:int=1)
+ *            -> (nat:int, info:dict, arrays:dict)
  * Raises EOFError at end of file, ExtXYZError on a parse error. */
 static PyObject *py_read_frame(PyObject *self, PyObject *args)
 {
@@ -174,8 +175,9 @@ static PyObject *py_read_frame(PyObject *self, PyObject *args)
     unsigned long long grammar_addr, fp_addr;
     int use_tokenizer;
     const char *comment = NULL;
-    if (!PyArg_ParseTuple(args, "KKi|z", &grammar_addr, &fp_addr,
-                          &use_tokenizer, &comment))
+    int use_cleri = 1;
+    if (!PyArg_ParseTuple(args, "KKi|zi", &grammar_addr, &fp_addr,
+                          &use_tokenizer, &comment, &use_cleri))
         return NULL;
 
     cleri_grammar_t *grammar = (cleri_grammar_t *)(uintptr_t)grammar_addr;
@@ -189,7 +191,8 @@ static PyObject *py_read_frame(PyObject *self, PyObject *args)
     int ok;
     Py_BEGIN_ALLOW_THREADS
     ok = extxyz_read_ll_opts(grammar, fp, &nat, &info, &arrays,
-                             (char *)comment, error_message, use_tokenizer);
+                             (char *)comment, error_message, use_tokenizer,
+                             use_cleri);
     Py_END_ALLOW_THREADS
 
     if (!ok) {

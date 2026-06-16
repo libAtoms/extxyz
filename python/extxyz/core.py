@@ -117,15 +117,16 @@ def _read_frame_pure_python(file, verbose=0, use_regex=False):
     return natoms, info, data, properties
 
 
-def _read_frame_dict(file, *, use_cextxyz=True, use_regex=False, verbose=0,
-                    comment=None) -> Frame | None:
+def _read_frame_dict(file, *, use_cextxyz=True, use_regex=False, use_cleri=True,
+                    verbose=0, comment=None) -> Frame | None:
     """Read one frame and return a :class:`Frame`, or ``None`` past EOF."""
     try:
         if use_cextxyz:
             try:
                 fpos = cextxyz.cftell(file)
                 natoms, info, arrays = cextxyz.read_frame_dicts(
-                    file, verbose=verbose, comment=comment, use_regex=use_regex)
+                    file, verbose=verbose, comment=comment, use_regex=use_regex,
+                    use_cleri=use_cleri)
             except cextxyz.ExtXYZError as msg:
                 error_message, = msg.args
                 if error_message.startswith('Failed to parse string'):
@@ -133,7 +134,7 @@ def _read_frame_dict(file, *, use_cextxyz=True, use_regex=False, verbose=0,
                     natoms, info, arrays = cextxyz.read_frame_dicts(
                         file, verbose=verbose,
                         comment="Properties=species:S:1:pos:R:3",
-                        use_regex=use_regex)
+                        use_regex=use_regex, use_cleri=use_cleri)
                 else:
                     raise
             info.pop('Properties', None)
@@ -162,7 +163,8 @@ def _read_frame_dict(file, *, use_cextxyz=True, use_regex=False, verbose=0,
 
 
 def iread_dicts(file, index=None, *,
-                use_cextxyz=True, use_regex=False, verbose=0, comment=None
+                use_cextxyz=True, use_regex=False, use_cleri=True, verbose=0,
+                comment=None
                 ) -> Iterator[Frame]:
     """Yield :class:`Frame` instances from ``file`` lazily.
 
@@ -200,8 +202,8 @@ def iread_dicts(file, index=None, *,
         for frame_idx in frame_indices:
             while current_frame <= frame_idx:
                 f = _read_frame_dict(file, use_cextxyz=use_cextxyz,
-                                     use_regex=use_regex, verbose=verbose,
-                                     comment=comment)
+                                     use_regex=use_regex, use_cleri=use_cleri,
+                                     verbose=verbose, comment=comment)
                 current_frame += 1
                 if f is None:
                     break

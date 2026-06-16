@@ -5,8 +5,8 @@
 #include "extxyz.h"
 
 int main(int argc, char *argv[]) {
-    if (argc < 3 || argc > 4) {
-        fprintf(stderr, "Usage: %s filename verbose [tok]\n", argv[0]);
+    if (argc < 3 || argc > 5) {
+        fprintf(stderr, "Usage: %s filename verbose [tok] [disp]\n", argv[0]);
         exit(1);
     }
     FILE *fp = fopen(argv[1], "r");
@@ -26,8 +26,10 @@ int main(int argc, char *argv[]) {
 
     int verbose = ! strcmp(argv[2], "T");
     // optional 3rd arg "tok"/"T" selects the whitespace tokenizer over the regex
-    int use_tokenizer = (argc == 4 && (! strcmp(argv[3], "tok") || ! strcmp(argv[3], "T")));
-    int success = extxyz_read_ll_opts(kv_grammar, fp, &nat, &info, &arrays, comment, error_message, use_tokenizer);
+    int use_tokenizer = (argc >= 4 && (! strcmp(argv[3], "tok") || ! strcmp(argv[3], "T")));
+    // optional 4th arg "disp" selects the first-char-dispatch comment parser
+    int use_cleri = ! (argc == 5 && ! strcmp(argv[4], "disp"));
+    int success = extxyz_read_ll_opts(kv_grammar, fp, &nat, &info, &arrays, comment, error_message, use_tokenizer, use_cleri);
     if (! success) {
         fprintf(stderr, "ERROR parsing '%s': %s\n", argv[1], error_message);
     } else {

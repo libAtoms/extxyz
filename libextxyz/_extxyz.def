@@ -7,6 +7,8 @@ EXPORTS
     extxyz_write_ll_fmt
     print_dict
     free_dict
+    extxyz_dispatch_init
+    extxyz_dispatch_free
     extxyz_fopen
     extxyz_fclose
     extxyz_ftell
