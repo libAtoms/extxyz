@@ -17,7 +17,7 @@ The latest development version can be installed via
 pip install git+https://github.com/libAtoms/extxyz
 ```
 
-This requires Python 3.10+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands. NumPy is also needed at build time (it is already a runtime dependency): its C headers build the `_extxyz` extension's fast read path. A build without NumPy headers still works — it falls back to the slower ctypes read path.
+This builds the C extension from source, so it needs **Python 3.10+** and a **C compiler** (C only — the Fortran `fextxyz` bindings are optional and off by default). `libcleri` is bundled (a git submodule in the repo, vendored into the sdist) and always compiled from source. **PCRE2** is the one external native library: the build uses a system PCRE2 if pkg-config finds one (install it with a command below), otherwise it downloads and compiles PCRE2 from the bundled meson wrap (this needs network access). **NumPy** is also a build-time dependency (it is already a runtime one): its C headers build the `_extxyz` fast read path — a build without them still works, falling back to the slower ctypes path. The remaining build tools (`meson`, `ninja`, `pyleri` for the grammar codegen) are installed automatically by pip.
 
 ```
 brew install pcre2          # macOS with Homebrew
@@ -25,7 +25,7 @@ sudo apt-get install libpcre2-dev   # Ubuntu / Debian
 vcpkg install pcre2:x64-windows     # Windows (via vcpkg)
 ```
 
-Binary wheels for Linux, macOS (arm64 and x86_64), and Windows are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases) and bundle PCRE2 and libcleri, so an end-user `pip install extxyz` does not need either system library.
+Binary wheels (CPython 3.10–3.14) for Linux, macOS (arm64 and x86_64), and Windows are built in the GitHub CI for each tagged [release](https://github.com/libAtoms/extxyz/releases) and bundle PCRE2 and libcleri, so an end-user `pip install extxyz` needs no compiler or system libraries. A source distribution (sdist) is also published; installing from it (e.g. on a platform without a wheel) builds from source and needs the toolchain above.
 
 Stable releases are made to PyPI, so you can install with
 
