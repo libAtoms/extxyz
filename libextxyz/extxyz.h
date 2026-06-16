@@ -69,7 +69,7 @@ typedef struct dict_entry_struct {
 void print_dict(DictEntry *dict);
 void free_dict(DictEntry *dict);
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message);
-int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message, int use_tokenizer);
+int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message, int use_tokenizer, int use_cleri);
 int extxyz_write_ll(FILE *fp, int nat, DictEntry *info, DictEntry *arrays);
 int extxyz_write_ll_fmt(FILE *fp, int nat, DictEntry *info, DictEntry *arrays,
                         const char *fmt_i, const char *fmt_f,

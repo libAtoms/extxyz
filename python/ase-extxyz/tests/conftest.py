@@ -30,13 +30,21 @@ def write(file, atoms, **kwargs):
 
 verbose = 0
 
+# USE_CLERI=false runs the C backend through the first-char dispatch comment
+# parser instead of the libcleri grammar (default True). Ignored by the
+# pure-Python backend (use_cextxyz=False), which always uses pyleri.
+_use_cleri = not os.environ.get('USE_CLERI', '').lower().startswith('f')
+
 if 'USE_CEXTXYZ' in os.environ:
     _flag = os.environ['USE_CEXTXYZ'].lower().startswith('t')
-    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': _flag}]
+    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': _flag,
+                             'use_cleri': _use_cleri}]
     write_kwargs_variants = [{'use_cextxyz': _flag}]
 else:
-    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': False},
-                            {'use_regex': False, 'use_cextxyz': True}]
+    read_kwargs_variants = [{'use_regex': False, 'use_cextxyz': False,
+                             'use_cleri': _use_cleri},
+                            {'use_regex': False, 'use_cextxyz': True,
+                             'use_cleri': _use_cleri}]
     write_kwargs_variants = [{'use_cextxyz': False},
                              {'use_cextxyz': True}]
 

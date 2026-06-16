@@ -57,21 +57,21 @@ forces, and a couple of `info` keys):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.read_dicts` (no Atoms) | speedup, plugin / built-in | speedup, parser / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|     10 |   0.00 MB | 0.107 ms | 0.074 ms | 0.119 ms | 1.46× | 0.90× |
-|    100 |   0.01 MB | 0.203 ms | 0.096 ms | 0.145 ms | 2.11× | 1.41× |
-|  1 000 |   0.11 MB | 1.170 ms | 0.277 ms | 0.367 ms | 4.23× | 3.18× |
-|  4 000 |   0.44 MB | 4.414 ms | 0.908 ms | 1.122 ms | 4.86× | 3.93× |
-| 16 000 |   1.74 MB | 17.5 ms  | 3.40 ms  | 3.96 ms  | 5.15× | 4.42× |
-| 64 000 |   6.98 MB | 69.9 ms  | 13.5 ms  | 15.6 ms  | 5.17× | 4.48× |
-|200 000 |  21.80 MB |218.8 ms  | 42.8 ms  | 49.4 ms  | 5.12× | 4.43× |
+|     10 |   0.00 MB | 0.130 ms | 0.073 ms | 0.111 ms | 1.77× | 1.18× |
+|    100 |   0.01 MB | 0.220 ms | 0.086 ms | 0.138 ms | 2.56× | 1.60× |
+|  1 000 |   0.11 MB | 1.177 ms | 0.240 ms | 0.350 ms | 4.89× | 3.36× |
+|  4 000 |   0.44 MB | 4.429 ms | 0.705 ms | 0.943 ms | 6.28× | 4.70× |
+| 16 000 |   1.74 MB | 17.8 ms  | 2.59 ms  | 3.40 ms  | 6.87× | 5.24× |
+| 64 000 |   6.98 MB | 72.6 ms  | 11.5 ms  | 14.7 ms  | 6.30× | 4.96× |
+|200 000 |  21.80 MB |224.8 ms  | 35.9 ms  | 44.2 ms  | 6.26× | 5.09× |
 
 ![Read-time benchmark](https://raw.githubusercontent.com/libAtoms/extxyz/master/benchmarks/read_speedup.png)
 
 Below ~100 atoms per frame the per-call setup (file open, PCRE2 JIT
-compile, libcleri grammar walk for the comment line) is larger than
-the regex match itself, so the built-in is faster on tiny files. From
-~1 000 atoms upwards the parser dominates and `cextxyz` runs at a
-steady ~5× over the built-in end-to-end (~4.4× for the parser alone).
+compile, libcleri grammar walk for the comment line) is a larger share
+of the work, so the margin shrinks on tiny files. From ~1 000 atoms
+upwards the parser dominates and `cextxyz` runs at a steady ~6× over
+the built-in end-to-end (~5× for the regex parser alone).
 The two cextxyz curves track each other closely: the `Frame → Atoms`
 translation in the ASE plugin is kept cheap by aliasing the parser's
 per-atom buffers directly into `atoms.arrays` (so `Atoms.__init__`
@@ -97,20 +97,50 @@ The single biggest remaining cost is the per-line `pcre2_match`. The default
 per-atom lines are split on whitespace and each field is parsed and validated by
 its column type, with no regex compile or match. It is **the default since
 v0.4.2** (pass `use_regex=True` for the strict regex parser), and a further
-**~1.5×** on top of everything above:
+**~1.8×** on top of everything above:
 
 | atoms / frame | `read_dicts` (regex) | `read_dicts` (`use_regex=False`) | tokenizer / regex | tokenizer / built-in |
 |--:|--:|--:|--:|--:|
-|   1 000 | 0.367 ms | 0.219 ms | 1.68× | 5.34× |
-|  16 000 | 3.96 ms  | 2.63 ms  | 1.50× | 6.66× |
-|  64 000 | 15.6 ms  | 10.4 ms  | 1.50× | 6.70× |
-| 200 000 | 49.4 ms  | 32.9 ms  | 1.50× | 6.64× |
+|   1 000 | 0.350 ms | 0.161 ms | 2.17× | 7.30× |
+|  16 000 | 3.40 ms  | 1.95 ms  | 1.74× | 9.11× |
+|  64 000 | 14.7 ms  | 8.21 ms  | 1.79× | 8.85× |
+| 200 000 | 44.2 ms  | 24.8 ms  | 1.78× | 9.05× |
 
 It validates each field (a malformed numeric/bool or the wrong field count is a
 clear parse error, not a silent `0`) and is bit-identical to the regex parser on
 valid input. The trade-off is that it is marginally more lenient than the grammar
 on a few numeric edge cases (e.g. leading-zero integers `007`, `1.`/`.5`); pass
 `use_regex=True` if you need the grammar enforced exactly.
+
+### Comment-line parser (`use_cleri=False`)
+
+The remaining per-frame cost is parsing the comment line. By default this walks
+the libcleri grammar (PCRE2-backed). `use_cleri=False` (C backend only) instead
+uses a hand-written first-char-dispatch parser that accepts the **same** language
+— validated bit-identical against the grammar by a differential conformance test
+(`tests/test_dispatch_parity.py`), with libcleri kept as the canonical grammar /
+oracle / fallback — but builds the dicts in a single pass instead of constructing
+and re-walking a generic parse tree.
+
+Because the win is per comment line, it is amortised away on single huge frames
+(the tables above are unchanged) and grows as frames get smaller. Sweeping
+atoms-per-frame at a fixed ~1 M total atoms (C reader, whitespace tokenizer in
+both; only the comment parser differs):
+
+| atoms / frame | frames | `read_dicts` (cleri) | (`use_cleri=False`) | dispatch / cleri | full ASE read |
+|--:|--:|--:|--:|--:|--:|
+|     5 | 200 000 | 3.54 s  | 2.00 s  | 1.77× | 1.36× |
+|    10 | 100 000 | 1.86 s  | 1.07 s  | 1.74× | 1.34× |
+|    20 |  50 000 | 1.01 s  | 0.613 s | 1.65× | 1.30× |
+|    50 |  20 000 | 0.490 s | 0.332 s | 1.47× | 1.26× |
+|   100 |  10 000 | 0.310 s | 0.231 s | 1.34× | 1.19× |
+|   500 |   2 000 | 0.170 s | 0.153 s | 1.11× | 1.07× |
+| 2 000 |     500 | 0.144 s | 0.135 s | 1.07× | 1.02× |
+
+It is the libcleri grammar (`use_cleri=True`) by default for now; pass
+`use_cleri=False` for the dispatch parser. ~75 % of its speedup is from not
+building/walking a generic cleri parse tree (the matching itself is a small part
+of the cost), so it stays grammar-faithful while skipping cleri's machinery.
 
 ### Marshalling in C
 
@@ -144,6 +174,8 @@ Reproduce locally (requires `extxyz`, `ase-extxyz`, `ase`, `matplotlib`):
 ```bash
 python benchmarks/bench_read.py --max-atoms 200000 --repeats 3
 python benchmarks/plot_bench.py
+# comment-line parser, many small frames (use_cleri table above):
+python benchmarks/bench_cleri_frames.py --total 1000000 --repeats 3
 # writing (see below):
 python benchmarks/bench_write.py --max-atoms 200000 --repeats 5
 python benchmarks/plot_bench.py --in benchmarks/write_results.csv --out benchmarks/write_speedup.png
@@ -157,11 +189,11 @@ than `extxyz-ng`):
 
 | atoms / frame | file size | ASE built-in `extxyz` | `cextxyz` plugin | `extxyz.write_dicts` (no Atoms) | speedup, plugin / built-in | speedup, writer / built-in |
 |--:|--:|--:|--:|--:|--:|--:|
-|  1 000 |  0.11 MB |  2.800 ms | 0.639 ms | 0.547 ms | 4.39× | 5.11× |
-|  4 000 |  0.44 MB |  10.9 ms  | 2.391 ms | 2.163 ms | 4.55× | 5.03× |
-| 16 000 |  1.74 MB |  43.9 ms  | 8.426 ms | 7.273 ms | 5.21× | 6.03× |
-| 64 000 |  6.98 MB | 166.6 ms  | 31.6 ms  | 28.2 ms  | 5.26× | 5.92× |
-|200 000 |  21.80 MB | 521.3 ms  | 106.7 ms  | 92.5 ms  | 4.88× | 5.64× |
+|  1 000 |  0.11 MB |  2.794 ms | 0.630 ms | 0.565 ms | 4.44× | 4.95× |
+|  4 000 |  0.44 MB |  10.8 ms  | 2.104 ms | 1.957 ms | 5.11× | 5.50× |
+| 16 000 |  1.74 MB |  41.4 ms  | 8.681 ms | 7.667 ms | 4.77× | 5.41× |
+| 64 000 |  6.98 MB | 167.3 ms  | 33.5 ms  | 28.8 ms  | 4.99× | 5.80× |
+|200 000 |  21.80 MB | 509.7 ms  | 102.6 ms  | 88.2 ms  | 4.97× | 5.78× |
 
 ![Write-time benchmark](https://raw.githubusercontent.com/libAtoms/extxyz/master/benchmarks/write_speedup.png)
 

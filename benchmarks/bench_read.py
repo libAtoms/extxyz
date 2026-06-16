@@ -82,12 +82,14 @@ def time_read_ase(path: Path, fmt: str, repeats: int) -> float:
 
 
 def time_read_dicts(path: Path, repeats: int) -> float:
-    """Time the ASE-free dict-based reader — what extxyz.read_dicts costs."""
-    return _best_of(lambda: extxyz.read_dicts(str(path)), repeats)
+    """Time the ASE-free dict-based reader with the strict regex per-atom parser
+    (use_regex=True) — the ``read_dicts`` baseline in the README tables. The
+    package default is now the tokenizer (use_regex=False), timed below."""
+    return _best_of(lambda: extxyz.read_dicts(str(path), use_regex=True), repeats)
 
 
 def time_read_dicts_fast(path: Path, repeats: int) -> float:
-    """As above but with the opt-in whitespace tokenizer (use_regex=False)."""
+    """As above but with the default whitespace tokenizer (use_regex=False)."""
     return _best_of(lambda: extxyz.read_dicts(str(path), use_regex=False), repeats)
 
 

@@ -8,7 +8,7 @@ run_command(
 )
 
 # Build and install the extension module
-extxyz_c_sources = ['extxyz.c', 'extxyz_kv_grammar.c', 'fast_format.c']
+extxyz_c_sources = ['extxyz.c', 'extxyz_kv_grammar.c', 'fast_format.c', 'extxyz_dispatch.c']
 
 # The _extxyz extension is loaded both via ctypes.CDLL (for write/grammar/stdio)
 # and — when built with numpy — imported as a real C-API module for the fast

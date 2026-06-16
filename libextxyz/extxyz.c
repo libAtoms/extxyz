@@ -8,6 +8,7 @@
 
 #include "extxyz_kv_grammar.h"
 #include "extxyz.h"
+#include "extxyz_dispatch.h"
 #include "fast_format.h"
 
 void init_DictEntry(DictEntry *entry, const char *key, const int key_len) {
@@ -415,9 +416,15 @@ void free_DataLinkedList(DataLinkedList *list, enum data_type data_t, int free_s
         return;
     }
 
+    (void) data_t;
     DataLinkedList *next_data;
     for (DataLinkedList *data = list; data; data = next_data) {
-        if (data_t == data_s && free_string_content) {
+        // Key string-freeing on each node's own type, not the entry's: on a
+        // parse error the list is freed before DataLinkedList_to_data sets the
+        // entry data_t, so an entry data_t of data_none would otherwise leak
+        // the per-node string content. (On success the list is already NULL
+        // here, so this loop is a no-op and never double-frees.)
+        if (data->data_t == data_s && free_string_content) {
             free(data->data.s);
         }
         next_data = data->next;
@@ -688,7 +695,7 @@ char *read_line(char **line, unsigned long *line_len, FILE *fp) {
 // validating each field, instead of compiling and matching a per-line PCRE2
 // regex. Faster, opt-in; slightly more lenient than the grammar on numeric
 // edge cases. extxyz_read_ll (below) is the regex default.
-int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message, int use_tokenizer) {
+int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message, int use_tokenizer, int use_cleri) {
     char *line;
     unsigned long line_len;
     unsigned long line_len_init = 1024;
@@ -724,24 +731,34 @@ int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEnt
         return 0;
     }
     // actually parse - optionally replace line read from file with `comment` argument
-    cleri_parse_t * tree;
-    if (comment != NULL) {
-        tree = cleri_parse(kv_grammar, comment);
-    } else {
-        tree = cleri_parse(kv_grammar, line);
-    }
-    if (! tree->is_valid) {
-        sprintf(error_message, "Failed to parse string at pos %zd", tree->pos);
+    // use_cleri (default) walks the libcleri grammar; otherwise the equivalent
+    // first-char-dispatch parser (extxyz_dispatch_parse) builds the same dict.
+    if (use_cleri) {
+        cleri_parse_t * tree;
+        if (comment != NULL) {
+            tree = cleri_parse(kv_grammar, comment);
+        } else {
+            tree = cleri_parse(kv_grammar, line);
+        }
+        if (! tree->is_valid) {
+            sprintf(error_message, "Failed to parse string at pos %zd", tree->pos);
+            cleri_parse_free(tree);
+            free(line);
+            return 0;
+        }
+        *info = tree_to_dict(tree, error_message);
         cleri_parse_free(tree);
-        free(line);
-        return 0;
-    }
-    *info = tree_to_dict(tree, error_message);
-    cleri_parse_free(tree);
-    if (! info) {
-        sprintf(error_message, "Failed to convert tree to dict");
-        free(line);
-        return 0;
+        if (! *info) {
+            sprintf(error_message, "Failed to convert tree to dict");
+            free(line);
+            return 0;
+        }
+    } else {
+        *info = extxyz_dispatch_parse(comment != NULL ? comment : line, error_message);
+        if (! *info) {
+            free(line);
+            return 0;
+        }
     }
 
     // grab and parse Properties string
@@ -1096,9 +1113,10 @@ int extxyz_read_ll_opts(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEnt
     return 1;
 }
 
-// Backward-compatible reader: per-atom lines parsed with the PCRE2 regex.
+// Backward-compatible reader: per-atom lines parsed with the PCRE2 regex,
+// comment line parsed with the libcleri grammar.
 int extxyz_read_ll(cleri_grammar_t *kv_grammar, FILE *fp, int *nat, DictEntry **info, DictEntry **arrays, char *comment, char *error_message) {
-    return extxyz_read_ll_opts(kv_grammar, fp, nat, info, arrays, comment, error_message, 0);
+    return extxyz_read_ll_opts(kv_grammar, fp, nat, info, arrays, comment, error_message, 0, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
