@@ -71,6 +71,23 @@ extxyz.print_dict.args = [Dict_entry_ptr]
 
 extxyz.free_dict.args = [Dict_entry_ptr]
 
+# The same _extxyz .so is also importable as a CPython C-API module when built
+# with numpy (libextxyz/pyext.c). When present it provides `read_frame`, which
+# does the read + dict marshalling entirely in C — far faster than the per-node
+# ctypes loop in c_to_py_dict. A numpy-less C/Fortran/Julia build has no
+# PyInit__extxyz, so this import fails and we fall back to the ctypes path.
+try:
+    from . import _extxyz as _ext_mod
+    _HAVE_C_READ = hasattr(_ext_mod, 'read_frame')
+except ImportError:
+    _ext_mod = None
+    _HAVE_C_READ = False
+
+# Escape hatch: force the legacy ctypes marshalling (for A/B benchmarking and as
+# a safety valve). Any value other than ''/0/false enables it.
+_USE_LEGACY_MARSHAL = os.environ.get('EXTXYZ_LEGACY_MARSHAL', '').lower() \
+    not in ('', '0', 'false', 'no')
+
 
 def _read_contiguous_strings(addr, width, count):
     """Read a per-atom string column stored by the C parser as one contiguous
@@ -284,7 +301,13 @@ def cfseek(fp, offset, whence):
 
 
 def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
-    """Read a single frame using extxyz_read_ll_opts() C function
+    """Read a single frame, returning ``(nat, info, arrays)``.
+
+    Uses the C-API ``_extxyz.read_frame`` fast path (read + dict marshalling in
+    C) when available; otherwise falls back to the ctypes marshalling in
+    :func:`read_frame_dicts_ctypes`. ``verbose`` (which dumps the C dicts to
+    stdout) always uses the ctypes path. Set ``EXTXYZ_LEGACY_MARSHAL=1`` to
+    force the ctypes path.
 
     Args:
         fp (FILE_ptr): open file pointer, as returned by `cfopen()`
@@ -294,6 +317,27 @@ def read_frame_dicts(fp, verbose=False, comment=None, use_regex=False):
             with the fast whitespace tokenizer, which validates each field.
             If True, use the slower PCRE2 regex parser instead (marginally
             stricter than the tokenizer on numeric edge cases).
+
+    Returns:
+        nat, info, arrays: int, dict, dict
+    """
+    if _HAVE_C_READ and not _USE_LEGACY_MARSHAL and not verbose:
+        try:
+            return _ext_mod.read_frame(_kv_grammar.value, fp.value,
+                                       0 if use_regex else 1, comment)
+        except _ext_mod.ExtXYZError as exc:
+            # Re-raise as the canonical cextxyz.ExtXYZError so callers (and
+            # tests) catch one exception type regardless of backend. Normalise
+            # the message exactly as the legacy path did (.strip().replace) so
+            # core.py's "Failed to parse string" fallback still matches.
+            raise ExtXYZError(str(exc).strip().replace('\n', '')) from None
+    return read_frame_dicts_ctypes(fp, verbose=verbose, comment=comment,
+                                   use_regex=use_regex)
+
+
+def read_frame_dicts_ctypes(fp, verbose=False, comment=None, use_regex=False):
+    """Read a single frame using extxyz_read_ll_opts() and marshal the C
+    dictionaries to Python via ctypes (the original, slower path).
 
     Returns:
         nat, info, arrays: int, dict, dict

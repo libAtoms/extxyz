@@ -7,6 +7,11 @@ extxyz.egg-info/
 *.o
 pcre2-10.37/
 venv/
+.venv*/
+
+# Large benchmark inputs / derived files (never commit)
+/mad-train.xyz
+/scope_e*.xyz
 
 # Claude notes (don't commit)
 MESON_BUILD_STATUS.md

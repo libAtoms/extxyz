@@ -10,14 +10,32 @@ run_command(
 # Build and install the extension module
 extxyz_c_sources = ['extxyz.c', 'extxyz_kv_grammar.c', 'fast_format.c']
 
-# Python extension (loaded by cextxyz.py via ctypes.CDLL)
+# The _extxyz extension is loaded both via ctypes.CDLL (for write/grammar/stdio)
+# and — when built with numpy — imported as a real C-API module for the fast
+# read path (pyext.c provides PyInit__extxyz + read_frame). pyext.c is added
+# ONLY here, never to the standalone shared library or the C/Fortran drivers.
+extxyz_ext_sources = extxyz_c_sources
+extxyz_ext_cargs = []
+# MSVC exports are pinned by a .def; the numpy build adds PyInit__extxyz so the
+# module is importable on Windows, the numpy-less build must NOT list it (the
+# symbol doesn't exist then -> link error).
+extxyz_ext_def = '_extxyz.def'
+if have_numpy
+    extxyz_ext_sources += ['pyext.c']
+    extxyz_ext_cargs += [numpy_inc_arg]
+    extxyz_ext_def = '_extxyz_pyext.def'
+endif
+
+# Python extension (loaded by cextxyz.py via ctypes.CDLL, and imported when
+# built with the C-API fast read path)
 module = python.extension_module(
     '_extxyz',
-    extxyz_c_sources,
+    extxyz_ext_sources,
     install: true,
     subdir: 'extxyz',
+    c_args: extxyz_ext_cargs,
     gnu_symbol_visibility: 'default', # keep symbols public on GCC/Clang
-    vs_module_defs: '_extxyz.def',    # explicit exports for MSVC (loaded via ctypes)
+    vs_module_defs: extxyz_ext_def,   # explicit exports for MSVC (loaded via ctypes)
     dependencies: [cleri, pcre2]
 )
 

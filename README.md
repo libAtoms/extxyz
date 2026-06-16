@@ -17,7 +17,7 @@ The latest development version can be installed via
 pip install git+https://github.com/libAtoms/extxyz
 ```
 
-This requires Python 3.10+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands.
+This requires Python 3.10+ and a working C compiler, plus the PCRE2 and libcleri libraries. `libcleri` is included here as a submodule and will be compiled automatically, but you may need to install PCRE2 with something similar to one of the following commands. NumPy is also needed at build time (it is already a runtime dependency): its C headers build the `_extxyz` extension's fast read path. A build without NumPy headers still works — it falls back to the slower ctypes read path.
 
 ```
 brew install pcre2          # macOS with Homebrew
@@ -111,6 +111,21 @@ clear parse error, not a silent `0`) and is bit-identical to the regex parser on
 valid input. The trade-off is that it is marginally more lenient than the grammar
 on a few numeric edge cases (e.g. leading-zero integers `007`, `1.`/`.5`); pass
 `use_regex=True` if you need the grammar enforced exactly.
+
+### Marshalling in C
+
+Once the C reader has parsed a frame it has to hand the `info`/`arrays` data
+back to Python. This is done inside the `_extxyz` extension (numpy C-API):
+each frame's dict of scalars and numpy arrays is built directly in C, rather
+than walking the C linked list one field at a time through `ctypes`. It is
+bit-identical to the previous path (and falls back to it automatically if the
+extension was built without numpy). The win is per-frame, so it matters most on
+files with **many small frames** and/or **rich comment lines**, where per-frame
+overhead — not per-atom parsing — dominates. On the large single-frame Cu
+benchmark above the effect is small; on a 76k-frame, ~27-atom-per-frame training
+set it cut the dict-level parse from ~3.6&nbsp;s to ~2.3&nbsp;s (~1.5×) and the
+full ASE read from ~4.8&nbsp;s to ~3.3&nbsp;s, removing essentially all of the
+former per-field `ctypes` cost.
 
 The big parser-side lever was PCRE2 JIT (`pcre2_jit_compile(re,
 PCRE2_JIT_COMPLETE)` after `pcre2_compile`); a `sample`-based profile

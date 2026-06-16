@@ -43,6 +43,10 @@ jobs:
         # to satisfy that from PyPI (where 0.3.0 isn't published yet).
         python -m pip install . --verbose
         python -m pip install --no-deps ./python/ase-extxyz
+    - name: Assert C-API fast read path is active
+      # numpy is a build-time dependency, so a source build must produce the
+      # C-API read path; fail loudly if it silently fell back to ctypes.
+      run: python tools/assert_c_read_path.py
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
