@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, macos-latest, macos-15-intel, windows-latest]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-latest, macos-15-intel, windows-latest]
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
       fail-fast: false
 
@@ -70,6 +70,7 @@ jobs:
            CIBW_SKIP: pp* *musl*
            CIBW_ARCHS_LINUX: "auto64"
            CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
            CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
            # macOS deployment target + PCRE2 PKG_CONFIG_PATH live in
            # [tool.cibuildwheel.macos.environment] in pyproject.toml (a single
