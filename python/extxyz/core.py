@@ -32,9 +32,10 @@ from .grammar import (Properties, escape, extxyz_value_to_string, grammar,
 class Frame:
     """One parsed extxyz frame, no ASE types.
 
-    ``cell`` is the (3, 3) lattice as the comment line was written: rows are
-    the ``Lattice="..."`` entries (so for ASE's column-vector convention the
-    plugin transposes when constructing ``Atoms``).
+    ``cell`` is the (3, 3) lattice with the cell vectors as its COLUMNS
+    (``cell[:, i]`` is ``a_i``): an old-style ``Lattice="a1 a2 a3"`` lists them in
+    turn, and a nested ``Lattice=[[...], [...], [...]]`` is this matrix as written.
+    ASE stores the vectors as rows, so the plugin transposes in both directions.
 
     ``arrays`` keys use the *extxyz* column names (e.g. ``"species"``,
     ``"pos"``, ``"velo"``) — not the ASE-mapped names. Translation lives in
@@ -270,7 +271,9 @@ def _write_frame_python(file, frame: Frame, *, columns=None,
         props._data[name] = value
 
     info = dict(frame.info)
-    info['Lattice'] = frame.cell.T  # serialize column-major to match comment-line layout
+    # old-style 9-number Lattice (as the C writer and ASE write it, and as ASE's reader
+    # requires): a1, a2, a3 in turn, i.e. Frame.cell's columns, at full repr precision
+    info['Lattice'] = ' '.join(repr(float(x)) for x in np.asarray(frame.cell, float).ravel(order='F'))
     info['pbc'] = frame.pbc
     info['Properties'] = props.property_string
 
@@ -284,7 +287,7 @@ def _write_frame_cextxyz(c_file, frame: Frame, *, columns=None,
                          format_dict=None, verbose=0):
     """Write one Frame using the C writer."""
     info = dict(frame.info)
-    info['Lattice'] = frame.cell.T  # match the column-major layout of comment-line Lattice="..."
+    info['Lattice'] = frame.cell  # the C writer emits Lattice old-style, column-major: a1, a2, a3
     info['pbc'] = frame.pbc
 
     if columns is None:

@@ -169,7 +169,7 @@ def _atoms_to_frame(atoms: Atoms, *,
             value = converter(atoms, value)
         out_arrays[ext_name] = value
 
-    cell = np.asarray(atoms.cell.array, dtype=float)
+    cell = np.asarray(atoms.cell.array, dtype=float).T     # Frame.cell: the vectors are its columns
     pbc = np.asarray(atoms.get_pbc(), dtype=bool)
     return Frame(natoms=len(atoms), cell=cell, pbc=pbc, info=info, arrays=out_arrays)
 
@@ -425,7 +425,7 @@ class ExtXYZTrajectoryWriter:
             cols.insert(1 if 'species' in frame.arrays else 0, 'pos')
 
         info = dict(frame.info)
-        info['Lattice'] = frame.cell.T
+        info['Lattice'] = frame.cell   # the C writer emits Lattice old-style, column-major: a1, a2, a3
         info['pbc'] = frame.pbc
 
         self._cextxyz.write_frame_dicts(self._fp, frame.natoms, info,
