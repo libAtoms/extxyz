@@ -89,3 +89,37 @@ def test_trajectory_writer_callable_for_optimizers(tmp_path):
         traj()
     back = ase.io.read(str(out), format='cextxyz', index=':')
     assert len(back) == 2
+
+
+def _triclinic():
+    from ase import Atoms
+    cell = [[4.0, 0.0, 0.0], [1.0, 3.0, 0.0], [0.5, 0.7, 2.0]]     # rows a1, a2, a3: not symmetric
+    return Atoms('Si2', scaled_positions=[[0, 0, 0], [0.3, 0.4, 0.5]], cell=cell, pbc=True)
+
+
+@pytest.mark.parametrize('read_c', [True, False])
+@pytest.mark.parametrize('write_c', [True, False])
+def test_triclinic_cell_round_trips(tmp_path, write_c, read_c):
+    """Every cell in the other round-trip tests is symmetric, where a transpose of the
+    lattice is invisible; a triclinic cell must survive both writers and both readers,
+    and ASE's own extxyz reader (an independent parser) must read the same cell."""
+    from ase_extxyz.io import read_cextxyz, write_cextxyz
+    atoms = _triclinic()
+    out = tmp_path / 'tri.xyz'
+    write_cextxyz(str(out), atoms, use_cextxyz=write_c)
+    (back,) = read_cextxyz(str(out), index=0, use_cextxyz=read_c)     # a generator of Atoms
+    np.testing.assert_allclose(back.cell.array, atoms.cell.array, atol=1e-7)
+    np.testing.assert_allclose(back.positions, atoms.positions, atol=1e-7)
+    np.testing.assert_allclose(ase.io.read(str(out), format='extxyz').cell.array, atoms.cell.array, atol=1e-7)
+
+
+def test_trajectory_writer_keeps_a_triclinic_cell(tmp_path):
+    from ase_extxyz.io import ExtXYZTrajectoryWriter, read_cextxyz
+    atoms = _triclinic()
+    out = tmp_path / 'traj.xyz'
+    w = ExtXYZTrajectoryWriter(str(out))
+    w.write(atoms)
+    w.close()
+    (back,) = read_cextxyz(str(out), index=0)
+    np.testing.assert_allclose(back.cell.array, atoms.cell.array, atol=1e-7)
+    np.testing.assert_allclose(ase.io.read(str(out), format='extxyz').cell.array, atoms.cell.array, atol=1e-7)
